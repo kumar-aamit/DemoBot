@@ -81,7 +81,8 @@ policy -> prompt_defense -> nemo_input_rails -> <blueprint core> -> safety
       -> response_defense -> governance
 ```
 
-Blueprints (chat header **Blueprint** dropdown, `ACTIVE_BLUEPRINT`, or per request):
+Blueprints (`ACTIVE_BLUEPRINT`, `PUT /api/settings/blueprint`, or per request —
+the UI has no picker and always runs the default):
 
 - **DemoBot Multi-Agent** (default): `intake -> synthesizer` — the theme's domain
   agent answers directly (one LLM call). Toggling **Multi-Agent Mode** ON expands

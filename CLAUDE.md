@@ -59,8 +59,10 @@ palette does — which is another reason not to.
 ## Blueprint feature parity
 
 `backend/agents/blueprints/` holds the selectable agentic architectures
-(`demobot_multi_agent`, `nvidia_virtual_assistant`; the chat header's
-**Blueprint** dropdown). A blueprint contributes only its **generation core**;
+(`demobot_multi_agent`, `nvidia_virtual_assistant`). The UI has **no Blueprint
+picker** — chat turns run `ACTIVE_BLUEPRINT` (`demobot_multi_agent`) unless a
+caller overrides it per request or via `PUT /api/settings/blueprint` (runtime
+only, never persisted). A blueprint contributes only its **generation core**;
 everything else is shared and must behave identically whichever blueprint is
 selected:
 

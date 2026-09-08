@@ -176,8 +176,10 @@ sandbox reports denials. Verify: `./tests/observability/verify_nemoclaw_observab
   GPU replica `ec2-bootstrap.sh --with-nim [model]` runs `demobot-nim.service`.
 - **NeMo Guardrails** (drawer toggle) needs `nemoguardrails` installed (core
   only) and the Settings card's master switch. Judge = the active chat model.
-- **Blueprint** dropdown (header) switches the agentic architecture; every
-  guardrail runs in both. Details: `docs/nvidia-integration.md`.
+- **Blueprint** (the agentic architecture) is not selectable in the UI: turns
+  run `ACTIVE_BLUEPRINT` (`demobot_multi_agent`) unless a caller passes
+  `blueprint=` per request. Every guardrail runs in both. Details:
+  `docs/nvidia-integration.md`.
 
 ## Verify it's serving
 

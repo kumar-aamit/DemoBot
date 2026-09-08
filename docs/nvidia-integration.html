@@ -68,8 +68,8 @@ switched on deliberately.</p>
 <td>nothing for the policy layer; Docker/Colima + a GPU host for the runtime</td>
 </tr>
 <tr>
-<td><strong>Blueprint</strong> dropdown</td>
-<td>chat header</td>
+<td><strong>Blueprint</strong> selection</td>
+<td><code>ACTIVE_BLUEPRINT</code> / per request (no UI picker)</td>
 <td>nothing — both architectures share every guardrail</td>
 </tr>
 <tr>
@@ -170,7 +170,7 @@ pill reads <strong>RUNTIME</strong> while denials are arriving, <strong>POLICY</
   NemoClaw-managed local NIM). DemoBot's <code>provider=nvidia</code> stays local regardless.</li>
 <li>Verify: <code>./tests/observability/verify_nemoclaw_observability.sh</code>.</li>
 </ul>
-<h2 id="4-blueprints-header-dropdown-and-the-parity-rule">4. Blueprints (header dropdown) and the parity rule</h2>
+<h2 id="4-blueprints-active_blueprint-per-request-and-the-parity-rule">4. Blueprints (<code>ACTIVE_BLUEPRINT</code> / per request) and the parity rule</h2>
 <p><code>backend/agents/blueprints/</code> holds the selectable architectures:</p>
 <ul>
 <li><strong>DemoBot Multi-Agent</strong> (<code>demobot_multi_agent</code>, default): intake →

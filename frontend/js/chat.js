@@ -709,9 +709,10 @@ async function onEmissionChange() {
     } catch (e) { /* ignore */ }
 }
 
-// ---- Blueprint (agentic architecture) — the server default lives in
-// settings_store; GET /api/settings/blueprint lists every choice with its
-// stage labels and what Multi-Agent Mode means for it. ----
+// ---- Blueprint (agentic architecture) — there is no picker in the UI: chat
+// turns always run the server default (DemoBot Multi-Agent, ACTIVE_BLUEPRINT).
+// GET /api/settings/blueprint is still read so the stage labels and the
+// Multi-Agent card copy match whichever core is active. ----
 let _blueprintState = { active: '', choices: [] };
 
 function activeBlueprint() {
@@ -734,27 +735,8 @@ async function refreshActiveBlueprint() {
         if (!res.ok) return;
         const data = await res.json();   // {active, choices:[{key,label,description,workflow_name,stage_labels,core_nodes,multi_agent_note}]}
         _blueprintState = { active: data.active || '', choices: data.choices || [] };
-        const sel = document.getElementById('blueprintSelect');
-        if (sel && !_selOpen('blueprintSelect')) {
-            sel.innerHTML = _blueprintState.choices
-                .map(b => `<option value="${b.key}" title="${b.description}">${b.label}</option>`).join('');
-            sel.value = _blueprintState.active;
-            const bp = activeBlueprint();
-            if (bp) sel.title = bp.description;
-        }
         applyBlueprintLabels();
     } catch (e) { /* best-effort: never break the chat */ }
-}
-
-async function onBlueprintChange() {
-    const key = document.getElementById('blueprintSelect').value;
-    try {
-        await fetch('/api/settings/blueprint', {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key }),
-        });
-    } catch (e) { /* ignore */ }
-    refreshActiveBlueprint();
 }
 
 function refreshIndicators() {

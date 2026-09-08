@@ -10,7 +10,7 @@ switched on deliberately.
 | Nemotron 3 Super / Nano | header **Model** dropdown (per NIM image) | the GPU the image documents (Nano: 1× A10G; Super: 8× H100) |
 | **NeMo Guardrails** | Demo Controls drawer toggle | `nemoguardrails` installed + master switch on the Settings card |
 | **NemoClaw Guardrails** | Demo Controls drawer toggle | nothing for the policy layer; Docker/Colima + a GPU host for the runtime |
-| **Blueprint** dropdown | chat header | nothing — both architectures share every guardrail |
+| **Blueprint** selection | `ACTIVE_BLUEPRINT` / per request (no UI picker) | nothing — both architectures share every guardrail |
 | Session analytics | `GET /api/analytics/...` | nothing (uses the active model on demand) |
 
 ## 1. `provider=nvidia` is local inference, always
@@ -110,7 +110,7 @@ pill reads **RUNTIME** while denials are arriving, **POLICY** otherwise.
   NemoClaw-managed local NIM). DemoBot's `provider=nvidia` stays local regardless.
 - Verify: `./tests/observability/verify_nemoclaw_observability.sh`.
 
-## 4. Blueprints (header dropdown) and the parity rule
+## 4. Blueprints (`ACTIVE_BLUEPRINT` / per request) and the parity rule
 
 `backend/agents/blueprints/` holds the selectable architectures:
 

@@ -402,12 +402,12 @@ class Settings(BaseSettings):
     use_agentic_engine: bool = True
     # Name promoted to the OTel GenAI Workflow span (AI Agent Monitoring groups
     # traces by this workflow name in Splunk Observability Cloud). Since the
-    # blueprint dropdown, each blueprint carries its own workflow_name; this
-    # remains the fallback for callers that predate it.
+    # blueprints, each blueprint carries its own workflow_name; this remains
+    # the fallback for callers that predate them.
     agentic_workflow_name: str = "demobot_multi_agent"
-    # Which agentic architecture serves chat turns by default (the chat
-    # header's "Blueprint" dropdown persists a runtime override in
-    # settings_store). Keys: demobot_multi_agent (the shipped architecture) |
+    # Which agentic architecture serves chat turns by default. There is no
+    # picker in the UI, so this (or a per-request override) is the only way to
+    # leave it. Keys: demobot_multi_agent (the shipped architecture) |
     # nvidia_virtual_assistant (the NVIDIA AI Virtual Assistant blueprint). A
     # request may override it with ChatRequest.blueprint. Every guardrail /
     # toggle / governance field is shared by all blueprints (CLAUDE.md
