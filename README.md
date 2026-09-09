@@ -196,6 +196,12 @@ uvicorn backend.main:app --reload --port 8001
 uvicorn backend.main:app --host 0.0.0.0 --port 8001 --workers 4
 ```
 
+### Containers and OpenShift
+The top-level `Containerfile` builds one image for podman/docker and OpenShift (it runs as an
+arbitrary UID). `deploy/openshift/` holds the in-cluster build and run manifests, including a
+remote Nemotron reached through `provider=openai` and the on-prem Cisco AI Defense gateway's CA
+chain — see [deploy/openshift/README.md](deploy/openshift/README.md).
+
 ### Access the Application
 - **Chat Interface**: http://localhost:8001/app
 - **Admin Dashboard**: http://localhost:8001/admin-ui
@@ -603,5 +609,6 @@ For issues or questions:
 - **[Architecture](ARCHITECTURE.md)** - System architecture (LangGraph multi-agent design, governance, OTel)
 - **[Testing Guide](TESTING_GUIDE.md)** - Comprehensive testing procedures, including the synthetic PII/PHI injection reference
 - **[Quickstart](QUICKSTART.md)** - Fast setup and run instructions
+- **[OpenShift deployment](deploy/openshift/README.md)** - In-cluster build, remote NIM via `provider=openai`, AI Defense CA chain
 - **[System Policies](SYSTEM_POLICIES.md)** - Internal policy / guardrail reference
 - **[Project Summary](PROJECT_SUMMARY.md)** - High-level project overview

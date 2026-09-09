@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenShift deployment</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--border:#d7dbe0;--accent:#0b6bcb;--code-bg:#f5f7f9;--th:#eef2f6;--warn:#8a5a00}
+@media (prefers-color-scheme: dark){:root{--bg:#14171a;--fg:#e6e8ea;--muted:#9aa3ad;--border:#2c3238;--accent:#63a9f0;--code-bg:#1c2126;--th:#1f252b;--warn:#e0b050}}
+*{box-sizing:border-box}
+body{margin:0;padding:2.5rem 1.5rem 5rem;background:var(--bg);color:var(--fg);
+ font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ -webkit-font-smoothing:antialiased}
+main{max-width:60rem;margin:0 auto}
+h1{font-size:2rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.02em}
+h2{font-size:1.4rem;margin:3rem 0 .75rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);letter-spacing:-.01em}
+h3{font-size:1.1rem;margin:2rem 0 .5rem}
+h4{font-size:1rem;margin:1.5rem 0 .4rem;color:var(--muted)}
+p,li{margin:.6rem 0}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;
+ background:var(--code-bg);padding:.15em .4em;border-radius:4px;border:1px solid var(--border)}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1rem;
+ overflow-x:auto;line-height:1.5}
+pre code{background:none;border:none;padding:0;font-size:.85rem}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+th{background:var(--th);font-weight:600}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--th) 45%,transparent)}
+blockquote{margin:1.2rem 0;padding:.6rem 1rem;border-left:3px solid var(--warn);
+ background:color-mix(in srgb,var(--warn) 8%,transparent);color:var(--fg)}
+blockquote p{margin:.3rem 0}
+hr{border:none;border-top:1px solid var(--border);margin:2.5rem 0}
+strong{font-weight:650}
+ul,ol{padding-left:1.4rem}
+@media print{body{padding:0}pre,table{page-break-inside:avoid}}
+</style>
+</head><body><main>
+<h1 id="openshift-deployment">OpenShift deployment</h1>
+<p>Runs the app on an OpenShift cluster from an in-cluster image build, with the LLM served by a <strong>remote Nemotron</strong> behind an OpenAI-compatible endpoint and prompt/response inspection by an <strong>on-prem Cisco AI Defense gateway</strong>. Everything in this directory is applied with <code>oc</code>; the two objects that carry secrets or environment-specific material are created by hand first.</p>
+<table><thead><tr><th>File</th><th>What it is</th></tr></thead><tbody><tr><td><code>buildconfig.yaml</code></td><td>ImageStream + BuildConfig: builds the top-level <code>Containerfile</code> from this repo's <code>main</code></td></tr><tr><td><code>configmap.yaml</code></td><td>Non-secret settings (provider, model, AI Defense gateway, rules, telemetry identity)</td></tr><tr><td><code>deployment.yaml</code></td><td>PVC, Deployment (with the <code>ca-bundle</code> init container), Service, edge-TLS Route</td></tr><tr><td><code>secret.example.env</code></td><td>Template for the <code>pseudoco-assistant-secrets</code> Secret (copy to <code>secret.env</code>, git-ignored)</td></tr><tr><td><code>certs/aid-ingress-chain.pem</code></td><td>The AI Defense gateway's ingress chain (2 certs), source of the <code>aid-ca</code> ConfigMap</td></tr></tbody></table>
+<h2 id="1-prerequisites">1. Prerequisites</h2>
+<ul><li><code>oc</code> logged in with rights to create builds, image streams and routes in the project.</li><li>Network reach from the cluster to the Ray Serve endpoint (<code>OPENAI_BASE_URL</code>) and the AI Defense gateway (<code>AI_DEFENSE_ENDPOINT</code>) named in <code>configmap.yaml</code>; edit both if yours differ.</li><li>Outbound TLS to the public internet for the Anthropic / Splunk paths if you enable them.</li></ul>
+<pre><code>oc new-project pseudoco-assistant      # or: oc project &lt;existing&gt;</code></pre>
+<h2 id="2-secrets-and-the-ca-bundle-created-out-of-band">2. Secrets and the CA bundle (created out-of-band)</h2>
+<pre><code>cd deploy/openshift
+cp secret.example.env secret.env &amp;&amp; $EDITOR secret.env        # ACCESS_KEY: openssl rand -hex 24
+oc create secret generic pseudoco-assistant-secrets --from-env-file=secret.env
+oc create configmap aid-ca --from-file=certs/aid-ingress-chain.pem</code></pre>
+<p>Why a chain and not a full bundle: <code>SSL_CERT_FILE</code> / <code>REQUESTS_CA_BUNDLE</code> <strong>replace</strong> the trust store rather than extend it, so a bundle holding only the gateway's chain would break every public TLS call. The <code>ca-bundle</code> init container in <code>deployment.yaml</code> builds the real bundle at pod start — the image's <code>certifi</code> roots plus this chain — into an <code>emptyDir</code> the app mounts at <code>/app/certs</code>. Nothing environment-specific is baked into the image. If the gateway's certificate is re-issued, replace <code>certs/aid-ingress-chain.pem</code>, re-create the ConfigMap (<code>oc delete configmap aid-ca &amp;&amp; oc create configmap aid-ca --from-file=…</code>) and restart the Deployment.</p>
+<h2 id="3-build-and-deploy">3. Build and deploy</h2>
+<pre><code>oc apply -f buildconfig.yaml
+oc start-build pseudoco-assistant --follow      # the only way a build starts (no triggers)
+oc apply -f configmap.yaml -f deployment.yaml
+oc rollout status deployment/pseudoco-assistant
+echo &quot;https://$(oc get route pseudoco-assistant -o jsonpath=&#x27;{.spec.host}&#x27;)&quot;</code></pre>
+<p>Verify:</p>
+<pre><code>URL=&quot;https://$(oc get route pseudoco-assistant -o jsonpath=&#x27;{.spec.host}&#x27;)&quot;
+KEY=$(grep &#x27;^ACCESS_KEY=&#x27; secret.env | cut -d= -f2)
+curl -s &quot;$URL/health&quot;                                                   # {&quot;status&quot;:&quot;healthy&quot;, ...}
+curl -s -u &quot;x:$KEY&quot; &quot;$URL/api/settings/ai-provider&quot; | python3 -m json.tool | grep -E &#x27;&quot;provider&quot;|base_url&#x27;
+curl -s -u &quot;x:$KEY&quot; -X POST &quot;$URL/api/chat/session&quot; -H &#x27;Content-Type: application/json&#x27; -d &#x27;{}&#x27;
+oc logs deployment/pseudoco-assistant --tail=50 | grep -i &#x27;ai defense\|inspect&#x27;</code></pre>
+<p>A chat turn from the UI (<code>$URL/app</code>, access key = <code>ACCESS_KEY</code>) must return the JSON-shaped answer, not a <code>&lt;think&gt;</code> trace (that is <code>OPENAI_REASONING=False</code> working), and the governance event must show <code>provider_name=openai</code> and the Nemotron model id.</p>
+<h2 id="4-update-restart-scale">4. Update, restart, scale</h2>
+<ul><li>New code: <code>oc start-build pseudoco-assistant --follow</code> then <code>oc rollout restart deployment/pseudoco-assistant</code> (<code>imagePullPolicy: Always</code>).</li><li>Settings changed through the UI (<code>/settings-ui</code>, provider, keys, reasoning) live in the SQLite file on the PVC and win over the ConfigMap's boot defaults on the next start.</li><li><strong>Do not scale past 1 replica</strong>: the database is SQLite on a ReadWriteOnce PVC.</li><li><code>AI_DEFENSE_FAIL_OPEN</code> is <code>True</code> in <code>configmap.yaml</code> so the app answers while the gateway connection is being verified. Flip it to <code>False</code> once inspection is confirmed (<code>oc apply -f configmap.yaml &amp;&amp; oc rollout restart deployment/pseudoco-assistant</code>).</li></ul>
+<h2 id="5-why-the-llm-goes-through-provider-openai">5. Why the LLM goes through <code>provider=openai</code></h2>
+<p><code>provider=nvidia</code> is <strong>local inference only</strong>: <code>backend/nvidia_nim.py</code> rejects any base URL that is not loopback, because that provider means "a NIM container on this host's GPU" and the UI gates it on a detected GPU (<code>GET /api/server-info</code> → <code>gated.provider_nvidia</code>). A Nemotron served elsewhere in the cluster (Ray Serve, vLLM, a remote NIM) is an OpenAI-compatible endpoint, so it is configured as <code>AI_PROVIDER=openai</code> with <code>OPENAI_BASE_URL</code> pointing at it. Nemotron 3 defaults "thinking" <strong>on</strong>, which wraps the JSON answer contract in a reasoning trace, so <code>OPENAI_REASONING=False</code> sends <code>chat_template_kwargs.enable_thinking=false</code> — only to self-hosted endpoints, never to <code>api.openai.com</code>. Any non-empty <code>OPENAI_API_KEY</code> satisfies the Ray Serve endpoint; it does not gate on it.</p>
+<h2 id="6-telemetry">6. Telemetry</h2>
+<p>There is no OpenTelemetry collector in the pod, so <code>OTEL_ENABLED</code> keeps its default (off). To send traces, run a collector the pod can reach and add <code>OTEL_ENABLED: "True"</code> and <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> to <code>configmap.yaml</code>; the APM service name stays the code default and <code>OTEL_RESOURCE_ATTRIBUTES</code> (<code>deployment.environment=pseudoco-assistant-openshift</code>) is what separates this cluster from a laptop or an EC2 box in Splunk Observability Cloud. Governance logs go to the local <code>logs/</code> directory and the SQLite database unless an HEC destination is configured on the Settings page.</p>
+<h2 id="7-cleanup">7. Cleanup</h2>
+<pre><code>oc delete -f deployment.yaml -f configmap.yaml -f buildconfig.yaml
+oc delete secret pseudoco-assistant-secrets configmap aid-ca</code></pre>
+</main></body></html>
