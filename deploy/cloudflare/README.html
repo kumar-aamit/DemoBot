@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Public tunnel hostname migration</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--border:#d7dbe0;--accent:#0b6bcb;--code-bg:#f5f7f9;--th:#eef2f6;--warn:#8a5a00}
+@media (prefers-color-scheme: dark){:root{--bg:#14171a;--fg:#e6e8ea;--muted:#9aa3ad;--border:#2c3238;--accent:#63a9f0;--code-bg:#1c2126;--th:#1f252b;--warn:#e0b050}}
+*{box-sizing:border-box}
+body{margin:0;padding:2.5rem 1.5rem 5rem;background:var(--bg);color:var(--fg);
+ font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ -webkit-font-smoothing:antialiased}
+main{max-width:60rem;margin:0 auto}
+h1{font-size:2rem;line-height:1.25;margin:0 0 .5rem;letter-spacing:-.02em}
+h2{font-size:1.4rem;margin:3rem 0 .75rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);letter-spacing:-.01em}
+h3{font-size:1.1rem;margin:2rem 0 .5rem}
+h4{font-size:1rem;margin:1.5rem 0 .4rem;color:var(--muted)}
+p,li{margin:.6rem 0}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;
+ background:var(--code-bg);padding:.15em .4em;border-radius:4px;border:1px solid var(--border)}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1rem;
+ overflow-x:auto;line-height:1.5}
+pre code{background:none;border:none;padding:0;font-size:.85rem}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--border);padding:.5rem .7rem;text-align:left;vertical-align:top}
+th{background:var(--th);font-weight:600}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--th) 45%,transparent)}
+blockquote{margin:1.2rem 0;padding:.6rem 1rem;border-left:3px solid var(--warn);
+ background:color-mix(in srgb,var(--warn) 8%,transparent);color:var(--fg)}
+blockquote p{margin:.3rem 0}
+hr{border:none;border-top:1px solid var(--border);margin:2.5rem 0}
+strong{font-weight:650}
+ul,ol{padding-left:1.4rem}
+@media print{body{padding:0}pre,table{page-break-inside:avoid}}
+</style></head>
+<body><main>
+<h1>Public tunnel hostname migration</h1>
+<p>Moving the public tunnel from <code>medadvice.yeackbot.com</code> to <code>pseudocoassistant.com</code>.</p>
+
+<p>The 4.10.0 product rename deliberately left the tunnel hostnames alone. CLAUDE.md lists
+<code>medadviceN.yeackbot.com</code> among the addresses of state that lives outside the repo, alongside the
+checkout paths and the EC2 tags. That is why this is a scripted migration with a preflight and a rollback
+rather than a search and replace: the hostname is not a string in the codebase, it is the name of a record in
+Cloudflare that four other systems point at.</p>
+
+<h2>Status</h2>
+<blockquote><p><code>pseudocoassistant.com</code> is <strong>not registered</strong>. Verisign, authoritative for
+<code>.com</code>, returns <code>No match for domain "PSEUDOCOASSISTANT.COM"</code> and the name has no NS or SOA
+records. Nothing can be wired up until someone buys it.</p></blockquote>
+
+<h2>Step 1 &mdash; register the domain (manual)</h2>
+<p>This is a purchase and has to be done by a person.</p>
+<ol>
+<li>Register <code>pseudocoassistant.com</code> at any registrar, or directly through Cloudflare Registrar, which
+skips step 2.</li>
+<li>Add the zone to the same Cloudflare account that holds <code>yeackbot.com</code>. The account is already
+authorized for tunnel routing; <code>~/.cloudflared/cert.pem</code> covers every zone in it, so no new credential
+is needed.</li>
+<li>Point the registrar at the Cloudflare nameservers and wait for delegation.</li>
+</ol>
+<p>Delegation is the gate. Confirm it before going further:</p>
+<pre><code>dig +short NS pseudocoassistant.com</code></pre>
+<p>Two <code>*.ns.cloudflare.com</code> names means the zone is live.</p>
+
+<h2>Step 2 &mdash; cut over</h2>
+<pre><code>./deploy/cloudflare/cutover-hostname.sh --check</code></pre>
+<p>Read-only. It verifies five things, each of which otherwise produces a tunnel that resolves but serves an
+error page:</p>
+<table>
+<thead><tr><th>Check</th><th>Failure it prevents</th></tr></thead>
+<tbody>
+<tr><td><code>cloudflared</code> on PATH</td><td>nothing to run</td></tr>
+<tr><td><code>cert.pem</code> present</td><td>routing rejected, account not logged in</td></tr>
+<tr><td>named tunnel exists</td><td>routing a hostname at nothing</td></tr>
+<tr><td>zone delegated to Cloudflare</td><td>domain unregistered or pointed elsewhere</td></tr>
+<tr><td>origin answers <code>/health</code></td><td>502 through the tunnel, reads like a DNS fault</td></tr>
+</tbody></table>
+<p>When all five pass:</p>
+<pre><code>./deploy/cloudflare/cutover-hostname.sh --apply</code></pre>
+<p>That routes the DNS record, backs up <code>~/.cloudflared/config.yml</code>, regenerates the ingress from the
+live tunnel's own values, validates it, restarts the launchd service, and polls the new hostname for a healthy
+response for up to a minute.</p>
+<p>The config is regenerated rather than patched in place, so a malformed ingress list cannot survive a run. If
+validation fails the backup is restored automatically.</p>
+
+<h2>Step 3 &mdash; re-point what keys on the old hostname</h2>
+<p>The script prints these and does not attempt any of them. Each is either destructive or lives in a console the
+script has no credentials for.</p>
+<table>
+<thead><tr><th>System</th><th>What to do</th><th>Reference</th></tr></thead>
+<tbody>
+<tr><td>Cloudflare DNS</td><td>Delete the old <code>medadvice</code> CNAME on <code>yeackbot.com</code>. Left up, it
+serves a 1033 error page, which looks like an outage to anyone holding an old link.</td><td>dashboard</td></tr>
+<tr><td>Cisco AI Defense</td><td>Re-point the API connection on app <strong>YeackBot</strong>.</td>
+<td><code>.claude/skills/connect-ai-defense</code></td></tr>
+<tr><td>Agent Observability</td><td>Environment names derive from the hostname's first label. New turns land under
+the new label; historical data stays under <code>medadvice</code> and does not move.</td>
+<td><code>.claude/skills/fan-tunnel-to-agent-observability</code></td></tr>
+<tr><td>Browser sessions</td><td>localStorage is per-origin, so the new hostname starts with empty session history
+and needs the access key entered again.</td><td>&mdash;</td></tr>
+</tbody></table>
+
+<h2>The EC2 fleet is a separate migration</h2>
+<p><code>deploy/ec2/fleet.sh</code> still defaults to <code>FLEET_HOSTNAME=medadvice.yeackbot.com</code>, and each box
+serves its own <code>medadviceN.yeackbot.com</code> through its own <code>demobot-N</code> tunnel. Those are untouched
+by this cutover.</p>
+<p>Move them only with the boxes running, one at a time, so each per-box tunnel can be re-routed and verified before
+the next. A replica whose DNS moves while it is stopped cannot be checked, and the failure surfaces later as a 1033
+page.</p>
+
+<h2>Rollback</h2>
+<pre><code>./deploy/cloudflare/cutover-hostname.sh --rollback</code></pre>
+<p>Restores the most recent <code>config.yml</code> backup, validates it, and restarts the tunnel. It does
+<strong>not</strong> delete the new DNS record; remove that by hand if the cutover is being abandoned.</p>
+</main></body></html>

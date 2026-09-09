@@ -171,7 +171,9 @@ the repo:
 - `medadvice*`: `medadvice.db`, the launchd labels `com.yeack.medadvice-*`, the
   browser's localStorage keys, the `medadviceN.yeackbot.com` tunnel hostnames
   and the `launch-medadvice` skill — state on disks, in browsers and in
-  Cloudflare that a rename would orphan
+  Cloudflare that a rename would orphan. Retiring a tunnel hostname is a
+  deliberate migration, never a rename: `deploy/cloudflare/` carries the
+  preflight, the cutover and the list of external systems to re-point.
 - the theme keys (`medadvice`, `taxadvice`, `financeadvice`, …) — governance
   rows and `src_app` values are keyed on them
 - the GitHub repo `github.com/mayeack/DemoBot` (and the fork
