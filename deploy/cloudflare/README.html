@@ -36,80 +36,168 @@ ul,ol{padding-left:1.4rem}
 <body><main>
 <h1>Public tunnel hostname migration</h1>
 <p>Moving the public tunnel from <code>medadvice.yeackbot.com</code> to <code>pseudocoassistant.com</code>.</p>
-
-<p>The 4.10.0 product rename deliberately left the tunnel hostnames alone. CLAUDE.md lists
-<code>medadviceN.yeackbot.com</code> among the addresses of state that lives outside the repo, alongside the
-checkout paths and the EC2 tags. That is why this is a scripted migration with a preflight and a rollback
-rather than a search and replace: the hostname is not a string in the codebase, it is the name of a record in
-Cloudflare that four other systems point at.</p>
-
+<p>The 4.10.0 product rename deliberately left the tunnel hostnames alone. CLAUDE.md
+lists <code>medadviceN.yeackbot.com</code> among the addresses of state that lives outside
+the repo, alongside the checkout paths and the EC2 tags. That is why this is a
+scripted migration with a preflight and a rollback rather than a search and
+replace: the hostname is not a string in the codebase, it is the name of a record
+in Cloudflare that four other systems point at.</p>
 <h2>Status</h2>
-<blockquote><p><code>pseudocoassistant.com</code> is <strong>not registered</strong>. Verisign, authoritative for
-<code>.com</code>, returns <code>No match for domain "PSEUDOCOASSISTANT.COM"</code> and the name has no NS or SOA
-records. Nothing can be wired up until someone buys it.</p></blockquote>
-
-<h2>Step 1 &mdash; register the domain (manual)</h2>
-<p>This is a purchase and has to be done by a person.</p>
-<ol>
-<li>Register <code>pseudocoassistant.com</code> at any registrar, or directly through Cloudflare Registrar, which
-skips step 2.</li>
-<li>Add the zone to the same Cloudflare account that holds <code>yeackbot.com</code>. The account is already
-authorized for tunnel routing; <code>~/.cloudflared/cert.pem</code> covers every zone in it, so no new credential
-is needed.</li>
-<li>Point the registrar at the Cloudflare nameservers and wait for delegation.</li>
-</ol>
-<p>Delegation is the gate. Confirm it before going further:</p>
-<pre><code>dig +short NS pseudocoassistant.com</code></pre>
-<p>Two <code>*.ns.cloudflare.com</code> names means the zone is live.</p>
-
-<h2>Step 2 &mdash; cut over</h2>
-<pre><code>./deploy/cloudflare/cutover-hostname.sh --check</code></pre>
-<p>Read-only. It verifies five things, each of which otherwise produces a tunnel that resolves but serves an
-error page:</p>
+<p><code>pseudocoassistant.com</code> was registered through Cloudflare Registrar on
+2026-09-09 and is delegated to <code>julio</code>/<code>ziggy.ns.cloudflare.com</code>, the same
+nameservers as <code>yeackbot.com</code>.</p>
+<p>The cutover has <strong>not</strong> completed. It needs one manual step first: see below.</p>
+<h2>The origin cert is scoped to one zone</h2>
+<p><code>~/.cloudflared/cert.pem</code> is a base64 JSON blob carrying exactly one <code>zoneID</code>
+and a token scoped to it. That zone is <code>yeackbot.com</code>. An account-wide cert is
+not what <code>cloudflared tunnel login</code> produces.</p>
+<p>This matters more than it looks, because <strong><code>cloudflared tunnel route dns</code> does
+not reject a hostname outside the cert's zone.</strong> It treats the hostname as a
+label and appends its own zone. Asking it for <code>pseudocoassistant.com</code> against
+the <code>yeackbot.com</code> cert creates <code>pseudocoassistant.com.yeackbot.com</code> and reports
+success.</p>
+<p>That is exactly what happened on the first cutover attempt on 2026-09-09. The
+bogus record was created, the ingress was rewritten to a hostname with no DNS
+record, and the old rule was gone, so the public tunnel served nothing for about
+three minutes until <code>--rollback</code>. The preflight now checks the cert's zone
+against the target hostname, and <code>--apply</code> additionally refuses if the record
+<code>cloudflared</code> reports creating is not the one that was asked for.</p>
+<h2>Step 1 — create the DNS record (manual, one time)</h2>
+<p>Cloudflare dashboard → <strong>pseudocoassistant.com</strong> → <strong>DNS</strong> → <strong>Add record</strong>:</p>
 <table>
-<thead><tr><th>Check</th><th>Failure it prevents</th></tr></thead>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
 <tbody>
-<tr><td><code>cloudflared</code> on PATH</td><td>nothing to run</td></tr>
-<tr><td><code>cert.pem</code> present</td><td>routing rejected, account not logged in</td></tr>
-<tr><td>named tunnel exists</td><td>routing a hostname at nothing</td></tr>
-<tr><td>zone delegated to Cloudflare</td><td>domain unregistered or pointed elsewhere</td></tr>
-<tr><td>origin answers <code>/health</code></td><td>502 through the tunnel, reads like a DNS fault</td></tr>
-</tbody></table>
+<tr>
+<td>Type</td>
+<td><code>CNAME</code></td>
+</tr>
+<tr>
+<td>Name</td>
+<td><code>@</code></td>
+</tr>
+<tr>
+<td>Target</td>
+<td><code>52a942e8-dddf-4a19-81fe-7865fc94c41b.cfargotunnel.com</code></td>
+</tr>
+<tr>
+<td>Proxy status</td>
+<td><strong>Proxied</strong> (orange cloud) — a grey cloud will not serve the tunnel</td>
+</tr>
+</tbody>
+</table>
+<p>Confirm it before going further:</p>
+<pre><code class="language-bash">dig +short pseudocoassistant.com
+</code></pre>
+<p>The alternative is <code>cloudflared tunnel login</code>, selecting <code>pseudocoassistant.com</code>.
+That is a browser flow, and it <strong>overwrites</strong> <code>cert.pem</code> with one scoped to the
+new zone, which breaks <code>route dns</code> for <code>yeackbot.com</code> and the fleet. If you take
+that route, save the result to its own path and pass <code>--origincert</code>.</p>
+<h2>Step 2 — cut over</h2>
+<pre><code class="language-bash">./deploy/cloudflare/cutover-hostname.sh --check
+</code></pre>
+<p>Read-only. It verifies five things, each of which otherwise produces a tunnel
+that resolves but serves an error page:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Failure it prevents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cloudflared</code> on PATH</td>
+<td>nothing to run</td>
+</tr>
+<tr>
+<td><code>cert.pem</code> present</td>
+<td>routing rejected, account not logged in</td>
+</tr>
+<tr>
+<td>named tunnel exists</td>
+<td>routing a hostname at nothing</td>
+</tr>
+<tr>
+<td>zone delegated to Cloudflare</td>
+<td>domain unregistered or pointed elsewhere</td>
+</tr>
+<tr>
+<td>cert's zone covers the hostname</td>
+<td><code>route dns</code> silently creating <code>host.certzone</code></td>
+</tr>
+<tr>
+<td>origin answers <code>/health</code></td>
+<td>502 through the tunnel, reads like a DNS fault</td>
+</tr>
+</tbody>
+</table>
 <p>When all five pass:</p>
-<pre><code>./deploy/cloudflare/cutover-hostname.sh --apply</code></pre>
-<p>That routes the DNS record, backs up <code>~/.cloudflared/config.yml</code>, regenerates the ingress from the
-live tunnel's own values, validates it, restarts the launchd service, and polls the new hostname for a healthy
-response for up to a minute.</p>
-<p>The config is regenerated rather than patched in place, so a malformed ingress list cannot survive a run. If
-validation fails the backup is restored automatically.</p>
-
-<h2>Step 3 &mdash; re-point what keys on the old hostname</h2>
-<p>The script prints these and does not attempt any of them. Each is either destructive or lives in a console the
-script has no credentials for.</p>
+<pre><code class="language-bash">./deploy/cloudflare/cutover-hostname.sh --apply --skip-dns
+</code></pre>
+<p><code>--skip-dns</code> is right whenever the record was made in the dashboard: it skips
+the <code>route dns</code> call and instead refuses to continue unless the hostname already
+resolves. Drop it only for a hostname inside the cert's own zone.</p>
+<p>That routes the DNS record, backs up <code>~/.cloudflared/config.yml</code>, regenerates the
+ingress from the live tunnel's own values, validates it, restarts the launchd
+service, and polls the new hostname for a healthy response for up to a minute.</p>
+<p>The config is regenerated rather than patched in place, so a malformed ingress
+list cannot survive a run. If validation fails the backup is restored
+automatically.</p>
+<h2>Step 3 — re-point what keys on the old hostname</h2>
+<p>The script prints these and does not attempt any of them. Each is either
+destructive or lives in a console the script has no credentials for.</p>
 <table>
-<thead><tr><th>System</th><th>What to do</th><th>Reference</th></tr></thead>
+<thead>
+<tr>
+<th>System</th>
+<th>What to do</th>
+<th>Reference</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Cloudflare DNS</td><td>Delete the old <code>medadvice</code> CNAME on <code>yeackbot.com</code>. Left up, it
-serves a 1033 error page, which looks like an outage to anyone holding an old link.</td><td>dashboard</td></tr>
-<tr><td>Cisco AI Defense</td><td>Re-point the API connection on app <strong>YeackBot</strong>.</td>
-<td><code>.claude/skills/connect-ai-defense</code></td></tr>
-<tr><td>Agent Observability</td><td>Environment names derive from the hostname's first label. New turns land under
-the new label; historical data stays under <code>medadvice</code> and does not move.</td>
-<td><code>.claude/skills/fan-tunnel-to-agent-observability</code></td></tr>
-<tr><td>Browser sessions</td><td>localStorage is per-origin, so the new hostname starts with empty session history
-and needs the access key entered again.</td><td>&mdash;</td></tr>
-</tbody></table>
-
+<tr>
+<td>Cloudflare DNS</td>
+<td>Delete the old <code>medadvice</code> CNAME on <code>yeackbot.com</code>. Left up, it serves a 1033 error page, which looks like an outage to anyone holding an old link.</td>
+<td>dashboard</td>
+</tr>
+<tr>
+<td>Cloudflare DNS</td>
+<td>Delete the stray <code>pseudocoassistant.com.yeackbot.com</code> CNAME left by the failed first attempt. It is harmless but meaningless.</td>
+<td>dashboard</td>
+</tr>
+<tr>
+<td>Cisco AI Defense</td>
+<td>Re-point the API connection on app <strong>YeackBot</strong>.</td>
+<td><code>.claude/skills/connect-ai-defense</code></td>
+</tr>
+<tr>
+<td>Agent Observability</td>
+<td>Environment names derive from the hostname's first label. New turns land under the new label; historical data stays under <code>medadvice</code> and does not move.</td>
+<td><code>.claude/skills/fan-tunnel-to-agent-observability</code></td>
+</tr>
+<tr>
+<td>Browser sessions</td>
+<td>localStorage is per-origin, so the new hostname starts with empty session history and needs the access key entered again.</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
 <h2>The EC2 fleet is a separate migration</h2>
-<p><code>deploy/ec2/fleet.sh</code> still defaults to <code>FLEET_HOSTNAME=medadvice.yeackbot.com</code>, and each box
-serves its own <code>medadviceN.yeackbot.com</code> through its own <code>demobot-N</code> tunnel. Those are untouched
-by this cutover.</p>
-<p>Move them only with the boxes running, one at a time, so each per-box tunnel can be re-routed and verified before
-the next. A replica whose DNS moves while it is stopped cannot be checked, and the failure surfaces later as a 1033
-page.</p>
-
+<p><code>deploy/ec2/fleet.sh</code> still defaults to <code>FLEET_HOSTNAME=medadvice.yeackbot.com</code>,
+and each box serves its own <code>medadviceN.yeackbot.com</code> through its own
+<code>demobot-N</code> tunnel. Those are untouched by this cutover.</p>
+<p>Move them only with the boxes running, one at a time, so each per-box tunnel can
+be re-routed and verified before the next. A replica whose DNS moves while it is
+stopped cannot be checked, and the failure surfaces later as a 1033 page.</p>
 <h2>Rollback</h2>
-<pre><code>./deploy/cloudflare/cutover-hostname.sh --rollback</code></pre>
-<p>Restores the most recent <code>config.yml</code> backup, validates it, and restarts the tunnel. It does
-<strong>not</strong> delete the new DNS record; remove that by hand if the cutover is being abandoned.</p>
+<pre><code class="language-bash">./deploy/cloudflare/cutover-hostname.sh --rollback
+</code></pre>
+<p>Restores the most recent <code>config.yml</code> backup, validates it, and restarts the
+tunnel. It does <strong>not</strong> delete the new DNS record; remove that by hand if the
+cutover is being abandoned.</p>
 </main></body></html>

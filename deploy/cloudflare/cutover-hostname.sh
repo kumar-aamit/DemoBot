@@ -8,6 +8,8 @@
 #   --hostname H   public hostname to serve   (default: pseudocoassistant.com)
 #   --tunnel   T   named tunnel to re-point   (default: medadvice)
 #   --service  U   local origin               (default: http://localhost:8001)
+#   --origincert P origin cert for the TARGET zone (default: ~/.cloudflared/cert.pem)
+#   --skip-dns     the DNS record already exists (e.g. made in the dashboard)
 #
 # WHY THIS EXISTS: the 4.10.0 product rename deliberately did NOT touch
 # medadvice.yeackbot.com. CLAUDE.md lists the tunnel hostnames as addresses of
@@ -33,9 +35,14 @@ HOSTNAME_="pseudocoassistant.com"
 TUNNEL="medadvice"
 SERVICE="http://localhost:8001"
 MODE=""
+SKIP_DNS=0
 
 CF_DIR="$HOME/.cloudflared"
 CONFIG="$CF_DIR/config.yml"
+# cloudflared's origin cert. It is scoped to ONE zone (see cert_zone below), so
+# a second zone needs its own cert and --origincert rather than overwriting this
+# one, which would break routing for yeackbot.com and the fleet.
+ORIGINCERT="$CF_DIR/cert.pem"
 
 log()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32mok\033[0m    %s\n' "$*"; }
@@ -51,6 +58,8 @@ while [ $# -gt 0 ]; do
     --hostname) HOSTNAME_="${2:?--hostname needs a value}"; shift ;;
     --tunnel)   TUNNEL="${2:?--tunnel needs a value}"; shift ;;
     --service)  SERVICE="${2:?--service needs a value}"; shift ;;
+    --origincert) ORIGINCERT="${2:?--origincert needs a value}"; shift ;;
+    --skip-dns) SKIP_DNS=1 ;;
     -h|--help)  sed -n '2,20p' "$0"; exit 0 ;;
     *)          die "unknown argument: $1 (try --help)" ;;
   esac
@@ -61,6 +70,35 @@ done
 # The launchd label is pre-rename and stays that way: it is the address of a
 # service already registered with launchd. See CLAUDE.md, medadvice* exclusions.
 PLIST_LABEL="com.yeack.medadvice-tunnel"
+
+# Resolve the zone an origin cert is scoped to. cert.pem is a base64 JSON blob
+# carrying exactly one zoneID plus a token scoped to it; the zone NAME is not in
+# the file, so it takes one read-only API call to turn the id into a name.
+#
+# WHY THIS MATTERS: `cloudflared tunnel route dns` does NOT reject a hostname
+# outside the cert's zone. It treats it as a label and APPENDS the zone, so
+# asking for pseudocoassistant.com against a yeackbot.com cert silently creates
+# pseudocoassistant.com.yeackbot.com and reports success. That happened on
+# 2026-09-09 and took the public tunnel down: the ingress was rewritten to a
+# hostname with no record while the old rule was gone. Never trust route dns to
+# validate the zone.
+cert_zone() {
+  local cert="${1:-$ORIGINCERT}"
+  [ -f "$cert" ] || return 1
+  python3 - "$cert" <<'PYEOF' 2>/dev/null
+import base64, json, sys, urllib.request
+try:
+    body = "".join(l for l in open(sys.argv[1]) if "-----" not in l)
+    d = json.loads(base64.b64decode(body))
+    req = urllib.request.Request(
+        "https://api.cloudflare.com/client/v4/zones/" + d["zoneID"],
+        headers={"Authorization": "Bearer " + d["apiToken"]})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        print(json.load(r)["result"]["name"])
+except Exception:
+    sys.exit(1)
+PYEOF
+}
 
 # ---------------------------------------------------------------- preflight --
 # Every check is read-only. --check runs these and stops; --apply runs these and
@@ -113,6 +151,27 @@ preflight() {
     fails=$((fails + 1))
   fi
 
+  # The zone the cert can actually WRITE to, which is not the same question as
+  # whether the zone is delegated to Cloudflare. Skipped when the record is
+  # already in place and we are only flipping ingress.
+  if [ "$SKIP_DNS" -eq 1 ]; then
+    ok "--skip-dns: assuming a DNS record for $HOSTNAME_ already exists"
+  else
+    local czone
+    czone=$(cert_zone) || czone=""
+    if [ -z "$czone" ]; then
+      bad "could not read the zone from $ORIGINCERT"; fails=$((fails + 1))
+    elif [ "$czone" = "$zone" ]; then
+      ok "origin cert is scoped to $czone, which covers $HOSTNAME_"
+    else
+      bad "origin cert is scoped to $czone but $HOSTNAME_ is in $zone"
+      warn "route dns would silently create $HOSTNAME_.$czone instead"
+      warn "fix: add the CNAME in the Cloudflare dashboard and re-run with --skip-dns,"
+      warn "     or run 'cloudflared tunnel login' for $zone and pass --origincert"
+      fails=$((fails + 1))
+    fi
+  fi
+
   # An ingress rule pointing at a dead origin yields a 502 through the tunnel,
   # which reads exactly like a DNS problem. Rule it out before cutting over.
   if curl -fsS -o /dev/null --max-time 5 "$SERVICE/health" 2>/dev/null; then
@@ -143,21 +202,38 @@ apply() {
   [ -n "$proto" ] || proto="http2"
   [ -f "$creds" ] || die "credentials file $creds is missing"
 
+  if [ "$SKIP_DNS" -eq 1 ]; then
+    log "Skipping DNS (--skip-dns); verifying $HOSTNAME_ resolves"
+    if [ -n "$(dig +short "$HOSTNAME_" 2>/dev/null)" ]; then
+      ok "$HOSTNAME_ resolves"
+    else
+      die "$HOSTNAME_ does not resolve — create the CNAME before using --skip-dns"
+    fi
+  else
   log "Routing $HOSTNAME_ to tunnel $TUNNEL"
   # Idempotent in practice: a second run against the same tunnel is a no-op,
   # but a hostname already claimed by a DIFFERENT record is a real conflict and
   # must stop the run rather than be forced.
-  if cloudflared tunnel route dns "$TUNNEL" "$HOSTNAME_" 2>&1 | tee /tmp/cf-route.$$; then
+  if cloudflared --origincert "$ORIGINCERT" tunnel route dns "$TUNNEL" "$HOSTNAME_" 2>&1 | tee /tmp/cf-route.$$; then
+    # Belt and braces behind the preflight zone check: confirm the record it
+    # says it made is the one asked for, never a zone-appended variant.
+    local made
+    made=$(grep -oE 'Added CNAME [^ ]+' /tmp/cf-route.$$ | awk '{print $3}' | head -1)
+    if [ -n "$made" ] && [ "$made" != "$HOSTNAME_" ]; then
+      rm -f /tmp/cf-route.$$
+      die "cloudflared created '$made', not '$HOSTNAME_' — wrong zone; nothing else was changed"
+    fi
     ok "DNS route created (CNAME $HOSTNAME_ -> $uuid.cfargotunnel.com)"
   else
     if grep -qi "already exists" /tmp/cf-route.$$; then
       warn "a DNS record for $HOSTNAME_ already exists"
-      warn "check it points at $uuid.cfargotunnel.com, then re-run"
+      warn "check it points at $uuid.cfargotunnel.com, then re-run with --skip-dns"
     fi
     rm -f /tmp/cf-route.$$
     die "could not route $HOSTNAME_"
   fi
   rm -f /tmp/cf-route.$$
+  fi
 
   log "Rewriting ingress"
   backup="$CONFIG.bak.$(date +%Y%m%d%H%M%S)"
