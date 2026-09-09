@@ -279,7 +279,7 @@ fi
 # special-casing one key.
 #
 #   deployment.environment  what separates this replica from every other one in
-#                           Splunk O11y and Galileo. Two boxes sharing a value
+#                           Splunk O11y and Agent Observability. Two boxes sharing a value
 #                           silently merge into one apparent service.
 #   ACCESS_KEY              per-box Basic-auth gate.
 #   OLLAMA_MODEL            lets one box run the poisoned model and another the
@@ -618,7 +618,7 @@ fi
 
 sudo tee /etc/systemd/system/demobot-collector.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot OTel Collector (-> Splunk O11y + Galileo)
+Description=DemoBot OTel Collector (-> Splunk Observability Cloud + Agent Observability)
 After=network-online.target
 Wants=network-online.target
 

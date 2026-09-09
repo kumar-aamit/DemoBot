@@ -252,9 +252,9 @@
                         </div>
                     </div>
 
-                    <!-- Agent Observability Controls (Galileo Agent Control — the vendor
-                         SDK/API keeps its own name; user-facing copy says "Cisco Agent
-                         Observability") -->
+                    <!-- Agent Observability Controls (the Agent Control runtime guardrail;
+                         its identifiers keep the vendor name, user-facing copy says
+                         "Splunk Agent Observability") -->
                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
@@ -696,11 +696,12 @@
                     <a href="/governance-ui" class="text-violet-600 hover:underline" target="_blank">Governance Logs</a> |
                     <a href="/settings-ui" class="text-violet-600 hover:underline" target="_blank">Settings</a>
                 </p>
-                <p class="mt-2 text-xs text-gray-400">Hostname: <span id="serverHostname" class="font-mono">—</span></p>
+                <p class="mt-2 text-xs text-gray-400">Hostname: <span id="serverHostname" class="font-mono">—</span>
+                    <span class="mx-1">·</span> Version: <span id="serverVersion" class="font-mono">—</span></p>
             </div>
         </div>
     </div>
 
-    <script src="/static/js/chat.js?v=25"></script>
+    <script src="/static/js/chat.js?v=26"></script>
 </body>
 </html>

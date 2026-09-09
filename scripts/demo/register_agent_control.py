@@ -18,8 +18,8 @@ definition through ``PUT /api/v1/controls/{id}/data``. The JSON file holds the
 bare ``ControlDefinition`` (``condition``/``execution``/``action``/``scope``/…),
 with or without a wrapping ``{"data": …}``.
 
-A clean no-op (exit 0) when ``GALILEO_API_KEY`` is unset, like every other
-Galileo path in this repo.
+A clean no-op (exit 0) when ``AGENT_CONTROL_API_KEY`` is unset (the former
+``GALILEO_API_KEY`` is honored as a deprecated fallback), like the guardrail itself.
 
 NOTE: ``import backend.config`` must come first — it sets SSL_CERT_FILE to the
 corp CA bundle, without which httpx fails with ConnectError.
@@ -73,10 +73,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not os.environ.get("GALILEO_API_KEY"):
+    if not (os.environ.get("AGENT_CONTROL_API_KEY") or os.environ.get("GALILEO_API_KEY")):
         print(
-            "GALILEO_API_KEY not set — nothing to register. This is a no-op.\n"
-            "Set GALILEO_API_KEY (and GALILEO_CONSOLE_URL for a custom "
+            "AGENT_CONTROL_API_KEY not set — nothing to register. This is a no-op.\n"
+            "Set AGENT_CONTROL_API_KEY (and AGENT_CONTROL_CONSOLE_URL for a custom "
             "deployment) and re-run."
         )
         return 0

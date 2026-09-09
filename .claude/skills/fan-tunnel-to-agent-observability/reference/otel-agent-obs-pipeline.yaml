@@ -1,0 +1,46 @@
+# Splunk Agent Observability fan-out block for ~/DemoBot's collector config.
+# In the repo the exporter + pipeline ship as the overlay
+# otel-collector-agent-obs.yaml, which run-collector.sh layers on top of
+# otel-collector-config.yaml (second --config) ONLY when SPLUNK_AO_O11Y_TOKEN is
+# set; the filter/genai_only processor lives in the base config. Merge these
+# three fragments into the existing documents — do NOT replace the base file,
+# it also carries the Splunk APM traces, SignalFx metrics, and (on boxes wired
+# by `wire-tunnel-logs-to-o11y`) the Splunk HEC logs pipelines.
+#
+# Values come from the environment, exported by run-collector.sh out of .env:
+#   SPLUNK_AO_REALM, SPLUNK_AO_O11Y_TOKEN, SPLUNK_AO_PROJECT, SPLUNK_AO_AGENT_STREAM
+# Header KEYS below are fixed: X-SF-Token (an Observability Cloud INGEST token),
+# project, logstream — `logstream` is the SDK's own header key for the agent
+# stream, not a leftover.
+#
+# Verified against otelcol-contrib 0.157.0.
+
+processors:
+  # Agent Observability only ingests GenAI spans. Drop everything else (FastAPI HTTP
+  # server/client spans) before the otlphttp/agent_obs exporter so they don't trigger
+  # "No GenAI patterns detected in spans" partial-success drops. Keeps
+  # only spans carrying gen_ai.operation.name (workflow / invoke_agent / chat).
+  # Splunk APM still receives the full trace via the separate traces pipeline.
+  filter/genai_only:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["gen_ai.operation.name"] == nil'
+
+exporters:
+  # Splunk Agent Observability. Same gen_ai.* spans fan out here over OTLP/HTTP;
+  # header KEYS X-SF-Token/project/logstream, values from env via run-collector.sh.
+  otlphttp/agent_obs:
+    traces_endpoint: "https://ingest.${env:SPLUNK_AO_REALM}.observability.splunkcloud.com/v2/trace/otlp"
+    headers:
+      X-SF-Token: "${env:SPLUNK_AO_O11Y_TOKEN}"
+      project: "${env:SPLUNK_AO_PROJECT}"
+      logstream: "${env:SPLUNK_AO_AGENT_STREAM}"
+
+service:
+  pipelines:
+    # Agent Observability: GenAI spans only (HTTP spans filtered out above).
+    traces/agent_obs:
+      receivers: [otlp]
+      processors: [filter/genai_only, batch]
+      exporters: [otlphttp/agent_obs]

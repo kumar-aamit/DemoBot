@@ -38,7 +38,7 @@ is public and fetchable.
 
 The remaining 10% is **secrets, and secrets only exist on the Mac**:
 
-- `.env` — API keys for Anthropic, Cisco AI Defense, Splunk O11y, Galileo
+- `.env` — API keys for Anthropic, Cisco AI Defense, Splunk O11y, Splunk Agent Observability, Agent Control
 - the Cloudflare tunnel credentials JSON
 - `Modelfile.poisoned` — the poisoned-model recipe, deliberately not in git
 
@@ -160,13 +160,13 @@ session can hop between hosts. If two replicas share a `deployment.environment`:
 - **Splunk O11y** merges them into one apparent service. Latency and token-usage
   charts average two hosts together, so one sick replica hides behind a healthy
   one — exactly the failure the observability demo exists to make visible.
-- **Galileo** files both hosts' traces into one log stream, so a poisoned-model
+- **Agent Observability** files both hosts' traces into one agent stream, so a poisoned-model
   turn on box 2 is indistinguishable from a clean turn on box 1.
 - Per-replica alerting becomes impossible: you cannot write "box 2's error rate
   spiked" if box 2 has no distinct identity.
 
 Splitting by `host.name` afterwards does not rescue this — the demo's saved
-views, detectors, and Galileo log stream all filter on
+views, detectors, and Agent Observability agent stream all filter on
 `deployment.environment`.
 
 ### How the bootstrap sets it
@@ -279,7 +279,7 @@ byte-identical:
 
 | Key | Source | Why per-box |
 |---|---|---|
-| `deployment.environment` | `--replica N` → `demobot-ec2-N` | telemetry split in O11y/Galileo |
+| `deployment.environment` | `--replica N` → `demobot-ec2-N` | telemetry split in O11y/Agent Observability |
 | `ACCESS_KEY` | `deploy/ec2/access-keys.env` via `gen-access-keys.sh` | per-group credential, rotatable alone |
 | `OLLAMA_MODEL` (optional) | `--set OLLAMA_MODEL=…` | clean-vs-poisoned box splits |
 

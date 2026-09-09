@@ -75,7 +75,7 @@ medadviceN.yeackbot.com ──CNAME──> <tunnel-uuid-N>.cfargotunnel.com ─�
   session pin — affinity is structural, so no load balancer, no affinity
   cookie, no paid Cloudflare add-on, and per-box SQLite is fine.
 - Distinct `deployment.environment=demobot-ec2-N` per box separates replicas in
-  Splunk O11y and Galileo. A collision silently merges two boxes into one
+  Splunk O11y and Agent Observability. A collision silently merges two boxes into one
   apparent service and hides a sick box behind a healthy one.
 - Distinct four-word `ACCESS_KEY` per box (Basic-auth gate), from
   `deploy/ec2/gen-access-keys.sh`.

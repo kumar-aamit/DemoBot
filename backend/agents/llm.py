@@ -187,7 +187,7 @@ def get_chat_model(settings, *, max_tokens: int = 2048, temperature: float = 0.7
             # Local uncensored model served by `ollama serve`. ChatOllama uses
             # num_predict (NOT max_tokens) for the output cap and num_ctx for the
             # context window. usage_metadata is populated natively, so _extract_usage
-            # tier-1 and the otel/governance/Galileo token plumbing work unchanged.
+            # tier-1 and the otel/governance/Agent Observability token plumbing work unchanged.
             # keep_alive keeps the 5GB model resident between turns (no cold reload).
             # model_override lets the internal agents run on the clean base while the
             # synthesizer runs the selected (possibly poisoned) model.

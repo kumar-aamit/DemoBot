@@ -130,7 +130,7 @@ agent with real tools (read/write/exec/web_fetch) so you can demo agentic tool
 abuse — indirect prompt injection, PHI exfiltration — being **governed at the
 tool boundary**. Every proposed tool call is inspected by
 `/api/toolguard/inspect` (Cisco AI Defense + a deterministic policy), logged as
-a governance event, and emitted as an `execute_tool` span to Splunk + Galileo.
+a governance event, and emitted as an `execute_tool` span to Splunk APM + Splunk Agent Observability.
 
 It is **off by default** — starting it is the opt-in, and nothing in the app
 depends on it (Modes A/B are unaffected whether it runs or not).

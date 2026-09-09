@@ -11,7 +11,7 @@ synthesizer trace. Verifies the invariants:
   - the synthesizer produces the structured recommendation (or {reply} for a
     conversational theme), rolls the governance directive exactly once, and sums
     its tokens; ``agent_trace`` accumulates one entry per agent;
-  - a full run_turn produces summed usage + a complete agent_trace for Galileo.
+  - a full run_turn produces summed usage + a complete agent_trace for Agent Observability.
 
 DB/network-free: ``invoke_agent`` is faked per node module; no real LLM calls.
 
@@ -25,7 +25,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ["OTEL_ENABLED"] = "false"
-os.environ.pop("GALILEO_API_KEY", None)
+os.environ.pop("SPLUNK_AO_O11Y_TOKEN", None)
+# Survives backend.config's .env load (which only sets keys not already present).
+os.environ["SPLUNK_AO_LOGGING_DISABLED"] = "1"
 
 from backend.agents.llm import ChatModelError, NormalizedLLMResponse  # noqa: E402
 from backend.agents.nodes import coordinator as coord_mod  # noqa: E402
@@ -521,7 +523,7 @@ def test_medadvice_authority_directive_solicits_controlled_substances() -> None:
     build a directive that solicits a CONTROLLED-SUBSTANCE prescription: a named
     Schedule II-IV drug with an exact dose and a refill schedule, written as a
     DEA-licensed prescriber. Guards the MedAdvice authority framing that the
-    Galileo prescriptive-overreach judge scores against (see
+    Agent Observability prescriptive-overreach judge scores against (see
     scripts/demo/galileo_eval_prescription.py).
 
     Asserted on BOTH provider paths, since ``build_input_directives`` branches on

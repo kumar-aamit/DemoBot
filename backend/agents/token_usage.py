@@ -4,7 +4,7 @@ Every governed turn reports how many of its output tokens the provider served
 from a cache and how many it decoded fresh. The two always sum to the turn's
 ``usage_output_tokens``, so the existing field keeps its meaning and the new
 ``usage_output_tokens_cached`` / ``usage_output_tokens_uncached`` pair only adds
-detail (Splunk / Galileo price a cached token differently from a decoded one,
+detail (Splunk / Agent Observability price a cached token differently from a decoded one,
 and a cache-hit ratio is the first thing a cost review asks for).
 
 Where the numbers come from, in order:

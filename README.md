@@ -46,7 +46,7 @@ An opt-in OpenClaw-based agent with **real tools** so governance extends from
   `/api/toolguard/inspect` (Cisco AI Defense + a deterministic tool policy)
   **before execution**, then allowed or blocked.
 - **`execute_tool` telemetry**: each call becomes a `gen_ai` span + a `tool_call`
-  governance event, feeding the same Splunk APM + Galileo pipelines.
+  governance event, feeding the same Splunk APM + Splunk Agent Observability pipelines.
 - **Demonstrates agentic risk**: indirect prompt injection and PHI exfiltration,
   caught (guarded) or observed (unguarded control) at the tool boundary.
 
@@ -117,7 +117,7 @@ OpenClaw gateway (:18789)  --before_tool_call-->  POST /api/toolguard/inspect
         |                                              |- governance_logger.log_tool_call
         |                                              '- otel.tool_span (execute_tool)
         '--(allow | block: reason)---------------------'
-   diagnostics-otel --OTLP--> the same collector --> Splunk APM + Galileo
+   diagnostics-otel --OTLP--> the same collector --> Splunk APM + Splunk Agent Observability
 ```
 
 Key modules: `backend/routers/toolguard.py`, `backend/services/tool_policy.py`,

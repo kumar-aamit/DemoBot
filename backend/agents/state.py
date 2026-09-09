@@ -81,7 +81,7 @@ class DemoBotState(TypedDict, total=False):
     # each as its own themed agent; the synthesizer fuses their findings into the
     # final answer. ``agent_trace`` is the per-agent transcript (one entry per
     # coordinator/specialist/synthesizer call) used to rebuild the multi-agent
-    # trace for Galileo. ``llm_*_tokens`` below are the SUM across all agents.
+    # trace for Agent Observability. ``llm_*_tokens`` below are the SUM across all agents.
     selected_specialists: List[str]
     coordinator_plan: Dict[str, Any]
     specialist_outputs: List[Dict[str, Any]]
@@ -129,7 +129,7 @@ class DemoBotState(TypedDict, total=False):
     boundary_types: List[str]
     boundary_detected: bool
 
-    # ---- Galileo Agent Control verdict (agent_control node) ----
+    # ---- Agent Control verdict (agent_control node) ----
     # The ``ControlVerdict`` for this turn when the request opted into the
     # "Agent Observability Controls" review — present for allowed turns too, so
     # the governance event can record an observe/steer match that did not block.

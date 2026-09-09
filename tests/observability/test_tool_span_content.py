@@ -6,7 +6,7 @@ span per governed tool call via ``otel.tool_span`` / ``otel.record_tool_result``
 Two things must hold for the demo telemetry to work:
 
   1. The span sets ``gen_ai.operation.name == "execute_tool"`` — WITHOUT it the
-     collector's ``filter/genai_only`` processor drops the span before Galileo,
+     collector's ``filter/genai_only`` processor drops the span before Agent Observability,
      and it never groups with the other GenAI operations in Splunk AI Agent
      Monitoring. It must also carry ``gen_ai.tool.name`` / ``gen_ai.tool.call.id``
      and the verdict attributes.
@@ -71,7 +71,7 @@ def check_tool_span_enabled():
     span = _find("execute_tool ")
     assert span is not None, "no 'execute_tool' span was emitted"
     assert _attr(span, "gen_ai.operation.name") == "execute_tool", \
-        "operation.name != execute_tool (Galileo filter would drop this span)"
+        "operation.name != execute_tool (genai_only filter would drop this span)"
     assert _attr(span, "gen_ai.tool.name") == "web_fetch", "missing gen_ai.tool.name"
     assert _attr(span, "gen_ai.tool.call.id") == "call-42", "missing gen_ai.tool.call.id"
     assert _attr(span, "demobot.tool.decision") == "block", "missing tool decision"

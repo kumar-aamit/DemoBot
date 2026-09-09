@@ -1,0 +1,32 @@
+# Splunk Agent Observability fan-out — an OVERLAY on otel-collector-config.yaml.
+#
+# Kept separate so it can be omitted entirely: run-collector.sh appends this file
+# with a second --config flag ONLY when SPLUNK_AO_O11Y_TOKEN is non-empty, and the
+# collector deep-merges the two. A keyless deployment therefore never POSTs span
+# content (prompts and responses) with an empty token header. (The exporter and
+# its pipeline used to sit unconditionally in the base config, with exactly that
+# failure mode.) Same no-op-without-config contract as the app's SDK path
+# (backend/agent_observability.py).
+#
+# Header KEYS are fixed: X-SF-Token (an Observability Cloud INGEST token) plus
+# project / logstream — the same two the splunk-ao SDK sends, which is why the
+# second one is still spelled "logstream" even though the console calls it an
+# Agent stream. Values come from env (run-collector.sh reads .env). The project
+# and agent stream are created on first ingest. Agent Observability auto-maps
+# the OpenTelemetry GenAI semantic conventions.
+exporters:
+  otlphttp/agent_obs:
+    traces_endpoint: "https://ingest.${env:SPLUNK_AO_REALM}.observability.splunkcloud.com/v2/trace/otlp"
+    headers:
+      X-SF-Token: "${env:SPLUNK_AO_O11Y_TOKEN}"
+      project: "${env:SPLUNK_AO_PROJECT}"
+      logstream: "${env:SPLUNK_AO_AGENT_STREAM}"
+
+service:
+  pipelines:
+    # Agent Observability: GenAI spans only (HTTP spans filtered out by the base
+    # config's filter/genai_only processor).
+    traces/agent_obs:
+      receivers: [otlp]
+      processors: [filter/genai_only, batch]
+      exporters: [otlphttp/agent_obs]

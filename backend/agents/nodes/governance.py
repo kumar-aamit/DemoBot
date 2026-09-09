@@ -125,8 +125,8 @@ def governance_node(state: Dict[str, Any]) -> Dict[str, Any]:
             # Additive: which blueprint served the turn (None-stripped when unset).
             blueprint=state.get("blueprint"),
             # Per-agent transcript (coordinator + specialists + synthesizer) so the
-            # Galileo SDK path can rebuild the multi-agent trace; see
-            # backend/galileo_integration.py and log_schemas.create_governance_log.
+            # Splunk Agent Observability SDK path can rebuild the multi-agent trace;
+            # see backend/agent_observability.py and log_schemas.create_governance_log.
             agent_trace=state.get("agent_trace"),
             trace_id=trace_id,
             client_address=client_address,

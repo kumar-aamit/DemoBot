@@ -29,7 +29,7 @@ umask 077
 
 # ---------- options ----------
 # --no-telemetry: run without exporting gateway spans/metrics/logs to the
-#   collector (Splunk + Galileo). Use while iterating on the plugin so dev
+#   collector (Splunk APM + Agent Observability). Use while iterating on the plugin so dev
 #   noise doesn't land in dashboards you're about to present from.
 # --foreground:   run the gateway attached (podman run without -d) so a
 #   process supervisor (launchd KeepAlive) can own its lifecycle. Default is
@@ -113,7 +113,7 @@ if ! curl -s --max-time 3 http://localhost:8001/health >/dev/null; then
 fi
 if ! curl -s --max-time 3 http://localhost:4318 >/dev/null 2>&1; then
   echo "WARN: OTel collector not detected on :4318 — gateway telemetry will not" >&2
-  echo "      reach Splunk/Galileo until ./run-collector.sh is running." >&2
+  echo "      reach Splunk until ./run-collector.sh is running." >&2
 fi
 
 mkdir -p "$STATE_DIR" "$DECOY_DIR"

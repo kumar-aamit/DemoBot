@@ -114,7 +114,7 @@ event shows <code>provider_name=nvidia</code> and the NIM's model id.</p>
 <p><code>nemoguardrails</code> 0.24 runs <strong>in-process</strong> (core package only — the <code>[server]</code>
 extra would break the FastAPI/httpx pins). Input rails run on the prompt after
 Cisco AI Defense's prompt inspection; output rails run on the answer after
-Galileo Agent Control and <strong>before</strong> AI Defense's response inspection, so Cisco
+Agent Control and <strong>before</strong> AI Defense's response inspection, so Cisco
 stays the last word.</p>
 <ul>
 <li>The judge for the self-check rails is the <strong>active chat model</strong>, injected as
@@ -154,7 +154,7 @@ sandbox — its managed aliases and <code>allowed_ips</code> for user presets), 
 OpenShell's OCSF JSON audit log and runs <code>scripts/nemoclaw/ocsf_forwarder.py</code>,
 which tails the sandbox's denials into <code>/api/toolguard/nemoclaw/events</code>. The
 plugin's <code>after_tool_call</code> observer reports a <code>policy_denied</code> tool result to
-<code>/api/toolguard/observe</code> immediately. Both paths land in Splunk/Galileo as
+<code>/api/toolguard/observe</code> immediately. Both paths land in Splunk APM / Agent Observability as
 <code>nemoclaw_guardrails</code> governance events with an <code>execute_tool</code> span; the drawer
 pill reads <strong>RUNTIME</strong> while denials are arriving, <strong>POLICY</strong> otherwise.</p>
 <ul>
@@ -193,7 +193,7 @@ pill reads <strong>RUNTIME</strong> while denials are arriving, <strong>POLICY</
 toggle or governance field is implemented once and both architectures get it —
 parity by construction. Each blueprint names its own workflow
 (<code>demobot_multi_agent</code> / <code>demobot_nvidia_virtual_assistant</code>) and every
-governance event carries an additive <code>blueprint</code> field, so Splunk/Galileo can
+governance event carries an additive <code>blueprint</code> field, so Splunk APM / Agent Observability can
 compare them. The rule is in <code>CLAUDE.md</code> ("Blueprint feature parity"); the
 detector is <code>tests/test_blueprint_parity.py</code>, which runs the same scenario matrix
 (benign, every blocking guardrail, forced injections, generation error,

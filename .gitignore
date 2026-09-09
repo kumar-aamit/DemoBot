@@ -27,6 +27,7 @@ wheels/
 # Environment
 .env
 .env.local
+.env.bak.*
 
 # Credentials (NEVER commit)
 splunk-aws-credentials.txt

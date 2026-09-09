@@ -5,7 +5,7 @@ in-process TestClient.
 Side-effect-safe: the LLM boundary and the auto-prompter are stubbed, and the demo
 incident is started without driving load, so the suite makes no real Anthropic
 calls, spawns no background load, and triggers no external emission (Splunk/HEC/
-Galileo are no-op without config). pytest isn't installed; run standalone:
+Agent Observability are no-op without config). pytest isn't installed; run standalone:
 
     venv/bin/python tests/test_api.py        # exit 0 = pass
 """
@@ -58,8 +58,8 @@ def _fake_llm(*_a, **_k):
 llm.invoke_agent = _fake_llm
 llm.invoke_chat = _fake_llm
 
-# --- stub the Galileo Agent Control evaluation so the agent_control_review
-# check below exercises the node without an outbound call to Galileo ---
+# --- stub the Agent Control evaluation so the agent_control_review check
+# below exercises the node without an outbound call to the control server ---
 import backend.services.agent_control as agent_control  # noqa: E402
 
 agent_control.agent_control_client.evaluate_response = (
@@ -498,6 +498,8 @@ def main() -> int:
         # ---- host capabilities (what this box can run -> greyed-out options) ----
         rsi = c.get("/api/server-info", headers=AUTH)
         check("GET /api/server-info -> 200 + hostname", rsi.status_code == 200 and "hostname" in rsi.json())
+        check("server-info carries the running app version (chat footer)",
+              isinstance(rsi.json().get("version"), str) and rsi.json()["version"].count(".") == 2)
         check("server-info carries capabilities + gated (may be empty before the first probe)",
               "capabilities" in rsi.json() and "gated" in rsi.json())
         rref = c.post("/api/server-info/refresh", headers=AUTH)

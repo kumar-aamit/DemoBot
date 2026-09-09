@@ -44,7 +44,7 @@ from ``agent_control_evaluator_galileo`` so both transports decide identically â
 including the rule that a numeric operator over a boolean scorer is an error, not
 a 0/1 comparison.
 
-Fully defensive: a no-op when ``GALILEO_API_KEY`` is unset or the master switch
+Fully defensive: a no-op when ``AGENT_CONTROL_API_KEY`` is unset or the master switch
 is off, and errors are normalized into a verdict that honors
 ``galileo_agent_control_fail_open`` (default True â€” release the response and log,
 because this control layer sits *after* the internal policy engine and AI
@@ -66,6 +66,22 @@ import httpx
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+_legacy_env_warned = False
+
+
+def _warn_legacy_env_once() -> None:
+    """GALILEO_API_KEY / GALILEO_CONSOLE_URL still work for Agent Control, but the
+    names are deprecated now that trace logging runs on SPLUNK_AO_*."""
+    global _legacy_env_warned
+    if _legacy_env_warned:
+        return
+    _legacy_env_warned = True
+    logger.warning(
+        "agent control: GALILEO_API_KEY / GALILEO_CONSOLE_URL are deprecated; set "
+        "AGENT_CONTROL_API_KEY / AGENT_CONTROL_CONSOLE_URL (Settings > Splunk Agent "
+        "Observability)"
+    )
 
 # Re-attempt a failing runtime-token exchange no more than once per interval, so
 # a tenant that has not enabled runtime tokens does not pay a wasted round-trip
@@ -270,13 +286,21 @@ class AgentControlClient:
 
     @property
     def api_key(self) -> str:
-        """Galileo API key, read from the environment like the SDK does.
+        """Agent Control API key from ``AGENT_CONTROL_API_KEY``, read live so a
+        Settings save applies immediately.
 
-        Deliberately not a pydantic setting: ``backend.galileo_integration``
-        already treats ``GALILEO_API_KEY`` as the single enable signal for every
-        Galileo path, and reading it live keeps the two consistent.
+        Deliberately not a pydantic setting. The former ``GALILEO_API_KEY`` is
+        honored as a deprecated fallback (one warning per process): the trace
+        logging path moved to the splunk-ao SDK and ``SPLUNK_AO_*``, so this
+        guardrail no longer shares its credentials with it.
         """
-        return os.getenv("GALILEO_API_KEY", "")
+        key = os.getenv("AGENT_CONTROL_API_KEY", "")
+        if key:
+            return key
+        legacy = os.getenv("GALILEO_API_KEY", "")
+        if legacy:
+            _warn_legacy_env_once()
+        return legacy
 
     @property
     def is_configured(self) -> bool:
@@ -286,12 +310,19 @@ class AgentControlClient:
 
     @property
     def console_api_url(self) -> str:
-        """Base URL of the Galileo *console* API that issues access tokens.
+        """Base URL of the Agent Control *console* API that issues access tokens.
 
-        Derived from ``GALILEO_CONSOLE_URL`` the same way the Galileo SDK does
+        Derived from ``AGENT_CONTROL_CONSOLE_URL`` the way the vendor SDK does
         (``console.<host>`` -> ``api.<host>``), defaulting to the hosted API.
+        ``GALILEO_CONSOLE_URL`` is honored ONLY for the legacy pair (no
+        ``AGENT_CONTROL_API_KEY``, legacy ``GALILEO_API_KEY`` set): the splunk-ao
+        SDK injects ``GALILEO_CONSOLE_URL=https://app.<realm>.observability.splunkcloud.com/``
+        into the process environment on its first session call, so a blind
+        fallback would point the token exchange at the Observability Cloud host.
         """
-        console = (os.getenv("GALILEO_CONSOLE_URL") or "").strip().rstrip("/")
+        console = (os.getenv("AGENT_CONTROL_CONSOLE_URL") or "").strip().rstrip("/")
+        if not console and not os.getenv("AGENT_CONTROL_API_KEY") and os.getenv("GALILEO_API_KEY"):
+            console = (os.getenv("GALILEO_CONSOLE_URL") or "").strip().rstrip("/")
         if not console:
             return "https://api.galileo.ai"
         if "://" not in console:
@@ -410,7 +441,7 @@ class AgentControlClient:
         if not self.is_configured:
             raise AgentControlError(
                 "Splunk Agent Observability Control is not configured (set "
-                "GALILEO_API_KEY and GALILEO_AGENT_CONTROL_ENABLED=True)."
+                "AGENT_CONTROL_API_KEY and GALILEO_AGENT_CONTROL_ENABLED=True)."
             )
 
         mode = (settings.galileo_agent_control_execution or "auto").strip().lower()

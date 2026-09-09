@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Regression: Galileo Agent Control enforcement ("Agent Observability Controls").
+"""Regression: Agent Control enforcement ("Agent Observability Controls").
 
 Guards the contract of the toggle end to end without touching the network:
 
-  1. no-op safety — no GALILEO_API_KEY (or master switch off) means the client is
+  1. no-op safety — no AGENT_CONTROL_API_KEY (or master switch off) means the client is
      unconfigured and the graph node never calls out;
   2. verdict semantics — deny blocks, steer/observe do not, and an errored
      evaluation honors ``galileo_agent_control_fail_open``;
@@ -62,21 +62,33 @@ class _FakeResponse:
 
 
 os.environ.pop("GALILEO_API_KEY", None)
+os.environ.pop("AGENT_CONTROL_API_KEY", None)
 
 from backend.config import settings  # noqa: E402
 from backend.services import agent_control as ac  # noqa: E402
 
-# backend.config loads .env at import, which may repopulate GALILEO_API_KEY —
+# backend.config loads .env at import, which may repopulate AGENT_CONTROL_API_KEY —
 # drop it again so the no-op guarantee is tested against a truly absent key.
 os.environ.pop("GALILEO_API_KEY", None)
+os.environ.pop("AGENT_CONTROL_API_KEY", None)
 
 # ---- 1. no-op safety guarantee -------------------------------------------
 print("\n[1] no-op safety")
 client = ac.AgentControlClient()
-check("unconfigured when GALILEO_API_KEY unset", client.is_configured is False)
+check("unconfigured when AGENT_CONTROL_API_KEY unset", client.is_configured is False)
 
-os.environ["GALILEO_API_KEY"] = "test-key-unused"
-check("configured when GALILEO_API_KEY set", client.is_configured is True)
+os.environ["AGENT_CONTROL_API_KEY"] = "test-key-unused"
+check("configured when AGENT_CONTROL_API_KEY set", client.is_configured is True)
+
+# The former GALILEO_API_KEY still configures the client (deprecated fallback,
+# one warning per process) — trace logging moved to SPLUNK_AO_* and no longer
+# shares this credential.
+with mock.patch.dict(os.environ, {"GALILEO_API_KEY": "legacy-key"}):
+    os.environ.pop("AGENT_CONTROL_API_KEY", None)
+    ac._legacy_env_warned = False
+    check("legacy GALILEO_API_KEY still configures the client (deprecated fallback)",
+          ac.AgentControlClient().is_configured is True)
+    check("deprecated-name warning fires on the fallback", ac._legacy_env_warned is True)
 
 with mock.patch.object(settings, "galileo_agent_control_enabled", False):
     check(
@@ -93,17 +105,37 @@ except ac.AgentControlError:
 
 # console API base is derived from the console URL, not hardcoded
 with mock.patch.dict(
-    os.environ, {"GALILEO_CONSOLE_URL": "https://console.multitenant.galileocloud.io"}
+    os.environ, {"AGENT_CONTROL_CONSOLE_URL": "https://console.multitenant.galileocloud.io"}
 ):
     check(
-        "console API url derived from GALILEO_CONSOLE_URL",
+        "console API url derived from AGENT_CONTROL_CONSOLE_URL",
         ac.AgentControlClient().console_api_url
         == "https://api.multitenant.galileocloud.io",
     )
-with mock.patch.dict(os.environ, {"GALILEO_CONSOLE_URL": ""}):
+with mock.patch.dict(os.environ, {"AGENT_CONTROL_CONSOLE_URL": "", "GALILEO_CONSOLE_URL": ""}):
     check(
         "console API url defaults to the hosted API",
         ac.AgentControlClient().console_api_url == "https://api.galileo.ai",
+    )
+# The splunk-ao SDK injects GALILEO_CONSOLE_URL=<O11y app host> into the process
+# env on its first session call; with AGENT_CONTROL_API_KEY set that must be
+# ignored, while the legacy pair (GALILEO_API_KEY + GALILEO_CONSOLE_URL) is honored.
+with mock.patch.dict(os.environ, {
+    "AGENT_CONTROL_CONSOLE_URL": "", "AGENT_CONTROL_API_KEY": "k",
+    "GALILEO_CONSOLE_URL": "https://app.us1.observability.splunkcloud.com/",
+}):
+    check(
+        "a bridged GALILEO_CONSOLE_URL is ignored when AGENT_CONTROL_API_KEY is set",
+        ac.AgentControlClient().console_api_url == "https://api.galileo.ai",
+    )
+with mock.patch.dict(os.environ, {
+    "AGENT_CONTROL_CONSOLE_URL": "", "GALILEO_API_KEY": "legacy",
+    "GALILEO_CONSOLE_URL": "https://console.multitenant.galileocloud.io",
+}):
+    os.environ.pop("AGENT_CONTROL_API_KEY", None)
+    check(
+        "the legacy pair honors GALILEO_CONSOLE_URL",
+        ac.AgentControlClient().console_api_url == "https://api.multitenant.galileocloud.io",
     )
 
 # ---- 2. verdict semantics ------------------------------------------------
@@ -703,7 +735,7 @@ check(
 )
 check("legacy engine has the block handler", "def _handle_agent_control_block(" in engine_src)
 check(
-    "block handler attributes the guardrail to Galileo",
+    "block handler attributes the guardrail to Agent Control",
     'guardrail_ids=["galileo_agent_control"]' in engine_src,
 )
 check(
@@ -790,6 +822,7 @@ check("toggle state is persisted", "medadvice_agent_control_enabled" in js)
 check("flag is sent on every chat turn", "agent_control_review: agentControlEnabled" in js)
 
 os.environ.pop("GALILEO_API_KEY", None)
+os.environ.pop("AGENT_CONTROL_API_KEY", None)
 
 print(f"\n{'FAILED' if _fails else 'OK'}: {_fails} failure(s)")
 raise SystemExit(1 if _fails else 0)

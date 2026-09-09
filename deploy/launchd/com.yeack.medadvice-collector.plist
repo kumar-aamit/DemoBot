@@ -5,8 +5,8 @@
     <key>Label</key>
     <string>com.yeack.medadvice-collector</string>
 
-    <!-- OTel collector: forwards the app's OTLP telemetry to Splunk O11y + Galileo.
-         run-collector.sh reads O11Y_INGEST/SPLUNK_*/GALILEO_* from .env and execs the native
+    <!-- OTel collector: forwards the app's OTLP telemetry to Splunk O11y + Agent Observability.
+         run-collector.sh reads O11Y_INGEST/SPLUNK_*/SPLUNK_AO_* from .env and execs the native
          ./bin/otelcol-contrib in the foreground. -->
     <key>ProgramArguments</key>
     <array>

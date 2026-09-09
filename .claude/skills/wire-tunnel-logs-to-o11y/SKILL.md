@@ -221,7 +221,7 @@ traffic to populate. That is usually what you want (the tunnel URL is the
 session pin), but say so out loud before doing it.
 
 If more than one log pipeline exists on the box (e.g. a `logs/gen_ai_cim`
-fan-out added by `[[fan-tunnel-to-galileo]]` or an ES variant), check that every
+fan-out added by `[[fan-tunnel-to-agent-observability]]` or an ES variant), check that every
 `resource/*` processor stamping `deployment.environment` reads
 `${env:WORKSHOP_ENVIRONMENT}` rather than a hard-coded literal, so one variable
 governs the whole box:
@@ -243,7 +243,7 @@ exactly the material an AI-governance workshop wants in Log Observer.
 
 Its collector (`systemd` unit `demobot-collector`, config
 `~/DemoBot/otel-collector-config.yaml`, env injected by `run-collector.sh` from
-`.env`) ships traces to Splunk APM and Galileo and metrics to SignalFx, but has
+`.env`) ships traces to Splunk APM and Agent Observability and metrics to SignalFx, but has
 **no logs pipeline**. Add one; leave the existing pipelines untouched.
 
 **Back up first.** `cp otel-collector-config.yaml otel-collector-config.yaml.bak.$(date +%Y%m%d%H%M%S)`
@@ -297,7 +297,7 @@ Validate before restarting a box that's serving a demo:
 
 ```bash
 cd ~/DemoBot
-for v in SPLUNK_REALM O11Y_INGEST GALILEO_API_KEY GALILEO_PROJECT GALILEO_LOG_STREAM \
+for v in SPLUNK_REALM O11Y_INGEST SPLUNK_AO_REALM SPLUNK_AO_O11Y_TOKEN SPLUNK_AO_PROJECT SPLUNK_AO_AGENT_STREAM \
          WORKSHOP_ENVIRONMENT WORKSHOP_O11Y_CLOUD_ID WORKSHOP_HEC_URL WORKSHOP_HEC_TOKEN WORKSHOP_HEC_INDEX; do
   export "$v=$(grep "^$v=" .env | cut -d= -f2-)"
 done

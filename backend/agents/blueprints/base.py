@@ -63,7 +63,7 @@ class Blueprint:
     label: str
     description: str
     # Name promoted to the OTel GenAI Workflow span + the governance event's
-    # workflow_name, so Splunk AI Agent Monitoring / Galileo separate the two
+    # workflow_name, so Splunk AI Agent Monitoring / Agent Observability separate the two
     # architectures.
     workflow_name: str
     build_generation_core: GenerationCoreBuilder

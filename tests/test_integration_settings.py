@@ -115,7 +115,7 @@ def test_no_secret_value_ever_leaves_the_box() -> None:
     if leaked:
         print(f"    leaked: {leaked}")
     secrets = [f for items in fields.values() for f in items if f["secret"]]
-    check("the expected 4 secrets are declared secret", len(secrets) == 4)
+    check("the expected 6 secrets are declared secret", len(secrets) == 6)
 
 
 def test_blank_secret_keeps_existing() -> None:
@@ -156,16 +156,52 @@ def test_ai_defense_save_reaches_the_live_client() -> None:
 
 
 def test_agent_observability_save_sets_env() -> None:
-    orig = os.environ.get("GALILEO_PROJECT")
+    """The four SPLUNK_AO_* keys have two consumers: the SDK path (os.environ, live)
+    and the collector overlay (.env at start). A save must feed both, retire the
+    live logger, and ask for a collector restart."""
+    import backend.agent_observability as ao
+
+    orig = os.environ.get("SPLUNK_AO_PROJECT")
+    reconfigured = []
+    orig_reconf = ao.reconfigure
+    ao.reconfigure = lambda: reconfigured.append(1)
     try:
-        settings_store.set_integration_creds("agent_observability", {"project": "SentinelProj"})
-        check("GALILEO_PROJECT is set in os.environ (SDK reads it per turn)",
-              os.environ.get("GALILEO_PROJECT") == "SentinelProj")
+        with _TempStore() as data, _TempEnv("SPLUNK_AO_PROJECT=old\n") as p:
+            restart = settings_store.set_integration_creds(
+                "agent_observability", {"project": "SentinelProj"})
+            check("SPLUNK_AO_PROJECT is set in os.environ (SDK path rebuilds from it)",
+                  os.environ.get("SPLUNK_AO_PROJECT") == "SentinelProj")
+            check("SPLUNK_AO_PROJECT is written to .env in place (collector overlay reads it)",
+                  _value(p, "SPLUNK_AO_PROJECT") == "SentinelProj" and _count(p, "SPLUNK_AO_PROJECT") == 1)
+            check("a SPLUNK_AO_* save asks for a collector restart", restart == ["collector"])
+            check("SPLUNK_AO_* keys are .env-owned, not blob-persisted",
+                  "project" not in (data.get("integration_creds") or {}).get("agent_observability", {}))
+            check("agent_observability.reconfigure() ran after the save", len(reconfigured) == 1)
+    finally:
+        ao.reconfigure = orig_reconf
+        if orig is None:
+            os.environ.pop("SPLUNK_AO_PROJECT", None)
+        else:
+            os.environ["SPLUNK_AO_PROJECT"] = orig
+
+
+def test_agent_control_creds_are_blob_persisted() -> None:
+    """Agent Control's credentials are app-only: applied live, persisted in the
+    settings blob, no restart."""
+    orig = os.environ.get("AGENT_CONTROL_API_KEY")
+    try:
+        with _TempStore() as data:
+            restart = settings_store.set_integration_creds(
+                "agent_observability", {"agent_control_api_key": "k1"})
+            check("AGENT_CONTROL_API_KEY applied to os.environ", os.environ.get("AGENT_CONTROL_API_KEY") == "k1")
+            check("Agent Control creds apply live (no restart)", restart == [])
+            check("Agent Control creds persist in the blob",
+                  (data.get("integration_creds") or {}).get("agent_observability", {}).get("agent_control_api_key") == "k1")
     finally:
         if orig is None:
-            os.environ.pop("GALILEO_PROJECT", None)
+            os.environ.pop("AGENT_CONTROL_API_KEY", None)
         else:
-            os.environ["GALILEO_PROJECT"] = orig
+            os.environ["AGENT_CONTROL_API_KEY"] = orig
 
 
 def test_env_writer_replaces_in_place() -> None:
@@ -356,6 +392,7 @@ def main() -> int:
         test_boolean_false_is_a_real_value,
         test_ai_defense_save_reaches_the_live_client,
         test_agent_observability_save_sets_env,
+        test_agent_control_creds_are_blob_persisted,
         test_env_writer_replaces_in_place,
         test_env_writer_collapses_pre_existing_duplicates,
         test_env_writer_appends_when_absent_and_preserves_mode,

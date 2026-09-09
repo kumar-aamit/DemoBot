@@ -341,6 +341,9 @@ def _server_info() -> dict:
     caps = host_capabilities.current()
     return {
         "hostname": settings.server_hostname or socket.gethostname(),
+        # Running build, shown in the chat footer next to the hostname so a
+        # workshop box can be told apart from a stale one at a glance.
+        "version": settings.app_version,
         "environment": settings.environment,
         # What this box can run + the gating rules the UI applies (greying out
         # provider=nvidia / NIM images / the NemoClaw runtime with a reason).

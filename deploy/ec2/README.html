@@ -94,7 +94,7 @@ Ollama, the repo, the venv, the collector binary, the systemd units. All of that
 is public and fetchable.</p>
 <p>The remaining 10% is <strong>secrets, and secrets only exist on the Mac</strong>:</p>
 <ul>
-<li><code>.env</code> — API keys for Anthropic, Cisco AI Defense, Splunk O11y, Galileo</li>
+<li><code>.env</code> — API keys for Anthropic, Cisco AI Defense, Splunk O11y, Splunk Agent Observability, Agent Control</li>
 <li>the Cloudflare tunnel credentials JSON</li>
 <li><code>Modelfile.poisoned</code> — the poisoned-model recipe, deliberately not in git</li>
 </ul>
@@ -207,13 +207,13 @@ session can hop between hosts. If two replicas share a <code>deployment.environm
 <li><strong>Splunk O11y</strong> merges them into one apparent service. Latency and token-usage
   charts average two hosts together, so one sick replica hides behind a healthy
   one — exactly the failure the observability demo exists to make visible.</li>
-<li><strong>Galileo</strong> files both hosts' traces into one log stream, so a poisoned-model
+<li><strong>Agent Observability</strong> files both hosts' traces into one agent stream, so a poisoned-model
   turn on box 2 is indistinguishable from a clean turn on box 1.</li>
 <li>Per-replica alerting becomes impossible: you cannot write "box 2's error rate
   spiked" if box 2 has no distinct identity.</li>
 </ul>
 <p>Splitting by <code>host.name</code> afterwards does not rescue this — the demo's saved
-views, detectors, and Galileo log stream all filter on
+views, detectors, and Agent Observability agent stream all filter on
 <code>deployment.environment</code>.</p>
 <h3 id="how-the-bootstrap-sets-it">How the bootstrap sets it</h3>
 <p>The value arrives from the Mac saying <code>demobot-local</code> and must be rewritten. The
@@ -350,7 +350,7 @@ byte-identical:</p>
 <tr>
 <td><code>deployment.environment</code></td>
 <td><code>--replica N</code> → <code>demobot-ec2-N</code></td>
-<td>telemetry split in O11y/Galileo</td>
+<td>telemetry split in O11y/Agent Observability</td>
 </tr>
 <tr>
 <td><code>ACCESS_KEY</code></td>

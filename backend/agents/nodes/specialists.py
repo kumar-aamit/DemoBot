@@ -3,7 +3,7 @@
 Runs each coordinator-selected specialist as its own themed agent, sequentially.
 Each specialist is a distinct named agent (``{theme}_{key}_specialist``) so it
 emits its own AgentInvocation span -> the multi-agent trace shows one span per
-specialist in Splunk AI Agent Monitoring / Galileo.
+specialist in Splunk AI Agent Monitoring / Agent Observability.
 
 Design notes:
 - Sequential (not LangGraph parallel ``Send``) because ``DemoBotState`` has no
