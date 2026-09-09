@@ -25,9 +25,18 @@ agent's LLM call, so a callback (which fires when that call returns) cannot carr
 them. (Raw ``gen_ai.*`` spans still reach Agent Observability through the OTel
 Collector overlay ``otel-collector-agent-obs.yaml`` for the model/token view.)
 
-Lifecycle: ONE long-lived ``SplunkAOLogger`` per process, owned by a single
-daemon worker thread that drains a bounded queue; the request path does an env
-check and a ``put_nowait`` — nothing else. Verified against splunk-ao 0.4.0: the
+Agent stream per theme: a turn is logged to the stream named after its theme's
+own label (``medadvice`` -> ``MedAdvice``), so each vertical is its own Agent
+stream in the console rather than every theme sharing one. The label is read from
+the theme registry, so a new theme needs no change here; an unresolvable theme
+falls back to ``SPLUNK_AO_AGENT_STREAM``, and setting
+``SPLUNK_AO_AGENT_STREAM_PER_THEME=False`` pins every turn to that one stream.
+
+Lifecycle: one long-lived ``SplunkAOLogger`` per agent stream (the stream is
+fixed at construction), owned by a single daemon worker thread that drains a
+bounded queue; the request path does an env check and a ``put_nowait`` — nothing
+else. Loggers are built lazily on the first turn of a theme and are bounded by
+the registry, so an idle theme costs nothing. Verified against splunk-ao 0.4.0: the
 logger is not thread-safe, every instance owns a BatchSpanProcessor thread, a
 private TracerProvider and atexit hooks, and the SDK's own singleton keys loggers
 by *thread name* — so per-turn construction leaks and a per-turn thread would
@@ -103,7 +112,10 @@ class _Runtime:
     dropped: int = 0
     drop_warned: bool = False
     # ---- worker-owned below: touched only on the worker thread ----
-    logger: Any = None
+    # One SDK logger per agent stream: the stream is fixed at construction, so a
+    # per-theme stream means a logger per theme. Bounded by the theme registry
+    # (see _stream_for), built lazily on the first turn of that theme.
+    loggers: "Dict[str, Any]" = field(default_factory=dict)
     logger_generation: int = -1
     build_backoff_until: float = 0.0
     last_build_error: str = ""
@@ -202,11 +214,13 @@ def status() -> Dict[str, Any]:
         "queued": _rt.queue.qsize(),
         "dropped": _rt.dropped,
         "turns_logged": _rt.turns_logged,
-        "logger_ready": _rt.logger is not None,
+        "logger_ready": bool(_rt.loggers),
         "last_build_error": _rt.last_build_error,
         "sessions_cached": len(_rt.sessions),
         "project": os.getenv("SPLUNK_AO_PROJECT") or _DEFAULT_PROJECT,
-        "agent_stream": os.getenv("SPLUNK_AO_AGENT_STREAM") or _DEFAULT_AGENT_STREAM,
+        "agent_stream": _default_stream(),
+        "agent_stream_per_theme": _per_theme_streams(),
+        "agent_streams_live": sorted(_rt.loggers),
     }
 
 
@@ -262,16 +276,54 @@ def _worker_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Agent stream selection (worker thread only)
+# ---------------------------------------------------------------------------
+def _default_stream() -> str:
+    """The stream for turns whose theme cannot be resolved, and the one the
+    collector overlay sends its raw gen_ai spans to."""
+    return os.getenv("SPLUNK_AO_AGENT_STREAM") or _DEFAULT_AGENT_STREAM
+
+
+def _per_theme_streams() -> bool:
+    """True unless ``SPLUNK_AO_AGENT_STREAM_PER_THEME`` is falsey, which pins
+    every turn to ``SPLUNK_AO_AGENT_STREAM``."""
+    return os.getenv("SPLUNK_AO_AGENT_STREAM_PER_THEME", "true").strip().lower() \
+        not in ("false", "0", "f", "no", "off")
+
+
+def _stream_for(log_data: Dict[str, Any]) -> str:
+    """Agent stream for this turn: the theme's own label — ``medadvice`` ->
+    ``MedAdvice`` — so each vertical lands in its own stream in the console
+    instead of every theme sharing one.
+
+    The label comes from the theme REGISTRY, never from the raw request value:
+    an unknown (or hostile) theme falls back to the default stream, so the
+    number of live loggers is bounded by the number of themes + 1."""
+    if not _per_theme_streams():
+        return _default_stream()
+    theme = log_data.get("theme")
+    if not theme:
+        return _default_stream()
+    try:
+        from backend.agents.themes import THEMES   # lazy: keeps this module importable standalone
+    except Exception:  # noqa: BLE001
+        return _default_stream()
+    cfg = THEMES.get(str(theme).strip().lower())
+    return cfg.label if cfg is not None else _default_stream()
+
+
+# ---------------------------------------------------------------------------
 # Logger lifecycle (worker thread only)
 # ---------------------------------------------------------------------------
 def _maybe_retire_logger() -> None:
-    """Terminate the live logger if ``reconfigure()`` bumped the generation since
-    it was built; also forget sessions (they belong to a project/stream), failure
-    counters, backoffs and one-time-warning flags."""
+    """Terminate every live logger if ``reconfigure()`` bumped the generation
+    since they were built; also forget sessions (they belong to a project/stream),
+    failure counters, backoffs and one-time-warning flags."""
     with _rt.lock:
         gen = _rt.generation
-    if _rt.logger is not None and _rt.logger_generation != gen:
-        logger.info("agent observability: configuration changed; retiring the current logger")
+    if _rt.loggers and _rt.logger_generation != gen:
+        logger.info("agent observability: configuration changed; retiring %d logger(s)",
+                    len(_rt.loggers))
         _terminate_logger()
         _rt.sessions.clear()
         _rt.sessions_unavailable_until = 0.0
@@ -282,27 +334,30 @@ def _maybe_retire_logger() -> None:
 
 
 def _terminate_logger() -> None:
-    lg, _rt.logger = _rt.logger, None
-    if lg is not None:
+    """Terminate every stream's logger (an ingest problem is never one stream's)."""
+    loggers, _rt.loggers = list(_rt.loggers.values()), {}
+    for lg in loggers:
         try:
             lg.terminate()                # idempotent; force_flush (<=30 s) + sink shutdown
         except Exception:  # noqa: BLE001
             logger.debug("agent observability: terminate failed", exc_info=True)
 
 
-def _ensure_logger():
-    """Return the live ``SplunkAOLogger``, building it lazily. ``None`` when the
-    build failed recently (60 s backoff) — the caller drops the turn."""
+def _ensure_logger(stream: str):
+    """Return the live ``SplunkAOLogger`` for ``stream``, building it lazily.
+    ``None`` when a build failed recently (60 s backoff, shared across streams
+    because the cause is the token/realm/ingest) — the caller drops the turn."""
     _maybe_retire_logger()
-    if _rt.logger is not None:
-        return _rt.logger
+    lg = _rt.loggers.get(stream)
+    if lg is not None:
+        return lg
     now = time.monotonic()
     if now < _rt.build_backoff_until:
         return None
     with _rt.lock:
         gen = _rt.generation              # capture BEFORE building: a reconfigure() during the build retires it next tick
     try:
-        lg = _build_logger()
+        lg = _build_logger(stream)
     except Exception as exc:  # noqa: BLE001 - MissingConfigurationError, AmbiguousConfigurationError, ImportError, ...
         msg = f"{type(exc).__name__}: {exc}"
         if msg != _rt.last_build_error:   # one WARNING per distinct cause
@@ -311,14 +366,15 @@ def _ensure_logger():
             _rt.last_build_error = msg
         _rt.build_backoff_until = now + _BUILD_BACKOFF_S
         return None
-    _rt.logger, _rt.logger_generation, _rt.last_build_error = lg, gen, ""
+    _rt.loggers[stream] = lg
+    _rt.logger_generation, _rt.last_build_error = gen, ""
     logger.info("agent observability: logger ready (realm=%s, project=%s, agent_stream=%s)",
                 os.getenv("SPLUNK_AO_REALM"), getattr(lg, "project_name", None),
                 getattr(lg, "agent_stream_name", None))
     return lg
 
 
-def _build_logger():
+def _build_logger(stream: str):
     """Construct the SDK logger from the current environment. Observability Cloud
     mode is auto-detected from ``SPLUNK_AO_REALM`` / ``SPLUNK_AO_O11Y_TOKEN``; no
     network call happens here (the exporter is built, the project and agent
@@ -333,7 +389,7 @@ def _build_logger():
     from splunk_ao import SplunkAOLogger  # lazy: keeps the module importable without the package
     return SplunkAOLogger(
         project=os.getenv("SPLUNK_AO_PROJECT") or _DEFAULT_PROJECT,
-        agent_stream=os.getenv("SPLUNK_AO_AGENT_STREAM") or _DEFAULT_AGENT_STREAM,
+        agent_stream=stream,
     )
 
 
@@ -341,7 +397,8 @@ def _build_logger():
 # Per-turn processing (worker thread only)
 # ---------------------------------------------------------------------------
 def _process_turn(log_data: Dict[str, Any]) -> None:
-    lg = _ensure_logger()
+    stream = _stream_for(log_data)
+    lg = _ensure_logger(stream)
     if lg is None:
         _rt.dropped += 1
         return
@@ -349,7 +406,7 @@ def _process_turn(log_data: Dict[str, Any]) -> None:
     agents = len(log_data.get("agent_trace") or []) or 1
     try:
         _recover_dangling(lg)
-        ao_sid = _session_for(lg, log_data.get("session_id"))
+        ao_sid = _session_for(lg, stream, log_data.get("session_id"))
         if ao_sid:
             lg.set_session(ao_sid)
         else:
@@ -411,16 +468,19 @@ def _recover_dangling(lg) -> None:
         lg.reset_parent_tracking()
 
 
-def _session_for(lg, session_id) -> Optional[str]:
+def _session_for(lg, stream: str, session_id) -> Optional[str]:
     """PseudoCo Assistant ``session_id`` -> Agent Observability session id, once per session
-    (LRU of 512). Best-effort: on failure warn once, back off five minutes and
-    return None (the turn is still logged, just without a session)."""
+    (LRU of 512). Keyed by stream as well: a session belongs to one agent stream,
+    so the same chat session seen under two themes needs one session per stream.
+    Best-effort: on failure warn once, back off five minutes and return None (the
+    turn is still logged, just without a session)."""
     if not session_id:
         return None
     sid = str(session_id)
-    cached = _rt.sessions.get(sid)
+    key = f"{stream}\x00{sid}"
+    cached = _rt.sessions.get(key)
     if cached:
-        _rt.sessions.move_to_end(sid)
+        _rt.sessions.move_to_end(key)
         return cached
     now = time.monotonic()
     if now < _rt.sessions_unavailable_until:
@@ -439,7 +499,7 @@ def _session_for(lg, session_id) -> Optional[str]:
         _rt.sessions_unavailable_until = now + _SESSION_BACKOFF_S
         return None
     _rt.session_warned = False
-    _rt.sessions[sid] = str(ao)
+    _rt.sessions[key] = str(ao)
     while len(_rt.sessions) > _SESSION_CACHE_SIZE:
         _rt.sessions.popitem(last=False)
     return str(ao)

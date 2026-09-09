@@ -43,7 +43,10 @@ for _k in ("SPLUNK_AO_O11Y_TOKEN", "SPLUNK_AO_REALM", "SPLUNK_AO_LOGGING_DISABLE
            "SPLUNK_AO_PROJECT", "SPLUNK_AO_AGENT_STREAM"):
     os.environ.pop(_k, None)
 
-import backend.agent_observability as ao  # noqa: E402
+import backend.agent_observability as ao
+from backend.agents.themes import THEMES as _THEMES
+
+_THEME_KEYS = sorted(_THEMES)  # noqa: E402
 
 
 class _LogCapture(logging.Handler):
@@ -389,6 +392,53 @@ check("the session cache is dropped with the logger",
       "start_session" in _names(_FakeLogger.instances[1].calls))
 os.environ.pop("SPLUNK_AO_PROJECT")
 
+print("\n[8b] one agent stream per theme")
+_fresh()
+_enable()
+os.environ.pop("SPLUNK_AO_AGENT_STREAM", None)
+os.environ.pop("SPLUNK_AO_AGENT_STREAM_PER_THEME", None)
+
+check("a theme resolves to its own label, from the registry",
+      ao._stream_for({"theme": "medadvice"}) == "MedAdvice"
+      and ao._stream_for({"theme": "taxadvice"}) == "TaxAdvice")
+check("theme matching is case/whitespace tolerant",
+      ao._stream_for({"theme": " MedAdvice "}) == "MedAdvice")
+check("every registered theme maps to a distinct stream",
+      len({ao._stream_for({"theme": k}) for k in _THEME_KEYS}) == len(_THEME_KEYS))
+check("an unknown or missing theme falls back to the default stream",
+      ao._stream_for({"theme": "not-a-theme"}) == "PseudoCo Assistant"
+      and ao._stream_for({}) == "PseudoCo Assistant"
+      and ao._stream_for({"theme": None}) == "PseudoCo Assistant")
+
+os.environ["SPLUNK_AO_AGENT_STREAM"] = "Fallback"
+check("the fallback stream is SPLUNK_AO_AGENT_STREAM", ao._stream_for({}) == "Fallback")
+check("a known theme still wins over the fallback",
+      ao._stream_for({"theme": "legaladvice"}) == "LegalAdvice")
+os.environ["SPLUNK_AO_AGENT_STREAM_PER_THEME"] = "False"
+check("PER_THEME=False pins every turn to the one stream",
+      ao._stream_for({"theme": "legaladvice"}) == "Fallback")
+os.environ.pop("SPLUNK_AO_AGENT_STREAM_PER_THEME")
+os.environ.pop("SPLUNK_AO_AGENT_STREAM")
+
+# turns on two themes -> two loggers, each constructed with its own stream
+ao.maybe_log_turn(_turn(request_id="t-med", theme="medadvice"))
+ao.maybe_log_turn(_turn(request_id="t-tax", theme="taxadvice"))
+ao.maybe_log_turn(_turn(request_id="t-med2", theme="medadvice"))
+ao._drain_for_tests(5.0)
+_streams = [i.agent_stream_name for i in _FakeLogger.instances]
+check("one logger per theme, built with that theme's stream (not one per turn)",
+      _streams == ["MedAdvice", "TaxAdvice"], )
+check("all three turns were logged", ao._rt.turns_logged == 3)
+check("the live streams are reported by status()",
+      sorted(ao.status()["agent_streams_live"]) == ["MedAdvice", "TaxAdvice"]
+      and ao.status()["agent_stream_per_theme"] is True)
+check("each stream keeps its own project", {i.project_name for i in _FakeLogger.instances} == {"PseudoCo Assistant"})
+check("sessions are per (stream, session): the same session_id twice, once per stream",
+      len(ao._rt.sessions) == 2)
+check("reconfigure retires every stream's logger",
+      (ao.reconfigure(), ao.maybe_log_turn(_turn(request_id="t-after", theme="medadvice")),
+       ao._drain_for_tests(5.0), len(_FakeLogger.instances) == 3)[-1])
+
 print("\n[9] consecutive failures rebuild the logger")
 _fresh()
 _enable()
@@ -405,7 +455,7 @@ for i in range(ao._MAX_CONSECUTIVE_FAILURES):
     ao.maybe_log_turn(_turn(request_id=f"r{i}"))
 ao._drain_for_tests(5.0)
 check("after N consecutive failures the logger is terminated and rebuilt after a backoff",
-      "terminate" in _names(_FakeLogger.instances[0].calls) and ao._rt.logger is None
+      "terminate" in _names(_FakeLogger.instances[0].calls) and not ao._rt.loggers
       and ao._rt.build_backoff_until > 0)
 check("one WARNING announces the rebuild", len(_cap.messages(logging.WARNING, "consecutive failures")) == 1)
 _fails_w = _cap.messages(logging.WARNING, "emit failed")
