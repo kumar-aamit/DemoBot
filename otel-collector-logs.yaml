@@ -1,5 +1,5 @@
 # Logs overlay — layered on by run-collector.sh ONLY when SPLUNK_HEC_TOKEN is
-# set in .env, exactly like the Galileo overlay. Without a token the base config
+# set in .env, exactly like the Agent Observability overlay (otel-collector-agent-obs.yaml). Without a token the base config
 # has no logs pipeline at all, so a keyless deployment drops OTLP log records at
 # the receiver instead of buffering them for a destination that isn't there.
 #

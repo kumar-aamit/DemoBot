@@ -1,6 +1,6 @@
 ---
 name: verify-observability
-description: Run the observability regression test after ANY change that affects the Splunk Observability Cloud (OpenTelemetry) integration. Triggers when editing backend/telemetry/otel.py, otel-collector-config.yaml, run.sh (OTEL section), run-collector.sh, the OTel/splunk packages in requirements.txt, backend/agents/llm.py, backend/agents/graph.py, backend/agents/nodes/*, or .env OTEL_*/SPLUNK_* settings — i.e. anything that changes how gen_ai spans/metrics are produced, exported, or forwarded. Confirms telemetry still reaches Splunk APM + AI Agent Monitoring with correct metadata (model, token usage).
+description: Run the observability regression test after ANY change that affects the Splunk Observability Cloud (OpenTelemetry) integration. Triggers when editing backend/telemetry/otel.py, backend/agent_observability.py, otel-collector-config.yaml, otel-collector-agent-obs.yaml, run.sh (OTEL section), run-collector.sh, the OTel/splunk packages in requirements.txt, backend/agents/llm.py, backend/agents/graph.py, backend/agents/nodes/*, or .env OTEL_*/SPLUNK_* settings — i.e. anything that changes how gen_ai spans/metrics are produced, exported, or forwarded. Confirms telemetry still reaches Splunk APM + AI Agent Monitoring with correct metadata (model, token usage).
 ---
 
 # Verify the Splunk Observability integration
@@ -25,7 +25,8 @@ forwards traces (APM) and metrics (signalfx, `send_otlp_histograms: true`).
 
 Run the regression test after editing any of:
 - `backend/telemetry/otel.py`
-- `otel-collector-config.yaml`, `run-collector.sh`
+- `otel-collector-config.yaml`, `otel-collector-agent-obs.yaml`, `run-collector.sh`
+- `backend/agent_observability.py` (the Splunk Agent Observability SDK path)
 - `run.sh` (the `opentelemetry-instrument` / OTEL_* section)
 - `backend/agents/llm.py`, `backend/agents/graph.py`, `backend/agents/nodes/*`
 - `backend/agents/blueprints/*` (both cores run every guardrail node — run the

@@ -15,7 +15,7 @@ This is an offline code-level check (no Ollama daemon / no network):
   - _active_provider_info() reports provider_name="ollama" + the local model.
   - invoke_agent end-to-end (stubbed agent) returns a NormalizedLLMResponse with
     non-zero tokens, the local model, and the Ollama stop reason — i.e. the
-    governance/otel/Galileo plumbing gets real values for a local model.
+    governance/otel/Agent Observability plumbing gets real values for a local model.
 
 Run:  venv/bin/python tests/test_ollama_provider.py    # exit 0 = pass
 """

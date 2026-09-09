@@ -77,7 +77,11 @@ is slower still. Treat the GPU as required, not optional — see §8.
 | 8888 | `127.0.0.1` | Collector self-metrics | local only |
 | 8443 / 8089 / 8088 | `0.0.0.0` | Splunk Enterprise web / mgmt / HEC | only if keeping layer B |
 
-Outbound egress required: `*.signalfx.com`, `api.multitenant.galileocloud.io`,
+Outbound egress required: `*.signalfx.com`,
+`ingest.us1.observability.splunkcloud.com` (Agent Observability),
+`app.us1.observability.splunkcloud.com` (its API, verification only),
+`api.multitenant.galileocloud.io` + `agent-control.multitenant.galileocloud.io`
+(Agent Control only),
 `*.argotunnel.com` / Cloudflare edge, `ollama.com`, `github.com`,
 `us.api.inspect.aidefense.security.cisco.com`.
 
@@ -213,7 +217,8 @@ opentelemetry-* 1.38.0 (sdk/api/exporters), instrumentation 0.59b0
 splunk-opentelemetry 2.8.0
 splunk-otel-util-genai 0.1.14 / splunk-otel-genai-emitters-splunk 0.1.8
 splunk-otel-instrumentation-langchain 0.1.14   # present but DISABLED at runtime
-galileo 2.3.0 / galileo-core 4.4.0
+splunk-ao 0.4.0 / galileo-core 4.5.0   # Agent Observability SDK
+galileo 2.3.0   # legacy eval scripts only
 SQLAlchemy 2.0.25
 ```
 
@@ -303,10 +308,12 @@ OTEL_INSTRUMENTATION_GENAI_EMITTERS=span_metric,splunk
 OTEL_LOGS_EXPORTER=none
 OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-1   # <-- PER-REPLICA
 
-# --- Galileo -----------------------------------------------------------
-GALILEO_CONSOLE_URL=https://console.multitenant.galileocloud.io
-GALILEO_PROJECT=DemoBot
-GALILEO_LOG_STREAM=DemoBot
+# --- Splunk Agent Observability ---------------------------------------
+SPLUNK_AO_REALM=us1
+SPLUNK_AO_PROJECT=DemoBot
+SPLUNK_AO_AGENT_STREAM=DemoBot
+# --- Agent Control ------------------------------------------------------
+AGENT_CONTROL_CONSOLE_URL=https://console.multitenant.galileocloud.io
 ```
 
 ### `.env` — secrets (values withheld; copy from the Mac at `/Applications/DemoBot/.env`)
@@ -318,7 +325,8 @@ GALILEO_LOG_STREAM=DemoBot
 | `ACCESS_KEY` | HTTP Basic password gating public access — **required** when the tunnel is up |
 | `O11Y_INGEST` | O11y **ingest** token, realm us1 |
 | `O11Y_API` | O11y **API** token — ⚠️ currently expired (401), see §8 |
-| `GALILEO_API_KEY` | Galileo ingest key |
+| `SPLUNK_AO_O11Y_TOKEN` | Agent Observability ingest token (an O11y INGEST token; same value as `O11Y_INGEST` here) |
+| `AGENT_CONTROL_API_KEY` | Agent Control console API key (guardrail only) |
 
 ### The active model is set in **two** places — the database wins
 
@@ -350,7 +358,7 @@ not the persisted row.
 
 ### `OTEL_RESOURCE_ATTRIBUTES` — the one value you must change per replica
 
-Each replica sets a distinct `deployment.environment` so Splunk O11y and Galileo
+Each replica sets a distinct `deployment.environment` so Splunk O11y and Agent Observability
 can separate them:
 
 - Mac (`/Applications/DemoBot`) → `demobot-local`
@@ -387,12 +395,13 @@ only needs the credentials file.
 
 ### OTel collector pipelines (`otel-collector-config.yaml`)
 
-Three pipelines off one OTLP receiver (:4317 gRPC, :4318 HTTP):
+Three pipelines off one OTLP receiver (:4317 gRPC, :4318 HTTP; the second only
+when the agent-obs overlay is layered on):
 
 | Pipeline | Processors | Exporter | Destination |
 |---|---|---|---|
 | `traces` | batch | `otlphttp/traces` | `https://ingest.us1.signalfx.com/v2/trace/otlp` (Splunk APM) — full traces incl. HTTP spans |
-| `traces/galileo` | `filter/genai_only`, batch | `otlphttp/galileo` | `https://api.multitenant.galileocloud.io/otel/traces` — **gen_ai spans only** |
+| `traces/agent_obs` (overlay `otel-collector-agent-obs.yaml`) | `filter/genai_only`, batch | `otlphttp/agent_obs` | `https://ingest.us1.observability.splunkcloud.com/v2/trace/otlp` + `project`/`logstream` headers — **gen_ai spans only** |
 | `metrics` | batch | `signalfx` (`send_otlp_histograms: true`) | Splunk O11y metrics |
 
 Two non-obvious settings, both load-bearing:
@@ -401,7 +410,7 @@ Two non-obvious settings, both load-bearing:
    Agent Monitoring depends on (`gen_ai.evaluation.score`, token usage) never
    ingest.
 2. `filter/genai_only` drops spans without `gen_ai.operation.name` before the
-   Galileo exporter. Galileo rejects batches with no GenAI patterns, so
+   Agent Observability exporter, which rejects batches with no GenAI patterns, so
    unfiltered FastAPI HTTP spans cause partial-success drops.
 
 ### Instrumentation quirk
@@ -518,7 +527,7 @@ Full rationale for each in [`deploy/ec2/README.md`](../DemoBot/deploy/ec2/README
 
 **`deployment.environment` is still the one value that differs per replica**
 (`demobot-local`, `demobot-ec2-1`, `demobot-ec2-2`, …). It is the only thing
-separating replicas in Splunk O11y and Galileo — everything else, including
+separating replicas in Splunk O11y and Agent Observability — everything else, including
 `service.name=demobot-v3`, is identical by design. Two replicas sharing a value
 merge into one apparent service, so a sick box hides behind a healthy one. The
 bootstrap rewrites only that key inside `OTEL_RESOURCE_ATTRIBUTES`, preserving
@@ -641,6 +650,10 @@ In Splunk Observability Cloud — realm **us1**, `https://app.us1.signalfx.com`:
 3. Set visibility, then **set a long expiration date**. The default is 30 days —
    that is why the previous token expired. Max is 18 years.
 4. **Create**, expand the token, **Show Token**, **Copy**
+
+The same page mints the INGEST token that `SPLUNK_AO_O11Y_TOKEN` needs
+(authorization scope = Ingest); `O11Y_INGEST` and `SPLUNK_AO_O11Y_TOKEN` may share
+one token.
 
 Creating org access tokens requires org admin. Alternatives:
 

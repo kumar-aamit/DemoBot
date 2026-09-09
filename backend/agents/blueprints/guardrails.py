@@ -6,7 +6,7 @@
                 -> nemo_output_rails -> response_defense -> governance -> END
 
 Any node may short-circuit to END by setting ``terminal`` (policy block,
-AI Defense block, NeMo rail, Galileo deny, clarifying question, generation
+AI Defense block, NeMo rail, Agent Control deny, clarifying question, generation
 error). Adding a guardrail means adding it HERE (and to ``PRE_NODES`` /
 ``POST_NODES``), never inside a blueprint's core, so both architectures get it
 in the same change — tests/test_blueprint_parity.py asserts every compiled

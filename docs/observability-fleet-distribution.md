@@ -11,21 +11,21 @@
 | Backend | Transport | Trigger | Configured by |
 |---|---|---|---|
 | **Splunk Observability Cloud** | app → OTLP → **local OTel collector** → APM (traces) + signalfx (metrics) | every turn (passive) | `.env` `SPLUNK_REALM`/`O11Y_INGEST` + `OTEL_*` |
-| **Galileo** | (a) SDK per turn; (b) collector `otlphttp/galileo` (GenAI spans) | every turn (passive) | `.env` `GALILEO_*` |
+| **Splunk Agent Observability** | (a) splunk-ao SDK per turn; (b) collector `otlphttp/agent_obs` (GenAI spans) | every turn (passive) | `.env` `SPLUNK_AO_*` |
 | **Splunk Core** | app → **HEC** (`backend/hec/`), multi-destination fan-out | every governance/audit log | **SQLite** `app_settings.hec_destinations` (no env var) |
 | **Cisco AI Defense** | app → Inspection API (`inspect_prompt`/`inspect_response`) | **per-request opt-in** (`ai_defense_review`) | `.env` `AI_DEFENSE_*` |
 
 Two telemetry planes:
-- **Plane A (OTLP):** `app → localhost:4317 collector → Splunk O11y + Galileo`. The collector YAML is **host-generic** and reads `${env:SPLUNK_REALM|O11Y_INGEST|GALILEO_*}`.
-- **Plane B (governance logs):** one chokepoint — `backend/logging/governance_logger.py::_write_log` → `hec_runtime.submit()` (fans to **all enabled HEC destinations**) **+** Galileo SDK.
+- **Plane A (OTLP):** `app → localhost:4317 collector → Splunk O11y APM + Agent Observability`. The collector YAML is **host-generic** and reads `${env:SPLUNK_REALM|O11Y_INGEST|SPLUNK_AO_*}`.
+- **Plane B (governance logs):** one chokepoint — `backend/logging/governance_logger.py::_write_log` → `hec_runtime.submit()` (fans to **all enabled HEC destinations**) **+** the Agent Observability SDK.
 
 ```
                                    ┌────────────► Splunk O11y Cloud (APM + metrics)
    app ──OTLP──► local collector ──┤
-    │                              └────────────► Galileo (GenAI spans)
+    │                              └────────────► Agent Observability (GenAI spans)
     │
     ├─ governance_logger._write_log ─┬─► HEC ──► Splunk Core  (all enabled destinations)
-    │                                └─► Galileo SDK (governance verdicts)
+    │                                └─► Agent Observability SDK (governance verdicts)
     │
     └─ defense nodes ──(opt-in)──► Cisco AI Defense Inspection API
 ```
@@ -36,9 +36,9 @@ Two telemetry planes:
 
 | Plane | Holds | Travels by copying `.env`? |
 |---|---|---|
-| **1. `.env` / process env** | O11y (`SPLUNK_*`,`OTEL_*`), Galileo (`GALILEO_*`), AI Defense (`AI_DEFENSE_*`), provider keys, `ACCESS_KEY` | ✅ yes |
+| **1. `.env` / process env** | O11y (`SPLUNK_*`,`OTEL_*`), Agent Observability (`SPLUNK_AO_*`), Agent Control (`AGENT_CONTROL_*`), AI Defense (`AI_DEFENSE_*`), provider keys, `ACCESS_KEY` | ✅ yes |
 | **2. SQLite `app_settings.data`** | **HEC destinations (Splunk Core)**, UI provider creds, active-provider override | ❌ **no — per-host only** |
-| **3. Collector env** | realm/token, Galileo headers | ✅ yes (host-generic YAML, from `.env`) |
+| **3. Collector env** | realm/token, Agent Observability token + project/stream headers | ✅ yes (host-generic YAML, from `.env`) |
 
 **Key insight:** copying one canonical `.env` to every host distributes three of the four backends' config automatically. It does **not** carry **Splunk Core HEC destinations**, which live only in each host's SQLite blob and are entered by hand through the Settings UI. Worse, that same SQLite plane can hold an **active-provider override that silently wins over `.env`** at startup (observed live: the Mac DB forces `provider=nvidia` while its `.env` says `ollama`). Any fleet design must therefore address Plane 2 explicitly, not just ship `.env`.
 
@@ -50,10 +50,10 @@ Two telemetry planes:
 Chosen substrate: **shared canonical `.env` distributed via config management** (Ansible / `scp` / `rsync`). This works cleanly because `backend/config.py` and the shell launchers honor **already-exported env vars over `.env`** (`config.py:30`), and the collector YAML is host-generic.
 
 **Identical across every server** (the "distribute to all" set):
-`SPLUNK_REALM`, `O11Y_INGEST` (ingest), `O11Y_API` (API), `GALILEO_API_KEY`, `GALILEO_PROJECT`, `GALILEO_LOG_STREAM`, `GALILEO_CONSOLE_URL`, `AI_DEFENSE_API_KEY`, `AI_DEFENSE_REGION`/`AI_DEFENSE_ENDPOINT` + rule lists, provider keys (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, …), `ACCESS_KEY`, `AI_PROVIDER` + `*_MODEL`, all safety/injection/session flags, `OTEL_SERVICE_NAME=demobot-v3`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+`SPLUNK_REALM`, `O11Y_INGEST` (ingest), `O11Y_API` (API), `SPLUNK_AO_REALM`, `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`, `SPLUNK_AO_AGENT_STREAM`, `AGENT_CONTROL_API_KEY`, `AGENT_CONTROL_CONSOLE_URL`, `AI_DEFENSE_API_KEY`, `AI_DEFENSE_REGION`/`AI_DEFENSE_ENDPOINT` + rule lists, provider keys (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, …), `ACCESS_KEY`, `AI_PROVIDER` + `*_MODEL`, all safety/injection/session flags, `OTEL_SERVICE_NAME=demobot-v3`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
 **Per-host (must differ / be templated):**
-`OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment` + host id — how O11y/Galileo split one shared service by box), `SERVER_HOSTNAME`, `DATABASE_URL` (unless a shared DB — see 3.5). `OLLAMA_BASE_URL` stays `localhost` (identical string, host-local runtime).
+`OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment` + host id — how O11y/Agent Observability split one shared service by box), `SERVER_HOSTNAME`, `DATABASE_URL` (unless a shared DB — see 3.5). `OLLAMA_BASE_URL` stays `localhost` (identical string, host-local runtime).
 
 ### 3.2 Plane 2 — a startup **seed loader** for the SQLite config (the missing piece)
 This is the core new capability. Add a boot-time loader that reads the SQLite-only config from a distributable source and upserts it into the store — so HEC destinations travel exactly like `.env`.
@@ -66,7 +66,7 @@ This is the core new capability. Add a boot-time loader that reads the SQLite-on
 *Alternatives considered:* (a) a post-deploy script that `POST`s `/api/hec/destinations` per host (no code change, but an extra imperative step and secrets in shell history); (b) a shared **Postgres** `DATABASE_URL` so all hosts share one `app_settings` row (simplest conceptually, but turns the DB into shared infra and a single point of failure). The seed loader is recommended because it keeps the "config as data, pushed to each host" model consistent with Plane 1.
 
 ### 3.3 Per-host identity
-Template only three fields at provision time: `OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-<n>,host.name=<hostname>`, `SERVER_HOSTNAME=<hostname>`, and `DATABASE_URL`. Everything else is byte-identical — this is what makes "one shared service, split by host" work in O11y/Galileo.
+Template only three fields at provision time: `OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-<n>,host.name=<hostname>`, `SERVER_HOSTNAME=<hostname>`, and `DATABASE_URL`. Everything else is byte-identical — this is what makes "one shared service, split by host" work in O11y/Agent Observability.
 
 ### 3.4 Divergence guardrail (provider selection)
 The SQLite active-provider override silently beating `.env` is a fleet foot-gun. Options: (a) make `.env` authoritative — ignore/clear the SQLite provider override on managed hosts; or (b) fold provider selection + creds into the seed (3.2) so they're distributed deterministically. Recommend documenting provider selection as **`.env`-only** on fleet hosts and having provisioning clear any stale SQLite override.
@@ -100,7 +100,7 @@ that way). See the `provision-tokens` skill for generation, population and valid
 ```
    ┌── server-1 (app+collector) ──┐
    ├── server-2 (app+collector) ──┤        ┌─► Splunk O11y Cloud (realm us1)
-   ├── server-3 (app+collector) ──┼────────┼─► Galileo (project DemoBot)
+   ├── server-3 (app+collector) ──┼────────┼─► Agent Observability (project DemoBot)
    └── server-N (app+collector) ──┘        ├─► Splunk Core (HEC destination[s])
         each identical config,             └─► Cisco AI Defense (inspection)
         each fans out to ALL four
@@ -120,6 +120,6 @@ Every server carries the same keys/endpoints (Plane 1) **and** the same HEC dest
 ## 6. Per-host verification (definition of done for each server)
 - `verify_observability.sh` → Tier 1–3 pass (needs a valid `O11Y_API`).
 - `GET /api/hec/stats` → `events_sent>0`, `failed=0`; the Splunk Core search finds the events.
-- Galileo shows the host's turns (project `DemoBot`).
+- Agent Observability shows the host's turns (project `DemoBot`, agent stream `DemoBot`).
 - One chat turn with `ai_defense_review=true` → AI Defense `200` + governance flags.
-- O11y/Galileo split the fleet by `host.name` / `deployment.environment`.
+- O11y/Agent Observability split the fleet by `host.name` / `deployment.environment`.

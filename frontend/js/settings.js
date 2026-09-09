@@ -211,9 +211,10 @@ function setCredsStatus(msg, ok) {
 // credFieldHtml / collectFieldsIn are shared rather than duplicated.
 //
 // Each group saves independently because their save semantics differ: the AI
-// Defense and Agent Observability fields apply on the next chat turn, while the
-// collector-consumed ones are written to .env and need a restart. The server
-// reports which in restart_required.
+// Defense fields apply on the next chat turn, the collector-consumed ones are
+// written to .env and need a restart, and the Agent Observability ones do both
+// (live for the SDK path, .env for the collector fan-out). The server reports
+// which in restart_required.
 let _integrations = {};   // integration id -> field metadata from the server
 
 // Which container each integration renders into, in display order.
@@ -234,7 +235,7 @@ const INTEGRATION_NOTES = {
   ai_defense: '',
   nemo_guardrails: 'Applies on the next chat turn — no restart. Rails are rebuilt automatically when the active provider/model changes.',
   splunk_o11y: 'Read by a separate process \u2014 the collector (realm, ingest token) or the app at startup (OTLP endpoint, resource attributes). Saving writes .env; the save message names which process to restart. On a fleet replica these are replaced by the next deploy.',
-  agent_observability: 'Applies on the next chat turn \u2014 no restart.',
+  agent_observability: 'The SDK path picks the ingest token, project and agent stream up on the next chat turn; the collector fan-out reads them from .env at start, so the save message asks for a collector restart. Agent Control credentials apply live.',
 };
 
 function integrationHtml(id) {

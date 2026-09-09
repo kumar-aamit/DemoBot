@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regression test for the OpenClaw gateway -> OpenTelemetry -> Splunk/Galileo
+# Regression test for the OpenClaw gateway -> OpenTelemetry -> Splunk / Agent Observability
 # pipeline (the agentic-risk demo surface). Run after changes to the plugin,
 # run-openclaw.sh, backend/routers/toolguard.py, backend/telemetry/otel.py
 # (tool_span), or the collector config. See
@@ -107,11 +107,11 @@ spans1=$(sum 'otelcol_exporter_sent_spans')
 fail1=$(sum 'otelcol_exporter_send_failed_(spans|metric_points)')
 [ "$spans1" -gt "$spans0" ] && ok "spans forwarded to Splunk ($spans0 -> $spans1)" || bad "no new spans forwarded ($spans0 -> $spans1)"
 [ "$fail1" -le "$fail0" ] && ok "no new export failures (failed total=$fail1)" || bad "export failures increased ($fail0 -> $fail1)"
-# Galileo genai_only filter: execute_tool spans set gen_ai.operation.name and
-# survive it; watch the Galileo exporter specifically for partial-drops.
-gfail=$(sum 'otelcol_exporter_send_failed_spans.*galileo')
-[ "${gfail:-0}" -eq 0 ] && ok "no Galileo span send failures (genai_only filter passing execute_tool)" \
-  || bad "Galileo span send failures=$gfail -> orphaned-parent drop? add transform/openclaw_genai"
+# Agent Observability genai_only filter: execute_tool spans set gen_ai.operation.name and
+# survive it; watch the agent_obs exporter specifically for partial-drops.
+gfail=$(sum 'otelcol_exporter_send_failed_spans.*agent_obs')
+[ "${gfail:-0}" -eq 0 ] && ok "no Agent Observability span send failures (genai_only filter passing execute_tool)" \
+  || bad "Agent Observability span send failures=$gfail -> orphaned-parent drop? add transform/openclaw_genai"
 
 echo "== Tier 3: openclaw-gateway GenAI metadata in Observability Cloud =="
 APITOK=$(grep '^O11Y_API=' .env 2>/dev/null | cut -d= -f2)

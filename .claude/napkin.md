@@ -86,48 +86,78 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
 - **Blocked turns have no `response.model` to echo** — use
   `governance_logger.active_response_model()` (never `settings.anthropic_model`,
   the old bug: on Ollama every blocked event read as a Claude turn, and
-  `executive_fields`/Galileo both prefer `response_model` over `request_model`,
+  `executive_fields`/Agent Observability both prefer `response_model` over `request_model`,
   so the wrong value won). Response-side blocks *do* have a real model + token
   usage — pass `llm_model`/`usage_data` (`nodes/defense.py`) or they report
   zeros. Regression: `venv/bin/python tests/test_provider_setting.py`.
 - `estimated_cost` is an app-side estimate (Splunk prices Claude to $0); price map
   is in `executive_fields._PRICES_PER_MTOK`. Real `hallucination_score`/
   `groundedness_score` come from Splunk GenAI Scoring (`gen_ai_log` sourcetype
-  `genai_scoring`) + Galileo, not the app — overlay passes them through if present.
+  `genai_scoring`) + Agent Observability, not the app — overlay passes them through if present.
 - Demo seeder: `scripts/demo/seed_governance_scenarios.py` (10 safe-synthetic
   scenarios via `/api/chat`; needs app running + `ACCESS_KEY`).
 
-## Galileo (LLM observability) — second telemetry destination
-- Two paths, both **no-op without `GALILEO_API_KEY`**: (1) the OTel Collector fans
-  the gen_ai spans to Galileo — the `otlphttp/galileo` exporter + its pipeline live
-  in **`otel-collector-galileo.yaml`**, an OVERLAY that `run-collector.sh` layers on
-  with a second `--config` ONLY when the key is set (they used to sit
-  unconditionally in the base config with possibly-empty creds, so keyless boxes
-  POSTed span content — prompts and responses — with an empty API-key header).
-  Validate config changes without emitting telemetry:
-  `./bin/otelcol-contrib validate --config otel-collector-config.yaml --config otel-collector-galileo.yaml`;
-  the overlay references a processor/receiver defined only in the base, so a clean
-  validate also proves the merge works. (2) a per-turn
-  SDK trace with governance metadata (safety/PII/toxicity/policy/eval) via
-  `GalileoLogger` in `backend/galileo_integration.py`, fanned out from
-  `governance_logger._write_log` on a daemon thread (mirrors the HEC fan-out).
-- Used `GalileoLogger`, NOT the LangChain `GalileoCallback` — the governance flags are
-  computed by graph nodes AFTER the LLM call, so a callback (which fires at the call)
-  can't carry them. Net effect: **2 traces per turn** in Galileo (collector OTel + SDK);
-  drop the collector `otlphttp/galileo` exporter if you want a single trace source.
-- **CA gotcha:** the Galileo SDK's httpx needs the corp CA (`SSL_CERT_FILE` →
-  `ca-bundle.pem`, set by `backend.config` at import). The app is fine (it imports
-  `backend.config`); a standalone script must `import backend.config` FIRST or it gets
-  `httpx.ConnectError`. The collector (Go) uses the system keychain, so it's unaffected.
-- `run.sh` exports `GALILEO_*` to the app process; project/log stream = `YeackBot`/`default`.
-  The `galileo` pkg bumped `httpx`→0.28.1 + `pydantic-settings`→2.14.1 (in requirements.txt).
+## Splunk Agent Observability — second telemetry destination (splunk-ao SDK, 4.9.0)
+- Two paths, both **no-op without `SPLUNK_AO_O11Y_TOKEN` + `SPLUNK_AO_REALM`** (an
+  O11y INGEST token; explicit, no fallback to O11Y_INGEST): (1) the OTel Collector
+  fans gen_ai spans through **`otel-collector-agent-obs.yaml`** (`otlphttp/agent_obs`
+  → `ingest.<realm>.observability.splunkcloud.com/v2/trace/otlp`, headers
+  `X-SF-Token`/`project`/`logstream`), an OVERLAY `run-collector.sh` layers on with a
+  second `--config` only when the token is set. Validate without emitting:
+  `./scripts/validate-collector-config.sh` (base, then base+overlay). (2) a per-turn
+  SDK trace with governance metadata from `backend/agent_observability.py`, fanned
+  out from `governance_logger._write_log`. Expected app log lines:
+  `agent observability: logger ready (realm=us1, project=DemoBot, agent_stream=DemoBot)`
+  once, then `agent observability: logged turn (model=…, agents=N, project=DemoBot,
+  agent_stream=DemoBot, export=healthy)` per turn (`export=unknown` = the receiver
+  never acknowledged; the real transport error is logged by the OTel exporter).
+- Env contract: `SPLUNK_AO_REALM` / `SPLUNK_AO_O11Y_TOKEN` / `SPLUNK_AO_PROJECT` /
+  `SPLUNK_AO_AGENT_STREAM` ("Agent stream" is the user-visible name; the wire header
+  is still `logstream` because that is what the SDK sends). Project + stream are
+  created on first ingest — an empty listing before the first turn is normal.
+- **SDK bridge gotcha:** the SDK still honors `GALILEO_PROJECT`/`GALILEO_LOG_STREAM`
+  (and `SplunkAOConfig.reset()` pops every `GALILEO_*` key), and `backend/config.py`
+  loads every `.env` key into `os.environ` — so stale GALILEO_* lines in `.env`
+  silently override SPLUNK_AO_*. Delete them; `.env.bak.splunk-ao.<stamp>` holds the
+  pre-migration copy. Never call `SplunkAOConfig.reset()` from the app.
+- **One logger per process, on a worker thread** (`backend/agent_observability.py`):
+  the SDK logger is not thread-safe, every instance owns a BatchSpanProcessor thread
+  + atexit hooks, and `splunk_ao_context.get_logger_instance()` caches per THREAD
+  NAME — a per-turn thread would mint a logger every turn. The SDK never exports the
+  trace envelope: the `chat_turn` workflow span is the root that lands, so metadata
+  rides on the spans and `created_at`/`duration_ns` are back-dated per span.
+- Settings card: SPLUNK_AO_* fields are `env_file=True, restart="collector"` — the
+  SDK path applies live (os.environ + `agent_observability.reconfigure()`), the
+  collector needs a restart (.env). Regression: `venv/bin/python tests/test_agent_observability.py`.
+- **Sessions need an API token:** `start_session` goes through `/ao/api` (CRUD), which
+  rejects the INGEST token (401) and this box's read-only `O11Y_API` token (403 —
+  verified 2026-09-08). The app warns once, backs off 5 min and logs turns
+  sessionless; set `SPLUNK_AO_O11Y_API_TOKEN` (an O11y API token with Agent
+  Observability access) to get per-conversation sessions. Trace ingest is unaffected.
+- Console: https://app.us1.signalfx.com/#/agent-obs → project DemoBot → Agent Stream
+  DemoBot. API (`X-SF-Token`, needs an API token with AO access — not the ingest token):
+  `/ao/api/projects?project_name=…&type=gen_ai`, `/ao/api/v2/projects/<id>/log_streams`,
+  `/ao/api/v2/projects/<id>/traces/search`.
+- Legacy: `scripts/demo/galileo_*.py`, `tests/test_galileo_experiment.py` and the
+  `galileo==2.3.0` pin still target the standalone Galileo console with
+  `GALILEO_API_KEY`/`GALILEO_PROJECT` (export them for a run; not in .env anymore).
+- **CA gotcha (unchanged):** the SDK's httpx/requests need the corp CA (`SSL_CERT_FILE`
+  / `REQUESTS_CA_BUNDLE` → `ca-bundle.pem`, set by `backend.config` at import); a
+  standalone script must `import backend.config` FIRST.
 
-## Galileo Agent Control ("Agent Observability Controls" toggle)
+## Agent Control ("Agent Observability Controls" toggle)
+- Credentials are `AGENT_CONTROL_API_KEY` / `AGENT_CONTROL_CONSOLE_URL` (old
+  `GALILEO_API_KEY`/`GALILEO_CONSOLE_URL` honored as a deprecated fallback, one
+  warning per process; `GALILEO_CONSOLE_URL` is ignored once `AGENT_CONTROL_API_KEY`
+  is set because the splunk-ao SDK injects it with the O11y app host). The
+  `GALILEO_AGENT_CONTROL_*` pydantic settings and the identifiers
+  `galileo_agent_control`, `galileo_agent_control_agent`, `galileo.luna` do NOT
+  change — dashboards key on them.
 - **Two different auth schemes on `agent-control.multitenant.galileocloud.io`.**
   Management (`/api/v1/controls`, `/agents/initAgent`, `/agents/{a}/controls/{id}`,
   `/evaluators`) accepts `Authorization: Bearer <JWT>` where the JWT comes from
   `POST https://api.multitenant.galileocloud.io/v2/login/api_key {"api_key": …}`.
-  A raw `X-API-Key: $GALILEO_API_KEY` is rejected 401 on every endpoint.
+  A raw `X-API-Key: $AGENT_CONTROL_API_KEY` is rejected 401 on every endpoint.
   Do instead: always exchange the API key for the JWT first; the OpenAPI spec is
   public at `<base>/openapi.json` (no auth) — read it instead of guessing.
 - **`POST /api/v1/evaluation` takes ONLY a minted HS256 runtime token**

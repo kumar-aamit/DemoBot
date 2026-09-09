@@ -174,8 +174,8 @@ def patch_runner():
         src, n = re.subn(r'(?m)^echo "Starting OTel Collector', loop + 'echo "Starting OTel Collector', src, count=1)
         if n != 1:
             sys.exit("could not find an anchor in run-collector.sh")
-    src = src.replace('-e GALILEO_LOG_STREAM \\',
-                      '-e GALILEO_LOG_STREAM \\\n  ' + " ".join(f"-e {v}" for v in VARS) + ' \\')
+    src = src.replace('-e SPLUNK_AO_AGENT_STREAM \\',
+                      '-e SPLUNK_AO_AGENT_STREAM \\\n  ' + " ".join(f"-e {v}" for v in VARS) + ' \\')
     open(RUN, "w").write(src)
     print(f"  runner: patched (backup .bak.{STAMP})")
 

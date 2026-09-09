@@ -3,7 +3,7 @@
 The four **Synthetic Content** toggles in the Demo Controls drawer ask the
 user-facing agent to produce the toggled content ITSELF, as part of its normal
 answer, so the downstream guardrails (Cisco AI Defense, the internal policy
-engine, Splunk/Galileo evals) catch a genuine model output.
+engine, Splunk / Agent Observability evals) catch a genuine model output.
 
 **There is no deterministic fallback, and none may be added.** Canned text
 stitched onto the answer after the LLM call is not what the guardrails and evals
@@ -810,7 +810,7 @@ def strip_sample_labels(text: str) -> str:
 #   - PII/PHI/PCI: NOT enforced unless those guardrails are enabled in the SCC
 #     policy. No content change can make PII block until the policy adds the rule.
 #   - Hallucination / outside-of-authority: no native Cisco classifier — those are
-#     demonstrated on the Galileo/Splunk eval layer, not a Cisco real-time block.
+#     demonstrated on the Agent Observability / Splunk eval layer, not a Cisco real-time block.
 _SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 # The abuse vocabulary the toxic directive asks for verbatim (plus the harassment
 # snippets' own), so a compliant model is recognised and a declined one is not.

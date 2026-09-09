@@ -153,7 +153,8 @@ _PROVIDER_FIELDS: Dict[str, List[_CredField]] = {
 
 
 # ---------------------------------------------------------------------------
-# Integration credentials (Cisco AI Defense / Splunk Observability Cloud)
+# Integration credentials (Cisco AI Defense / Splunk Observability Cloud /
+# Splunk Agent Observability / NeMo Guardrails)
 # ---------------------------------------------------------------------------
 # Same _CredField vocabulary as _PROVIDER_FIELDS, one entry per Settings card
 # group. Scope is deliberately CREDENTIALS + IDENTITY only: timeouts, fail-open
@@ -235,19 +236,46 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
                         "service.name alone (OTEL_SERVICE_NAME) so they stay one "
                         "service."),
     ],
-    # Applies live: the SDK path builds a fresh GalileoLogger per turn and reads
-    # these from os.environ at call time.
+    # SPLUNK_AO_* are read by TWO consumers: the app's SDK path reads os.environ
+    # when it (re)builds its logger — agent_observability.reconfigure() retires the
+    # live logger on every save, so a change applies on the next chat turn — and
+    # run-collector.sh reads .env at start for the collector's Agent Observability
+    # overlay. env_file=True covers both, because set_integration_creds sets
+    # os.environ AND writes .env; a save reports "collector" as needing a restart.
+    # The Agent Control credentials are app-only, so they stay in the blob.
     "agent_observability": [
         _CredField("agent_control_enabled", "Agent Control enabled", boolean=True,
                    settings_attr="galileo_agent_control_enabled",
                    help="Master switch for the per-chat Agent Observability Controls toggle."),
-        _CredField("api_key", "API key", secret=True, env="GALILEO_API_KEY",
-                   placeholder="paste the console API key",
-                   help="Also the single enable signal for trace logging."),
-        _CredField("console_url", "Console URL", env="GALILEO_CONSOLE_URL",
+        _CredField("realm", "Realm", env="SPLUNK_AO_REALM", env_file=True, restart="collector",
+                   placeholder="us1",
+                   help="Splunk Observability Cloud realm of the Agent Observability org "
+                        "(ingest.<realm>.observability.splunkcloud.com) — normally the same "
+                        "as the card above."),
+        _CredField("o11y_token", "Ingest access token", secret=True, env="SPLUNK_AO_O11Y_TOKEN",
+                   env_file=True, restart="collector", placeholder="paste an O11y ingest token",
+                   help="Observability Cloud INGEST token. The single enable signal for trace "
+                        "logging (SDK path and collector fan-out): chat turns are logged only "
+                        "while this and the realm are set. Not the API token."),
+        _CredField("o11y_api_token", "API token (sessions, optional)", secret=True,
+                   env="SPLUNK_AO_O11Y_API_TOKEN", env_file=True,
+                   placeholder="optional — O11y API token with Agent Observability access",
+                   help="Only used to group turns into Agent Observability sessions "
+                        "(the ingest token cannot call that API). Leave blank to log "
+                        "turns without sessions."),
+        _CredField("project", "Project", env="SPLUNK_AO_PROJECT", env_file=True, restart="collector",
+                   placeholder="DemoBot", help="Created on first ingest if it does not exist."),
+        _CredField("agent_stream", "Agent stream", env="SPLUNK_AO_AGENT_STREAM", env_file=True,
+                   restart="collector", placeholder="DemoBot",
+                   help="Stream inside the project that this box's turns land in. Created on "
+                        "first ingest."),
+        _CredField("agent_control_api_key", "Agent Control API key", secret=True,
+                   env="AGENT_CONTROL_API_KEY", placeholder="paste the Agent Control console API key",
+                   help="Only for the Agent Observability Controls guardrail — independent of "
+                        "trace logging."),
+        _CredField("agent_control_console_url", "Agent Control console URL",
+                   env="AGENT_CONTROL_CONSOLE_URL",
                    placeholder="https://console.multitenant.galileocloud.io"),
-        _CredField("project", "Project", env="GALILEO_PROJECT", placeholder="YeackBot"),
-        _CredField("log_stream", "Log stream", env="GALILEO_LOG_STREAM", placeholder="default"),
     ],
     # Applies live: NemoGuardrailsClient.reconfigure() drops the built rails so
     # the next chat turn rebuilds them from the settings singleton.
@@ -742,8 +770,14 @@ def _reconfigure_integration(integration: str) -> None:
         from backend.services.ai_defense import ai_defense_client
         ai_defense_client.reconfigure()
     elif integration == "agent_observability":
-        from backend.services.agent_control import agent_control_client
-        agent_control_client.reconfigure()
+        try:
+            from backend.services.agent_control import agent_control_client
+            agent_control_client.reconfigure()
+        finally:
+            # Retire the live SplunkAOLogger so the next turn rebuilds it from the
+            # new realm / token / project / agent stream (non-blocking).
+            from backend import agent_observability
+            agent_observability.reconfigure()
     elif integration == "nemo_guardrails":
         from backend.services.nemo_guardrails import nemo_guardrails_client
         nemo_guardrails_client.reconfigure()
@@ -828,7 +862,14 @@ def apply_integration_creds_from_store() -> None:
 
     store = load().get("integration_creds") or {}
     for integration, fields in _INTEGRATION_FIELDS.items():
-        saved = store.get(integration) or {}
+        saved = dict(store.get(integration) or {})
+        if integration == "agent_observability":
+            # Pre-4.9 blobs stored the Agent Control credentials under the keys the
+            # legacy Galileo SDK path shared with it; keep a Settings-UI-only box working.
+            for old_key, new_key in (("api_key", "agent_control_api_key"),
+                                     ("console_url", "agent_control_console_url")):
+                if saved.get(old_key) and not saved.get(new_key):
+                    saved[new_key] = saved[old_key]
         for f in fields:
             if f.env_file:
                 continue  # .env-owned; already loaded by backend.config

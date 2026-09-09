@@ -6,7 +6,7 @@ of what gets installed under `~/Library/LaunchAgents/`.
 
 | Plist | Runs | Listens / serves |
 |-------|------|------------------|
-| `com.yeack.medadvice-collector.plist` | `run-collector.sh` (OTel collector) | OTLP `:4317`/`:4318` → Splunk O11y + Galileo |
+| `com.yeack.medadvice-collector.plist` | `run-collector.sh` (OTel collector) | OTLP `:4317`/`:4318` → Splunk O11y + Agent Observability |
 | `com.yeack.medadvice-app.plist` | `run.sh` (FastAPI app) | `0.0.0.0:8001` |
 | `com.yeack.medadvice-tunnel.plist` | `cloudflared tunnel run medadvice` | public `https://medadvice.yeackbot.com` |
 | `com.yeack.ollama-env.plist` | `launchctl setenv OLLAMA_*` (one-shot) | sets `OLLAMA_KEEP_ALIVE=30m` + `OLLAMA_MAX_LOADED_MODELS=2` for the GUI session |

@@ -195,7 +195,7 @@ def test_blocked_events_report_the_active_provider_model() -> None:
     These paths never see a real ``response.model`` (nothing was called, or the
     answer was withheld), and they used to hardcode ``settings.anthropic_model``
     -- so on Ollama every blocked event landed in Splunk as a Claude turn while
-    ``provider_name``/``request_model`` said ollama. Executive fields and Galileo
+    ``provider_name``/``request_model`` said ollama. Executive fields and Agent Observability
     both prefer ``response_model``, so the wrong value won."""
     from backend.logging.governance_logger import active_response_model
     from backend.model_emitter import model_emitter

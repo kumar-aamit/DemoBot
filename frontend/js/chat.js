@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
         hallucinationEnabled = savedHallucinationEnabled === 'true';
         boundaryEnabled = savedBoundaryEnabled === 'true';
         aiDefenseEnabled = savedAiDefenseEnabled === 'true';
-        // Galileo Agent Control defaults OFF unless explicitly turned on.
+        // Agent Observability Controls default OFF unless explicitly turned on.
         agentControlEnabled = savedAgentControlEnabled === 'true';
         // NeMo Guardrails defaults OFF unless explicitly turned on.
         nemoGuardrailsEnabled = savedNemoGuardrailsEnabled === 'true';
@@ -749,7 +749,7 @@ function refreshIndicators() {
 function startProviderPolling() {
     refreshIndicators();
     if (providerPollInterval) clearInterval(providerPollInterval);
-    // Poll so an external model switch (e.g. the Galileo eval runner) reflects here.
+    // Poll so an external model switch (e.g. the legacy eval runner) reflects here.
     providerPollInterval = setInterval(refreshIndicators, 10000);
 }
 
@@ -1407,7 +1407,7 @@ function toggleAgentControl() {
     agentControlEnabled = toggle.checked;
     localStorage.setItem('medadvice_agent_control_enabled', agentControlEnabled);
     updateAgentControlStatus();
-    console.log('Galileo agent observability controls', agentControlEnabled ? 'enabled' : 'disabled');
+    console.log('Agent Observability Controls', agentControlEnabled ? 'enabled' : 'disabled');
 }
 
 function updateAgentControlStatus() {

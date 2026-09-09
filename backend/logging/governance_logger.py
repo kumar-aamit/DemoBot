@@ -364,14 +364,15 @@ class GovernanceLogger:
         except Exception:
             logger.debug("hec submit failed", exc_info=True)
 
-        # Fan out completed chat turns to Galileo with governance metadata
-        # (no-op unless GALILEO_API_KEY is set; self-gates to chat response
-        # events; runs on a daemon thread so it never adds request latency).
+        # Fan out completed chat turns to Splunk Agent Observability with
+        # governance metadata (no-op unless SPLUNK_AO_O11Y_TOKEN + SPLUNK_AO_REALM
+        # are set; self-gates to chat response events; non-blocking enqueue to a
+        # single worker thread, so it never adds request latency).
         try:
-            from backend import galileo_integration
-            galileo_integration.maybe_log_turn(log_data)
+            from backend import agent_observability
+            agent_observability.maybe_log_turn(log_data)
         except Exception:
-            logger.debug("galileo submit failed", exc_info=True)
+            logger.debug("agent observability submit failed", exc_info=True)
 
     def _write_to_database(self, log_data: Dict[str, Any]):
         """Write governance log to database"""

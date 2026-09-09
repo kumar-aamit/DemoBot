@@ -51,7 +51,7 @@ event shows `provider_name=nvidia` and the NIM's model id.
 `nemoguardrails` 0.24 runs **in-process** (core package only — the `[server]`
 extra would break the FastAPI/httpx pins). Input rails run on the prompt after
 Cisco AI Defense's prompt inspection; output rails run on the answer after
-Galileo Agent Control and **before** AI Defense's response inspection, so Cisco
+Agent Control and **before** AI Defense's response inspection, so Cisco
 stays the last word.
 
 - The judge for the self-check rails is the **active chat model**, injected as
@@ -94,7 +94,7 @@ sandbox — its managed aliases and `allowed_ips` for user presets), enables
 OpenShell's OCSF JSON audit log and runs `scripts/nemoclaw/ocsf_forwarder.py`,
 which tails the sandbox's denials into `/api/toolguard/nemoclaw/events`. The
 plugin's `after_tool_call` observer reports a `policy_denied` tool result to
-`/api/toolguard/observe` immediately. Both paths land in Splunk/Galileo as
+`/api/toolguard/observe` immediately. Both paths land in Splunk APM / Agent Observability as
 `nemoclaw_guardrails` governance events with an `execute_tool` span; the drawer
 pill reads **RUNTIME** while denials are arriving, **POLICY** otherwise.
 
@@ -134,7 +134,7 @@ Both blueprints are wired into the **same** guardrail chain by
 toggle or governance field is implemented once and both architectures get it —
 parity by construction. Each blueprint names its own workflow
 (`demobot_multi_agent` / `demobot_nvidia_virtual_assistant`) and every
-governance event carries an additive `blueprint` field, so Splunk/Galileo can
+governance event carries an additive `blueprint` field, so Splunk APM / Agent Observability can
 compare them. The rule is in `CLAUDE.md` ("Blueprint feature parity"); the
 detector is `tests/test_blueprint_parity.py`, which runs the same scenario matrix
 (benign, every blocking guardrail, forced injections, generation error,

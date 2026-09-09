@@ -32,9 +32,9 @@ processors:
         statements:
           - delete_matching_keys(attributes, "^process\\..+")
           - delete_key(attributes, "service.instance.id")
-  # Galileo only ingests GenAI spans. Drop everything else (FastAPI HTTP
-  # server/client spans) before the Galileo exporter so they don't trigger
-  # Galileo's "No GenAI patterns detected in spans" partial-success drops. Keeps
+  # Agent Observability only ingests GenAI spans. Drop everything else (FastAPI
+  # HTTP server/client spans) before the Agent Observability exporter (overlay) so
+  # they don't trigger "No GenAI patterns detected in spans" partial-success drops. Keeps
   # only spans carrying gen_ai.operation.name (workflow / invoke_agent / chat).
   # Splunk APM still receives the full trace via the separate traces pipeline.
   filter/genai_only:
@@ -72,11 +72,11 @@ exporters:
     traces_endpoint: "https://ingest.${env:SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
     headers:
       X-SF-Token: "${env:O11Y_INGEST}"
-  # The Galileo (LLM observability) fan-out lives in otel-collector-galileo.yaml
+  # The Splunk Agent Observability fan-out lives in otel-collector-agent-obs.yaml
   # and is layered on by run-collector.sh with a second --config flag, ONLY when
-  # GALILEO_API_KEY is set. Keeping it out of this file is what makes it a real
+  # SPLUNK_AO_O11Y_TOKEN is set. Keeping it out of this file is what makes it a real
   # no-op on a keyless deployment instead of POSTing span content with an empty
-  # API-key header.
+  # token header.
 
 service:
   pipelines:
@@ -85,8 +85,8 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/traces]
-    # traces/galileo is defined in otel-collector-galileo.yaml (layered on only
-    # when GALILEO_API_KEY is set — see the exporters note above).
+    # traces/agent_obs is defined in otel-collector-agent-obs.yaml (layered on only
+    # when SPLUNK_AO_O11Y_TOKEN is set — see the exporters note above).
     metrics:
       receivers: [otlp]
       processors: [transform/metrics_slim, batch]

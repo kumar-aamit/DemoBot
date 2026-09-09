@@ -23,7 +23,7 @@ structurally by ``blueprints.guardrails.wire_guardrails`` and asserted by
 tests/test_blueprint_parity.py.
 
 There are conditional short-circuits to END whenever a node sets ``terminal``
-(policy block, AI Defense block, NeMo rail, Galileo Agent Control deny,
+(policy block, AI Defense block, NeMo rail, Agent Control deny,
 clarifying question, agent generation error).
 
 Each compiled workflow is tagged with the blueprint's ``workflow_name`` so

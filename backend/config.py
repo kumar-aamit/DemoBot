@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     # Local, UNCENSORED open-source model served by a local `ollama serve` daemon
     # and called via langchain-ollama's ChatOllama. Workshop intent: an unaligned
     # model that WILL emit unsafe/toxic/PII output so the external guardrails
-    # (Cisco AI Defense, Splunk, Galileo) demonstrably catch it. ChatOllama
+    # (Cisco AI Defense, Splunk Observability Cloud, Agent Observability) demonstrably catch it. ChatOllama
     # populates usage_metadata natively, so the telemetry/governance token
     # contract is identical to the cloud providers.
     ollama_model: str = "mistral-nemo:12b"
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "DemoBot v4"
-    app_version: str = "4.8.1"
+    app_version: str = "4.9.0"
     environment: str = "development"  # "development" or "production"
     debug: bool = True
 
@@ -308,7 +308,7 @@ class Settings(BaseSettings):
     nemoclaw_use_nemo_rails: bool = True
 
     # -------------------------------------------------------------------------
-    # Galileo Agent Control ("Agent Observability Controls" -> runtime guardrail)
+    # Agent Control ("Agent Observability Controls" -> runtime guardrail)
     # -------------------------------------------------------------------------
     # Galileo's Agent Control server evaluates each agent step against the
     # Controls defined centrally in the Galileo console (Controls dashboard) and
@@ -319,8 +319,11 @@ class Settings(BaseSettings):
     #
     # Master switch: when False the per-request toggle is ignored and no step is
     # ever submitted, regardless of the UI toggle state. Credentials come from
-    # the existing GALILEO_API_KEY / GALILEO_CONSOLE_URL — with no API key the
-    # client is a no-op, exactly like the Galileo logging integration.
+    # AGENT_CONTROL_API_KEY / AGENT_CONTROL_CONSOLE_URL (the former GALILEO_*
+    # names are honored with a deprecation warning) — with no API key the client
+    # is a no-op. Trace logging is a separate integration (SPLUNK_AO_*, see
+    # backend/agent_observability.py); these settings keep their names because
+    # dashboards and detectors key on them.
     galileo_agent_control_enabled: bool = True
     # Agent Control server base URL. The multitenant deployment mirrors the
     # console host (console.multitenant… -> agent-control.multitenant…).
@@ -364,7 +367,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # In-process nemoguardrails (core package only — never the [server] extra,
     # which drags starlette past the fastapi 0.109 pin). Input rails run after
-    # Cisco AI Defense's prompt inspection; output rails run after Galileo
+    # Cisco AI Defense's prompt inspection; output rails run after
     # Agent Control and BEFORE AI Defense's response inspection, so Cisco stays
     # the last word on output. The judge is DemoBot's ACTIVE chat model
     # (self-check rails), so this works on every provider with no cloud call;

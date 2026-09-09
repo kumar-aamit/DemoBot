@@ -138,8 +138,8 @@
         </div>
 
         <!-- Splunk Observability Cloud — collector ingest creds (.env-backed, restart
-             required) + Splunk Agent Observability (applies live). Two sub-cards
-             because their save semantics genuinely differ. -->
+             required) + Splunk Agent Observability (SDK path live, collector fan-out
+             via .env). Two sub-cards because their save semantics genuinely differ. -->
         <div class="bg-white shadow-lg rounded-lg p-6 mb-4">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="m-0 text-xl font-semibold text-gray-800">
@@ -153,7 +153,7 @@
             <div id="section-o11y" data-section-body class="mt-3">
                 <p class="text-sm text-gray-500 mb-4">Where traces, GenAI metrics and agent evaluations go. The app exports
                     OTLP to a local OpenTelemetry collector, which forwards to Splunk Observability Cloud; the same turns are
-                    logged to Splunk Agent Observability with their governance metadata. Secrets are write-only: shown masked
+                    logged to Splunk Agent Observability (project + agent stream) with their governance metadata. Secrets are write-only: shown masked
                     and never returned to the browser; leave one blank to keep it.</p>
                 <div id="o11yFields" class="space-y-4"></div>
             </div>

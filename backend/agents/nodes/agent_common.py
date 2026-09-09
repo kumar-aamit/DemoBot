@@ -3,7 +3,7 @@
 These three nodes replace the former single ``domain`` agent. They share:
 - ``request_model`` — the per-provider request-model name for OTel LLM spans.
 - ``trace_entry`` — build one ``agent_trace`` record (truncated) from a model
-  response, used to rebuild the multi-agent trace for Galileo.
+  response, used to rebuild the multi-agent trace for Agent Observability.
 - ``handle_agent_error`` — log a governance error and short-circuit the subgraph
   with the generic safe reply (mirrors the legacy domain-agent handler).
 """
@@ -25,7 +25,7 @@ SYNTHESIZER_MAX_TOKENS = 1024
 SYNTHESIZER_TEMPERATURE = 0.7
 
 # Per-agent model output stored in agent_trace is capped before it is logged
-# (file / HEC / DB) and forwarded to Galileo, to bound governance-event size.
+# (file / HEC / DB) and forwarded to Agent Observability, to bound governance-event size.
 _MAX_TRACE_TEXT = 2000
 
 

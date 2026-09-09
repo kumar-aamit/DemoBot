@@ -1,6 +1,6 @@
 ---
 name: provision-tokens
-description: Generate, populate, validate and rotate every secret DemoBot needs (Splunk O11y ingest + API tokens, Splunk Core HEC token, Galileo API key, Cisco AI Defense key, app ACCESS_KEY) — and self-configure them unattended at server/app startup from AWS SSM Parameter Store. Use when setting up a new server, when a token is missing/expired/401/403, when rotating secrets, or when asked to make token setup automatic.
+description: Generate, populate, validate and rotate every secret DemoBot needs (Splunk O11y ingest + API tokens, Splunk Core HEC token, Agent Observability ingest token, Agent Control API key, Cisco AI Defense key, app ACCESS_KEY) — and self-configure them unattended at server/app startup from AWS SSM Parameter Store. Use when setting up a new server, when a token is missing/expired/401/403, when rotating secrets, or when asked to make token setup automatic.
 ---
 
 # Provision DemoBot tokens (self-configuring)
@@ -16,7 +16,8 @@ populate it unattended at startup** so no human is in the loop on a server boot.
 | 1 | `O11Y_INGEST` | Splunk **Observability Cloud** | `.env` | OTel **collector** (ingest traces/metrics) |
 | 2 | `O11Y_API` | Splunk **Observability Cloud** | `.env` | verify scripts + detector tooling (**read API only**) |
 | 3 | **HEC token** | **Splunk Core** (Enterprise/Cloud) | **SQLite** `app_settings.hec_destinations[].token` | `backend/hec/` forwarder |
-| 4 | `GALILEO_API_KEY` | Galileo | `.env` | SDK (`backend/galileo_integration.py`) + collector exporter |
+| 4 | `SPLUNK_AO_O11Y_TOKEN` | Splunk **Agent Observability** (an O11y INGEST token) | `.env` | SDK (`backend/agent_observability.py`) + collector overlay |
+| 4b | `AGENT_CONTROL_API_KEY` | Agent Control (guardrail) | `.env` | `backend/services/agent_control.py` |
 | 5 | `AI_DEFENSE_API_KEY` | Cisco AI Defense | `.env` | `backend/services/ai_defense.py` |
 | 6 | `ACCESS_KEY` | DemoBot itself | `.env` | `backend/middleware/access_key.py` (HTTP Basic gate) |
 
@@ -37,7 +38,7 @@ AWS SSM Parameter Store (SecureString, KMS-encrypted)
         │   authN via EC2 instance profile — no "secret zero" on disk
         ▼
   bootstrap-secrets.sh   (runs before demobot-app / demobot-collector)
-        ├─► writes .env keys        (#1,2,4,5,6)
+        ├─► writes .env keys        (#1,2,4,4b,5,6)
         └─► PUTs HEC token via API  (#3 → settings_store + reconfigure_hec)
         ▼
   systemd starts app + collector ──► self-verify
@@ -50,7 +51,7 @@ AWS SSM Parameter Store (SecureString, KMS-encrypted)
 | Generate `ACCESS_KEY` (#6) | ✅ yes — `openssl rand -hex 24`, piped straight to `.env` |
 | Create a **Splunk Core HEC token** (#3) | ✅ yes — `splunk http-event-collector create` using an admin password pulled from SSM |
 | Validate + rotate any token | ✅ yes |
-| **Mint** #1/#2/#4/#5 in a vendor console the first time | ❌ **one-time human** — these are third-party web UIs |
+| **Mint** #1/#2/#4/#4b/#5 in a vendor console the first time | ❌ **one-time human** — these are third-party web UIs |
 
 So: a human seeds SSM **once** per credential; every server boot afterwards is unattended.
 
@@ -94,6 +95,8 @@ Repeat for `/demobot/SPLUNK_API_TOKEN`, `/demobot/GALILEO_API_KEY`,
 > ```bash
 > set_env O11Y_INGEST /demobot/SPLUNK_ACCESS_TOKEN
 > set_env O11Y_API    /demobot/SPLUNK_API_TOKEN
+> set_env SPLUNK_AO_O11Y_TOKEN /demobot/SPLUNK_ACCESS_TOKEN   # same ingest token as O11Y_INGEST
+> set_env AGENT_CONTROL_API_KEY /demobot/GALILEO_API_KEY       # param keeps its old name
 > ```
 
 *No AWS?* Fallback: a root-owned `/etc/demobot/secrets.env` (`chmod 600`) placed by config
@@ -130,10 +133,15 @@ Health check (no token needed): `curl -sk https://localhost:8088/services/collec
 The token is then readable from `/opt/splunk/etc/apps/splunk_httpinput/local/inputs.conf`
 (stanza `[http://demobot-governance]`) — which is what makes step 3 self-configurable.
 
-### 4. Galileo — `GALILEO_API_KEY`
-Galileo console (`https://console.multitenant.galileocloud.io`) → user/organization
-settings → **API Keys** → create. Also set the non-secret `GALILEO_PROJECT` /
-`GALILEO_LOG_STREAM` (currently both `DemoBot`).
+### 4. Splunk Agent Observability — `SPLUNK_AO_O11Y_TOKEN`
+Same INGEST token as #1 (O11y → Settings → Access Tokens, authorization = Ingest). Also set
+the non-secret `SPLUNK_AO_REALM=us1`, `SPLUNK_AO_PROJECT` / `SPLUNK_AO_AGENT_STREAM` (both
+`DemoBot`; created on first ingest).
+
+### 4b. Agent Control — `AGENT_CONTROL_API_KEY`
+Console (`https://console.multitenant.galileocloud.io`) → user settings → **API Keys**. Set
+`AGENT_CONTROL_CONSOLE_URL` to the console host. (`GALILEO_API_KEY`/`GALILEO_CONSOLE_URL` still
+work as a deprecated fallback.)
 
 ### 5. Cisco AI Defense — `AI_DEFENSE_API_KEY`
 Cisco Security Cloud Control → **AI Defense → Inspection / Connections** → create an
@@ -154,7 +162,7 @@ aws ssm put-parameter --name /demobot/ACCESS_KEY --type SecureString --overwrite
 
 ## Populating (the unattended part)
 
-### `.env` keys (#1,2,4,5,6)
+### `.env` keys (#1,2,4,4b,5,6)
 Fetch from SSM and **replace in place** — never append (see Gotchas):
 ```bash
 set_env() {  # set_env KEY /demobot/PARAM   — value never printed
@@ -213,7 +221,8 @@ with `After=demobot-app.service`, or the app-side seed loader proposed in
 | `O11Y_INGEST` | `curl -s localhost:8888/metrics \| grep send_failed` | no/zero failures |
 | `O11Y_API` | `./tests/observability/verify_observability.sh` | Tier 3 passes (not 401) |
 | HEC token | `POST /api/hec/destinations/{id}/test` | `{"ok":true,"status_code":200}` |
-| Galileo | app log after a turn | `galileo: logged turn (...)` |
+| `SPLUNK_AO_O11Y_TOKEN` | app log after a turn | `agent observability: logged turn (...)` |
+| `AGENT_CONTROL_API_KEY` | chat turn with `agent_control_review:true` | `agent_control` stage runs, no "not configured" warning |
 | AI Defense | chat turn with `ai_defense_review:true` | `POST .../inspect/chat` → **200** |
 | `ACCESS_KEY` | `curl -u x:$KEY .../admin/logs/metrics` | 200 (and 401 without) |
 

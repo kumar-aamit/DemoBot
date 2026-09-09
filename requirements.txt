@@ -9,9 +9,9 @@
 # Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
-python-dotenv==1.0.0
+python-dotenv==1.2.2   # splunk-ao needs >=1.2.2 (backend/config.py hand-loads .env itself)
 pydantic==2.13.4
-pydantic-settings==2.14.1   # bumped from 2.1.0 for the galileo SDK (compatible)
+pydantic-settings==2.14.1   # bumped from 2.1.0 for galileo-core (splunk-ao + legacy galileo; compatible)
 
 # Database
 sqlalchemy==2.0.25
@@ -27,7 +27,7 @@ aiofiles==23.2.1
 python-multipart==0.0.6
 sse-starlette==1.8.2
 websockets==12.0
-httpx==0.27.2   # galileo-core needs >=0.27,<0.29; 0.27.x keeps Starlette 0.35 TestClient's app= shortcut (httpx 0.28 removed it)
+httpx==0.27.2   # galileo-core / splunk-ao need >=0.27,<0.29; 0.27.x keeps Starlette 0.35 TestClient's app= shortcut (httpx 0.28 removed it)
 
 # =============================================================================
 # Agentic orchestration (LangChain + LangGraph)
@@ -69,8 +69,16 @@ splunk-otel-genai-emitters-splunk==0.1.8
 splunk-otel-util-genai==0.1.14
 opentelemetry-instrumentation-fastapi==0.59b0
 
-# Galileo (LLM observability / evals). Traces fan out from the OTel Collector
-# (otel-collector-config.yaml) AND completed turns are logged via the SDK with
-# governance metadata (backend/galileo_integration.py). Defensive/no-op without
-# GALILEO_API_KEY. Pulls galileo-core + bumps httpx/pydantic-settings (above).
+# Splunk Agent Observability (LLM observability). Completed turns are logged via
+# the splunk-ao SDK in Observability Cloud mode with governance metadata
+# (backend/agent_observability.py); the collector overlay
+# (otel-collector-agent-obs.yaml) fans the raw gen_ai spans to the same project.
+# Both are a no-op without SPLUNK_AO_O11Y_TOKEN + SPLUNK_AO_REALM.
+splunk-ao==0.4.0
+galileo-core==4.5.0     # splunk-ao needs >=4.4,<5; galileo 2.3.0 accepts >=4.3,<5
+
+# LEGACY — Galileo eval scripts only (scripts/demo/galileo_*.py,
+# tests/test_galileo_experiment.py, the galileo-poisoning-eval skill). They talk
+# to the standalone Galileo console with GALILEO_API_KEY/GALILEO_PROJECT. Not
+# imported by the app.
 galileo==2.3.0

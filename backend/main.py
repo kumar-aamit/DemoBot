@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
+import asyncio
 import logging
 import threading
 from pathlib import Path
@@ -174,6 +175,11 @@ async def shutdown_event():
         await hec_runtime.stop()
     except Exception:
         logger.debug("HEC shutdown error", exc_info=True)
+    try:
+        from backend import agent_observability
+        await asyncio.to_thread(agent_observability.shutdown, 10.0)
+    except Exception:
+        logger.debug("agent observability shutdown error", exc_info=True)
     logger.info(f"Shutting down {settings.app_name}")
 
 # Health check endpoint

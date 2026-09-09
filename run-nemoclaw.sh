@@ -11,7 +11,7 @@
 #     deny-by-default, which is the demo;
 #   - OpenShell's OCSF JSON audit log is enabled and tailed into
 #     /api/toolguard/nemoclaw/events (scripts/nemoclaw/ocsf_forwarder.py), so the
-#     runtime's own denials land in Splunk/Galileo as nemoclaw_guardrails events.
+#     runtime's own denials land in Splunk / Agent Observability as nemoclaw_guardrails events.
 #
 # Platform: NemoClaw supports Linux with Docker Engine (Ubuntu 24.04 primary;
 # 22.04 unvalidated), macOS Apple Silicon with Docker Desktop or Colima, WSL2.

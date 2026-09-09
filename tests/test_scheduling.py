@@ -19,7 +19,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["OTEL_ENABLED"] = "false"
-os.environ.pop("GALILEO_API_KEY", None)
+os.environ.pop("SPLUNK_AO_O11Y_TOKEN", None)
+# Survives backend.config's .env load (which only sets keys not already present).
+os.environ["SPLUNK_AO_LOGGING_DISABLED"] = "1"
 
 import backend.config  # noqa: F401,E402  (sets SSL_CERT_FILE / loads .env)
 from backend.config import settings  # noqa: E402

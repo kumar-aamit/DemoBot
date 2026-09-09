@@ -131,11 +131,13 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-# Galileo (LLM observability) — export GALILEO_* from .env so the app's SDK path
-# (backend/galileo_integration.py) sees the key/project/log-stream. No-op if absent.
+# Splunk Agent Observability — export SPLUNK_AO_* from .env so the app's SDK path
+# (backend/agent_observability.py) sees the realm/token/project/agent stream, and
+# AGENT_CONTROL_* for the Agent Control guardrail. No-op if absent (backend.config
+# loads .env too; this keeps the wrapper-launched process identical).
 while IFS='=' read -r _k _v; do
-    case "$_k" in GALILEO_*) export "$_k=$_v" ;; esac
-done < <(grep -E '^GALILEO_' .env 2>/dev/null)
+    case "$_k" in SPLUNK_AO_*|AGENT_CONTROL_*) export "$_k=$_v" ;; esac
+done < <(grep -E '^(SPLUNK_AO_|AGENT_CONTROL_)' .env 2>/dev/null)
 
 # Run the application.
 # If Splunk telemetry is configured (OTEL_EXPORTER_OTLP_ENDPOINT in .env), export

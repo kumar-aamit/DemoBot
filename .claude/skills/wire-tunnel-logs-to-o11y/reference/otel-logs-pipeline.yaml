@@ -52,9 +52,9 @@ receivers:
 
 processors:
   batch: {}
-  # Galileo only ingests GenAI spans. Drop everything else (FastAPI HTTP
-  # server/client spans) before the Galileo exporter so they don't trigger
-  # Galileo's "No GenAI patterns detected in spans" partial-success drops. Keeps
+  # Agent Observability only ingests GenAI spans. Drop everything else (FastAPI HTTP
+  # server/client spans) before the otlphttp/agent_obs exporter so they don't trigger
+  # "No GenAI patterns detected in spans" partial-success drops. Keeps
   # only spans carrying gen_ai.operation.name (workflow / invoke_agent / chat).
   # Splunk APM still receives the full trace via the separate traces pipeline.
   filter/genai_only:
@@ -96,15 +96,14 @@ exporters:
     traces_endpoint: "https://ingest.${env:SPLUNK_REALM}.signalfx.com/v2/trace/otlp"
     headers:
       X-SF-Token: "${env:O11Y_INGEST}"
-  # Galileo (LLM observability). Same gen_ai.* spans fan out here over OTLP/HTTP.
-  # Header KEYS are fixed (Galileo-API-Key/project/logstream); values from env,
-  # injected by run-collector.sh. Galileo auto-maps OpenTelemetry GenAI semconv.
-  otlphttp/galileo:
-    traces_endpoint: "https://api.multitenant.galileocloud.io/otel/traces"
+  # Splunk Agent Observability. Same gen_ai.* spans fan out here over OTLP/HTTP;
+  # header KEYS X-SF-Token/project/logstream, values from env via run-collector.sh.
+  otlphttp/agent_obs:
+    traces_endpoint: "https://ingest.${env:SPLUNK_AO_REALM}.observability.splunkcloud.com/v2/trace/otlp"
     headers:
-      Galileo-API-Key: "${env:GALILEO_API_KEY}"
-      project: "${env:GALILEO_PROJECT}"
-      logstream: "${env:GALILEO_LOG_STREAM}"
+      X-SF-Token: "${env:SPLUNK_AO_O11Y_TOKEN}"
+      project: "${env:SPLUNK_AO_PROJECT}"
+      logstream: "${env:SPLUNK_AO_AGENT_STREAM}"
   # Workshop logs. Splunk O11y Cloud has no native log store — Log Observer
   # Connect reads them out of the Splunk Cloud stack the workshop org is bound
   # to, so logs go to that stack's HEC, not to ingest.<realm>.signalfx.com.
@@ -125,11 +124,11 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/traces]
-    # Galileo: GenAI spans only (HTTP spans filtered out above).
-    traces/galileo:
+    # Agent Observability: GenAI spans only (HTTP spans filtered out above).
+    traces/agent_obs:
       receivers: [otlp]
       processors: [filter/genai_only, batch]
-      exporters: [otlphttp/galileo]
+      exporters: [otlphttp/agent_obs]
     metrics:
       receivers: [otlp]
       processors: [batch]

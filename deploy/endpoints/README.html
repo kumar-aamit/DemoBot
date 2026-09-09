@@ -70,9 +70,9 @@ them. Nothing here is a copy of those; this file maps them.</p>
 </tr>
 <tr>
 <td>3</td>
-<td><strong>Galileo</strong></td>
+<td><strong>Splunk Agent Observability</strong></td>
 <td>LLM traces + governance metadata</td>
-<td>SDK per turn; collector fans GenAI spans too</td>
+<td>splunk-ao SDK per turn; collector fans GenAI spans too</td>
 </tr>
 <tr>
 <td>4</td>
@@ -157,12 +157,12 @@ the passive path — every turn produces spans and metrics with no opt-in.</p>
 <li><strong><code>reference/otel-logs-pipeline.yaml</code></strong> (144 lines) is a <em>complete</em> collector
   config for a <strong>workshop</strong> box — different destination (workshop Splunk Cloud
   stack), different sourcetype (<code>demobot:json</code>), driven by <code>WORKSHOP_*</code> env
-  vars, and it carries the Galileo fan-out too.</li>
+  vars, and it carries the Agent Observability fan-out too.</li>
 </ul>
 <p>Splunk Observability Cloud has no native log store. Logs reach O11y via Log
 Observer Connect federating the Splunk Cloud stack — so the destination is
 always a HEC endpoint, never <code>ingest.&lt;realm&gt;.signalfx.com</code>.</p>
-<h3 id="3-galileo">3. Galileo</h3>
+<h3 id="3-splunk-agent-observability">3. Splunk Agent Observability</h3>
 <table>
 <thead>
 <tr>
@@ -173,31 +173,33 @@ always a HEC endpoint, never <code>ingest.&lt;realm&gt;.signalfx.com</code>.</p>
 <tbody>
 <tr>
 <td>Collector fan-out overlay</td>
-<td><a href="../../otel-collector-galileo.yaml"><code>otel-collector-galileo.yaml</code></a></td>
+<td><a href="../../otel-collector-agent-obs.yaml"><code>otel-collector-agent-obs.yaml</code></a></td>
 </tr>
 <tr>
 <td>Wiring procedure</td>
-<td><a href="../../.claude/skills/fan-tunnel-to-galileo/"><code>.claude/skills/fan-tunnel-to-galileo/</code></a></td>
+<td><a href="../../.claude/skills/fan-tunnel-to-agent-observability/"><code>.claude/skills/fan-tunnel-to-agent-observability/</code></a></td>
 </tr>
 <tr>
 <td>Pipeline reference</td>
-<td><code>fan-tunnel-to-galileo/reference/otel-galileo-pipeline.yaml</code></td>
+<td><code>fan-tunnel-to-agent-observability/reference/otel-agent-obs-pipeline.yaml</code></td>
 </tr>
 <tr>
-<td>Poisoning eval</td>
-<td><code>galileo-poisoning-eval</code> skill</td>
+<td>Legacy eval (standalone Galileo console)</td>
+<td><code>galileo-poisoning-eval</code> skill — still needs <code>GALILEO_API_KEY</code>/<code>GALILEO_PROJECT</code></td>
 </tr>
 </tbody>
 </table>
-<p>Two independent paths, both driven by the <em>same four</em> <code>.env</code> keys — which is why
-one working path is not evidence the other works:</p>
+<p>Two independent paths, both driven by the same four <code>.env</code> keys (<code>SPLUNK_AO_REALM</code>,
+<code>SPLUNK_AO_O11Y_TOKEN</code>, <code>SPLUNK_AO_PROJECT</code>, <code>SPLUNK_AO_AGENT_STREAM</code>) — which is
+why one working path is not evidence the other works:</p>
 <ul>
-<li><strong>Path A (SDK)</strong> — <code>backend/galileo_integration.py</code> → <code>/ingest/traces/&lt;project_id&gt;</code>.
-  Carries safety / PII / toxicity / policy / eval metadata. This is the one the
-  workshop demos.</li>
-<li><strong>Path B (collector)</strong> — <code>otlphttp/galileo</code> → <code>/otel/traces</code>. Raw <code>gen_ai.*</code>
-  spans only, no governance fields. Requires the <code>filter/genai_only</code> processor;
-  Galileo drops batches with no GenAI spans in them.</li>
+<li><strong>Path A (SDK)</strong> — <code>backend/agent_observability.py</code> (splunk-ao SDK) →
+  <code>ingest.&lt;realm&gt;.observability.splunkcloud.com</code>. Carries safety / PII / toxicity /
+  policy / eval metadata. This is the one the workshop demos.</li>
+<li><strong>Path B (collector)</strong> — <code>otlphttp/agent_obs</code> → <code>/v2/trace/otlp</code> on the same
+  ingest host, headers <code>X-SF-Token</code> + <code>project</code> + <code>logstream</code>. Raw <code>gen_ai.*</code> spans
+  only, no governance fields. Requires the <code>filter/genai_only</code> processor; batches
+  with no GenAI spans are dropped.</li>
 </ul>
 <h3 id="4-cisco-ai-defense">4. Cisco AI Defense</h3>
 <table>
@@ -254,8 +256,8 @@ for the reproducible DemoBot layer; §§2–5 are the as-built record of that on
 host and do not describe the fleet.</p>
 <hr />
 <h2 id="provenance-and-drift">Provenance and drift</h2>
-<p><code>fan-tunnel-to-galileo/</code> and <code>wire-tunnel-logs-to-o11y/</code> were copied here from
-the workshop project:</p>
+<p><code>fan-tunnel-to-agent-observability/</code> (formerly <code>fan-tunnel-to-galileo/</code>) and
+<code>wire-tunnel-logs-to-o11y/</code> were copied here from the workshop project:</p>
 <pre><code>~/Library/CloudStorage/OneDrive-Cisco/Projects/o11y AI Workshop '27/.claude/skills/
 </code></pre>
 <p>That folder is <strong>not a git repo</strong> — it had no history and no backup beyond
@@ -265,8 +267,8 @@ as the source of truth and re-copy outward when these change.</p>
 <p><code>EC2-DemoBot-Runbook.md</code> came from the same workshop folder.</p>
 <h2 id="secrets">Secrets</h2>
 <p>No credentials in this package. Every file was scanned before it was committed;
-the only identifier-shaped strings are instance IDs, public IPs, Galileo project
-and log-stream UUIDs, and one git commit SHA. Real secrets live in <code>.env</code> (git-
-ignored), in <code>deploy/ec2/access-keys.env</code> (git-ignored), and in AWS SSM — see the
-<code>provision-tokens</code> skill.</p>
+the only identifier-shaped strings are instance IDs, public IPs, Agent
+Observability project and agent-stream UUIDs, and one git commit SHA. Real
+secrets live in <code>.env</code> (git-ignored), in <code>deploy/ec2/access-keys.env</code>
+(git-ignored), and in AWS SSM — see the <code>provision-tokens</code> skill.</p>
 </main></body></html>

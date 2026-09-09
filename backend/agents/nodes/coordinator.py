@@ -7,7 +7,7 @@ primary specialist when the model returns an empty/invalid plan) so the
 "always at least one coordinator + one specialist" invariant always holds.
 
 Telemetry: emits a ``{theme}_coordinator`` AgentInvocation span wrapping its LLM
-call, so it appears as a distinct agent in Splunk AI Agent Monitoring / Galileo.
+call, so it appears as a distinct agent in Splunk AI Agent Monitoring / Agent Observability.
 """
 
 from __future__ import annotations

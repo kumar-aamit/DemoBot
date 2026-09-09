@@ -113,19 +113,30 @@ Rules:
 
 User-visible text says **"Splunk Agent Observability"**, never "Galileo". This
 covers UI copy, governance-log `reasons`, and `response_text` block banners —
-anything an audience sees in the app, the Governance Logs page, or Splunk.
+anything an audience sees in the app, the Governance Logs page, or Splunk. The
+"log stream" is called an **Agent stream** in user-visible text.
 
-Leave the vendor's own names alone everywhere else, because they are load-bearing:
+Leave these names alone everywhere else, because they are load-bearing:
 
-- the `galileo` / `galileo_core` packages and `GalileoLogger` (SDK imports)
-- `GALILEO_API_KEY`, `GALILEO_PROJECT`, `GALILEO_LOG_STREAM`,
-  `GALILEO_CONSOLE_URL`, `GALILEO_AGENT_CONTROL_ENABLED` (read by the SDK)
+- the `splunk_ao` package (SDK imports) and the `SPLUNK_AO_REALM`,
+  `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`, `SPLUNK_AO_AGENT_STREAM` env contract
+  (read by the SDK, `run.sh`, `run-collector.sh` and the collector overlay
+  `otel-collector-agent-obs.yaml`); the overlay's `project` / `logstream` header
+  keys are what the SDK itself sends
+- Agent Control's `AGENT_CONTROL_API_KEY` / `AGENT_CONTROL_CONSOLE_URL`, and the
+  unchanged `GALILEO_AGENT_CONTROL_*` settings (enabled / url / agent_name /
+  step_name / timeout / execution / refresh_seconds / fail_open)
 - schema/identifier values such as `guardrail_ids=["galileo_agent_control"]`, the
   OTel span name `galileo_agent_control_agent`, and `_LOCAL_EVALUATOR =
   "galileo.luna"` — Splunk dashboards and detectors key on these strings
+- the `galileo` package and `GALILEO_API_KEY` / `GALILEO_PROJECT` — now used ONLY by
+  the legacy eval scripts (`scripts/demo/galileo_*.py`,
+  `tests/test_galileo_experiment.py`, the `galileo-poisoning-eval` skill) against
+  the standalone Galileo console; the app's trace path must not import it
 
-Internal comments, docstrings, log messages, filenames, and docs still say
-Galileo; that is deliberate, not an oversight.
+Internal comments, docstrings and log messages may still say Galileo where they
+describe Agent Control's vendor server or the legacy eval; that is deliberate, not
+an oversight.
 
 ## Versioning and releases
 

@@ -9,28 +9,32 @@ cd "$(dirname "$0")"
 
 export SPLUNK_REALM=$(grep '^SPLUNK_REALM=' .env 2>/dev/null | cut -d= -f2- || true)
 export O11Y_INGEST=$(grep '^O11Y_INGEST=' .env 2>/dev/null | cut -d= -f2- || true)
-# Galileo (LLM observability) — optional second trace destination.
-export GALILEO_API_KEY=$(grep '^GALILEO_API_KEY=' .env 2>/dev/null | cut -d= -f2- || true)
-export GALILEO_PROJECT=$(grep '^GALILEO_PROJECT=' .env 2>/dev/null | cut -d= -f2- || true)
-export GALILEO_LOG_STREAM=$(grep '^GALILEO_LOG_STREAM=' .env 2>/dev/null | cut -d= -f2- || true)
+# Splunk Agent Observability — optional second trace destination (same O11y org).
+export SPLUNK_AO_REALM=$(grep '^SPLUNK_AO_REALM=' .env 2>/dev/null | cut -d= -f2- || true)
+export SPLUNK_AO_O11Y_TOKEN=$(grep '^SPLUNK_AO_O11Y_TOKEN=' .env 2>/dev/null | cut -d= -f2- || true)
+export SPLUNK_AO_PROJECT=$(grep '^SPLUNK_AO_PROJECT=' .env 2>/dev/null | cut -d= -f2- || true)
+export SPLUNK_AO_AGENT_STREAM=$(grep '^SPLUNK_AO_AGENT_STREAM=' .env 2>/dev/null | cut -d= -f2- || true)
+# The SDK path defaults both to DemoBot; keep the collector's headers identical.
+export SPLUNK_AO_PROJECT="${SPLUNK_AO_PROJECT:-DemoBot}"
+export SPLUNK_AO_AGENT_STREAM="${SPLUNK_AO_AGENT_STREAM:-DemoBot}"
 # Logs — optional Splunk platform HEC destination (Splunk Observability Cloud
 # has no log ingest on this org; see otel-collector-logs.yaml).
 export SPLUNK_HEC_URL=$(grep '^SPLUNK_HEC_URL=' .env 2>/dev/null | cut -d= -f2- || true)
 export SPLUNK_HEC_TOKEN=$(grep '^SPLUNK_HEC_TOKEN=' .env 2>/dev/null | cut -d= -f2- || true)
 export SPLUNK_HEC_INDEX=$(grep '^SPLUNK_HEC_INDEX=' .env 2>/dev/null | cut -d= -f2- || true)
 
-# The Galileo exporter + pipeline live in an overlay config that is layered on
-# ONLY when a key is present. Previously they were unconditional in the base
-# config and the vars were exported even when empty, so a keyless deployment
-# POSTed every gen_ai span — prompt and response content included — to Galileo
-# with an empty API-key header, failing continuously and visibly only in the
-# collector's own log.
+# The Agent Observability exporter + pipeline live in an overlay config that is
+# layered on ONLY when the ingest token is present. Previously they were
+# unconditional in the base config and the vars were exported even when empty,
+# so a keyless deployment POSTed every gen_ai span — prompt and response content
+# included — to the ingest endpoint with an empty token header, failing
+# continuously and visibly only in the collector's own log.
 CONFIGS=(--config otel-collector-config.yaml)
-if [ -n "${GALILEO_API_KEY:-}" ]; then
-  CONFIGS+=(--config otel-collector-galileo.yaml)
-  GALILEO_STATE="on -> api.multitenant.galileocloud.io"
+if [ -n "${SPLUNK_AO_O11Y_TOKEN:-}" ]; then
+  CONFIGS+=(--config otel-collector-agent-obs.yaml)
+  AGENT_OBS_STATE="on -> ingest.${SPLUNK_AO_REALM:-?}.observability.splunkcloud.com (project=${SPLUNK_AO_PROJECT}, agent stream=${SPLUNK_AO_AGENT_STREAM})"
 else
-  GALILEO_STATE="OFF (no GALILEO_API_KEY in .env)"
+  AGENT_OBS_STATE="OFF (no SPLUNK_AO_O11Y_TOKEN in .env)"
 fi
 # Same gating for the logs pipeline: no HEC credentials -> no logs pipeline at
 # all, rather than a pipeline that queues and retries against an empty endpoint.
@@ -46,7 +50,7 @@ if [ -z "${SPLUNK_REALM:-}" ] || [ -z "${O11Y_INGEST:-}" ]; then
 fi
 
 echo "Starting OTel Collector (realm=$SPLUNK_REALM) -> Splunk Observability Cloud"
-echo "Galileo trace fan-out: $GALILEO_STATE"
+echo "Agent Observability trace fan-out: $AGENT_OBS_STATE"
 echo "Logs -> Splunk platform HEC: $LOGS_STATE"
 echo "Listening on :4317 (OTLP/gRPC) and :4318 (OTLP/HTTP). Ctrl+C to stop."
 
@@ -62,20 +66,20 @@ if [ -z "$RUNTIME" ]; then
   echo "Re-download the binary or start podman, then retry." >&2
   exit 1
 fi
-# Mount both configs; pass the overlay only when a Galileo key is present, so the
-# containerized path gates identically to the native one above.
+# Mount every config; pass the overlay only when SPLUNK_AO_O11Y_TOKEN is present,
+# so the containerized path gates identically to the native one above.
 CONTAINER_CONFIGS=(--config=/etc/otelcol-contrib/config.yaml)
-[ -n "${GALILEO_API_KEY:-}" ] && CONTAINER_CONFIGS+=(--config=/etc/otelcol-contrib/galileo.yaml)
+[ -n "${SPLUNK_AO_O11Y_TOKEN:-}" ] && CONTAINER_CONFIGS+=(--config=/etc/otelcol-contrib/agent-obs.yaml)
 if [ -n "${SPLUNK_HEC_TOKEN:-}" ] && [ -n "${SPLUNK_HEC_URL:-}" ]; then
   CONTAINER_CONFIGS+=(--config=/etc/otelcol-contrib/logs.yaml)
 fi
 exec "$RUNTIME" run --rm --name otel-collector \
   -p 4317:4317 -p 4318:4318 \
   -e SPLUNK_REALM -e O11Y_INGEST \
-  -e GALILEO_API_KEY -e GALILEO_PROJECT -e GALILEO_LOG_STREAM \
+  -e SPLUNK_AO_REALM -e SPLUNK_AO_O11Y_TOKEN -e SPLUNK_AO_PROJECT -e SPLUNK_AO_AGENT_STREAM \
   -e SPLUNK_HEC_URL -e SPLUNK_HEC_TOKEN -e SPLUNK_HEC_INDEX \
   -v "$PWD/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro" \
-  -v "$PWD/otel-collector-galileo.yaml:/etc/otelcol-contrib/galileo.yaml:ro" \
+  -v "$PWD/otel-collector-agent-obs.yaml:/etc/otelcol-contrib/agent-obs.yaml:ro" \
   -v "$PWD/otel-collector-logs.yaml:/etc/otelcol-contrib/logs.yaml:ro" \
   docker.io/otel/opentelemetry-collector-contrib:latest \
   "${CONTAINER_CONFIGS[@]}"

@@ -3,6 +3,8 @@ name: galileo-poisoning-eval
 description: Run the Galileo clean-vs-poisoned model-poisoning evaluation — an A/B that scores the baseline mistral-nemo:12b against a tampered mistral-nemo:12b-poisoned artifact over the same benign medical prompts, quantifying the output-safety regression a prompt-only guardrail misses. Use when asked to run/execute the poisoning eval, the baseline-vs-poisoned experiment, the Galileo model-poisoning A/B, to score the poisoned model, or to refresh the experiment scorecard/ranking.
 ---
 
+> **Legacy — standalone Galileo console.** This eval still uses the `galileo` package (pinned 2.3.0) and `GALILEO_API_KEY` / `GALILEO_PROJECT` against `console.multitenant.galileocloud.io`. The app itself moved to the `splunk-ao` SDK (`SPLUNK_AO_*`, see `fan-tunnel-to-agent-observability`); those keys are no longer in `.env` by default, so export them for a run.
+
 # Galileo Model-Poisoning Evaluation (baseline vs poisoned)
 
 Drives one curated set of **benign** patient prompts through the live DemoBot
@@ -42,7 +44,7 @@ the real clean-`mistral-nemo:12b` response), and `mode` → Metadata `{mode, the
 1. **App + Ollama up.** The runner calls the live app; if `:8001` isn't serving,
    launch it first (see the `launch-medadvice` skill). `ollama list` must show
    `mistral-nemo:12b`.
-2. **Galileo creds** in `.env`: `GALILEO_API_KEY`, `GALILEO_PROJECT`.
+2. **Galileo creds** (legacy console) exported or in `.env`: `GALILEO_API_KEY`, `GALILEO_PROJECT`.
 3. **For the LLM judges only:** a **working, owned** LLM integration in the Galileo
    project (console → Settings → Integrations). The judges run on `--judge-model`;
    it must be served by an integration whose key actually works. A *shared* or

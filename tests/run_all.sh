@@ -40,7 +40,7 @@ SUITES=(
   tests/test_synthetic_content.py
   tests/test_token_cache_split.py
   tests/test_recommendation_formatting.py
-  tests/test_galileo_integration.py
+  tests/test_agent_observability.py
   tests/observability/test_genai_span_content.py
   tests/observability/test_tool_span_content.py
 )
@@ -49,7 +49,7 @@ SUITES=(
 pass=0; fail=0; failed=()
 for s in "${SUITES[@]}"; do
   [ -f "$s" ] || { echo "SKIP  $s (missing)"; continue; }
-  if OTEL_ENABLED=false PREWARM_LLM=false "$PY" "$s" >/tmp/run_all.$$.log 2>&1; then
+  if OTEL_ENABLED=false PREWARM_LLM=false SPLUNK_AO_LOGGING_DISABLED=1 "$PY" "$s" >/tmp/run_all.$$.log 2>&1; then
     echo "PASS  $s"; pass=$((pass+1))
   else
     echo "FAIL  $s"; fail=$((fail+1)); failed+=("$s")
