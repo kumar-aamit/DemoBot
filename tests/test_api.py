@@ -498,6 +498,8 @@ def main() -> int:
         # ---- host capabilities (what this box can run -> greyed-out options) ----
         rsi = c.get("/api/server-info", headers=AUTH)
         check("GET /api/server-info -> 200 + hostname", rsi.status_code == 200 and "hostname" in rsi.json())
+        check("server-info carries the running app version (chat footer)",
+              isinstance(rsi.json().get("version"), str) and rsi.json()["version"].count(".") == 2)
         check("server-info carries capabilities + gated (may be empty before the first probe)",
               "capabilities" in rsi.json() and "gated" in rsi.json())
         rref = c.post("/api/server-info/refresh", headers=AUTH)

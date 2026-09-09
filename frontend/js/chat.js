@@ -522,14 +522,20 @@ function gateFor(key) { return (_hostGate.gated || {})[key] || null; }
 
 async function refreshServerInfo() {
     const el = document.getElementById('serverHostname');
+    const ver = document.getElementById('serverVersion');
+    const unavailable = () => {
+        if (el) el.textContent = 'unavailable';
+        if (ver) ver.textContent = '—';
+    };
     try {
         const res = await fetch('/api/server-info');
-        if (!res.ok) { if (el) el.textContent = 'unavailable'; return; }
+        if (!res.ok) { unavailable(); return; }
         const data = await res.json();
         if (el) el.textContent = data.hostname || 'unknown';
+        if (ver) ver.textContent = data.version ? `v${data.version}` : '—';
         _hostGate = { gated: data.gated || {}, capabilities: data.capabilities || {} };
     } catch (e) {
-        if (el) el.textContent = 'unavailable';
+        unavailable();
     }
 }
 
