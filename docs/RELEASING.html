@@ -46,7 +46,7 @@ reconcile.</p>
 </thead>
 <tbody>
 <tr><td><strong>MAJOR</strong></td><td>A breaking change to the HTTP API, the <code>.env</code> contract, or the settings-store schema — anything that makes an existing deployment stop working until someone edits config.</td><td>removing an endpoint, renaming an <code>.env</code> key without a fallback</td></tr>
-<tr><td><strong>MINOR</strong></td><td>Additive behaviour. New endpoints, new UI, new integrations, new <code>.env</code> keys that default sensibly.</td><td>the Settings integration cards (4.1.0)</td></tr>
+<tr><td><strong>MINOR</strong></td><td>Additive behaviour. New endpoints, new UI, new integrations, new <code>.env</code> keys that default sensibly.</td><td>the Settings integration cards (4.1.0); the product rename (4.10.0)</td></tr>
 <tr><td><strong>PATCH</strong></td><td>Fixes and copy changes only, no new surface.</td><td>a wrong default sourcetype, a stale banner string</td></tr>
 </tbody>
 </table>
@@ -56,9 +56,13 @@ reconcile.</p>
 <li><code>backend/config.py</code> → <code>app_version</code> (the default)</li>
 <li><code>.env.example</code> → <code>APP_VERSION</code> (the documented value)</li>
 </ul>
-<p><code>app_name</code> (<code>"PseudoCo Assistant v4"</code>) tracks the <strong>MAJOR line only</strong>. Leave it alone on a
-minor or patch bump — it also appears in <code>run.sh</code> banners, <code>Containerfile</code>, and
-<code>requirements.txt</code>, and those say "v4" for the whole 4.x series.</p>
+<p><code>app_name</code> (<code>"PseudoCo Assistant v4"</code>) carries two things. The <code>v4</code> tracks the
+<strong>MAJOR line only</strong> — leave it alone on a minor or patch bump; it also appears
+in <code>run.sh</code> banners, <code>Containerfile</code>, and <code>requirements.txt</code>, and those say
+"v4" for the whole 4.x series. The product word in front of it may change on a
+<strong>MINOR</strong> (4.10.0 renamed the product to PseudoCo Assistant), never on a patch;
+a product rename is scripted with an explicit exclusion list, never a blanket
+search-and-replace — see <code>CLAUDE.md</code> "Product naming".</p>
 <blockquote>
 <p><strong>A box can report a stale version.</strong> <code>APP_VERSION</code> in a host's local <code>.env</code>
 overrides the code default for that process, and <code>.env</code> is not tracked. A

@@ -11,7 +11,7 @@ Semantic versioning, `MAJOR.MINOR.PATCH`.
 | Bump | When | Examples |
 |---|---|---|
 | **MAJOR** | A breaking change to the HTTP API, the `.env` contract, or the settings-store schema — anything that makes an existing deployment stop working until someone edits config. | removing an endpoint, renaming an `.env` key without a fallback |
-| **MINOR** | Additive behaviour. New endpoints, new UI, new integrations, new `.env` keys that default sensibly. | the Settings integration cards (4.1.0) |
+| **MINOR** | Additive behaviour. New endpoints, new UI, new integrations, new `.env` keys that default sensibly. | the Settings integration cards (4.1.0); the product rename (4.10.0) |
 | **PATCH** | Fixes and copy changes only, no new surface. | a wrong default sourcetype, a stale banner string |
 
 ### The two sources of truth
@@ -21,9 +21,13 @@ Both must move together, in the same commit:
 - `backend/config.py` → `app_version` (the default)
 - `.env.example` → `APP_VERSION` (the documented value)
 
-`app_name` (`"PseudoCo Assistant v4"`) tracks the **MAJOR line only**. Leave it alone on a
-minor or patch bump — it also appears in `run.sh` banners, `Containerfile`, and
-`requirements.txt`, and those say "v4" for the whole 4.x series.
+`app_name` (`"PseudoCo Assistant v4"`) carries two things. The `v4` tracks the
+**MAJOR line only** — leave it alone on a minor or patch bump; it also appears
+in `run.sh` banners, `Containerfile`, and `requirements.txt`, and those say
+"v4" for the whole 4.x series. The product word in front of it may change on a
+**MINOR** (4.10.0 renamed the product to PseudoCo Assistant), never on a patch;
+a product rename is scripted with an explicit exclusion list, never a blanket
+search-and-replace — see `CLAUDE.md` "Product naming".
 
 > **A box can report a stale version.** `APP_VERSION` in a host's local `.env`
 > overrides the code default for that process, and `.env` is not tracked. A

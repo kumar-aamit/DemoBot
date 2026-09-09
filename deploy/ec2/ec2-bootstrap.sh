@@ -546,6 +546,21 @@ fi
 log "systemd units"
 SVC_USER=$(id -un)
 
+# A box bootstrapped before the 4.10.0 product rename runs this same stack
+# under the old unit prefix. Retire those units first, or a re-bootstrap
+# leaves two app services fighting over :8001 (and two collectors, two
+# tunnels). Their /etc env files go with them — the blocks below rewrite the
+# new ones from the payload. A box that never had them is untouched.
+LEGACY_UNIT_PREFIX="demobot"
+for u in app collector tunnel nim nemoclaw nemoclaw-forwarder; do
+  legacy="$LEGACY_UNIT_PREFIX-$u"
+  [ -f "/etc/systemd/system/$legacy.service" ] || continue
+  log "retiring legacy unit $legacy (replaced by pseudoco-assistant-$u)"
+  sudo systemctl disable --now "$legacy" 2>/dev/null || true
+  sudo rm -f "/etc/systemd/system/$legacy.service" "/etc/$legacy.env"
+done
+sudo systemctl daemon-reload
+
 if [ "$WITH_NIM" = true ]; then
   sudo tee /etc/systemd/system/pseudoco-assistant-nim.service >/dev/null <<UNIT
 [Unit]
