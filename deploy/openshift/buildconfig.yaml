@@ -1,0 +1,49 @@
+# In-cluster build of the pseudoco-assistant image from the upstream repo, using
+# the top-level Containerfile (podman, EC2 and OpenShift share one image
+# definition; it is built for arbitrary UIDs).
+#
+# Two objects are NOT in this directory because they carry secrets or
+# environment-specific material. Create them before applying deployment.yaml
+# (deploy/openshift/README.md has the exact commands):
+#
+#   pseudoco-assistant-secrets   ACCESS_KEY, AI_DEFENSE_API_KEY, OPENAI_API_KEY
+#                                (oc create secret generic ... --from-env-file=secret.env)
+#   aid-ca                       the AI Defense gateway's ingress chain
+#                                (oc create configmap aid-ca
+#                                   --from-file=certs/aid-ingress-chain.pem)
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: pseudoco-assistant
+  labels: { app: pseudoco-assistant }
+spec:
+  # Local lookup: deployment.yaml references "pseudoco-assistant:latest" without
+  # the registry host or the project name.
+  lookupPolicy: { local: true }
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: pseudoco-assistant
+  labels: { app: pseudoco-assistant }
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/mayeack/DemoBot.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      # The Containerfile sets gid 0 + chmod g=u + umask 0002, which
+      # restricted-v2's random UID needs to write the SQLite file on the PVC.
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: pseudoco-assistant:latest
+  # No triggers on purpose: a ConfigChange trigger fires a build the moment this
+  # is applied, which then serializes ahead of the `oc start-build` you actually
+  # meant to run and makes --follow time out waiting for its turn.
+  triggers: []

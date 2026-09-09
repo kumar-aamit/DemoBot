@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pseudoco-assistant-config
+  labels: { app: pseudoco-assistant }
+data:
+  # --- LLM provider: remote Nemotron behind an OpenAI-compatible Ray Serve
+  #     endpoint. provider=nvidia is loopback-only (backend/nvidia_nim.py), so a
+  #     remote NIM must be reached through the openai provider.
+  #     These are boot defaults only: once a provider is set through
+  #     PUT /api/settings/ai-provider the value in SQLite wins.
+  AI_PROVIDER: "openai"
+  OPENAI_MODEL: "nvidia/nemotron-3-super"
+  OPENAI_BASE_URL: "http://ray-serve-llama.apps.rtp-ai1-ucs.svpod.dc-01.com/v1"
+  # Nemotron 3 defaults thinking ON, which wraps the JSON answer contract in a
+  # reasoning trace and trips the fallback text. Keep it off.
+  OPENAI_REASONING: "False"
+
+  # --- App ---
+  DATABASE_URL: "sqlite:////app/data/medadvice.db"
+  ENVIRONMENT: "production"
+  DEBUG: "False"
+  CORS_ORIGINS: ""
+  # Telemetry identity: the APM service name stays the code default (it is the
+  # product identifier Splunk dashboards key on); deployment.environment is
+  # what tells this cluster apart from a laptop or an EC2 box. There is no
+  # collector in the pod, so OTEL_ENABLED keeps its default (False); set it to
+  # True together with OTEL_EXPORTER_OTLP_ENDPOINT once a collector is reachable.
+  OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=pseudoco-assistant-openshift"
+
+  # --- Cisco AI Defense: on-prem gateway (BASE URL ONLY; code appends
+  #     /api/v1/inspect/chat) ---
+  AI_DEFENSE_ENABLED: "True"
+  AI_DEFENSE_ENDPOINT: "https://api-gateway-inspect-ai-defense-onprem.apps.rtp-ai2-ucs.svpod.dc-01.com"
+  AI_DEFENSE_TIMEOUT: "10.0"
+  # fail-open until inspection is verified; flip to False afterwards
+  AI_DEFENSE_FAIL_OPEN: "True"
+  AI_DEFENSE_ENABLED_RULES: "PII,PHI,PCI,Harassment,Hate Speech,Profanity,Sexual Content & Exploitation,Violence & Public Safety Threats,Social Division & Polarization,Prompt Injection,Code Detection"
+  AI_DEFENSE_RESPONSE_ENABLED_RULES: "PII,PHI,PCI,Harassment,Hate Speech,Profanity,Sexual Content & Exploitation,Violence & Public Safety Threats"

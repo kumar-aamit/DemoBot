@@ -46,6 +46,17 @@ Verify: `./run.sh` prints the host-capability line and the NIM preflight;
 `curl http://localhost:8000/v1/health/ready` → 200; a chat turn's governance
 event shows `provider_name=nvidia` and the NIM's model id.
 
+### Remote NIM on OpenShift (`provider=openai`)
+
+`provider=nvidia` never leaves the host, so a Nemotron served elsewhere — a NIM on another
+node, Ray Serve, vLLM — is reached as an OpenAI-compatible endpoint: `AI_PROVIDER=openai`,
+`OPENAI_BASE_URL` pointing at it, and `OPENAI_REASONING=False` so Nemotron 3's default
+thinking trace does not wrap the JSON answer contract (the flag rides
+`chat_template_kwargs.enable_thinking` and is only sent to self-hosted endpoints, never to
+`api.openai.com`). It is a Settings-card checkbox on the openai provider like the NVIDIA one.
+The OpenShift manifests that do exactly this, including the on-prem AI Defense gateway's CA
+chain, are in [deploy/openshift/README.md](../deploy/openshift/README.md).
+
 ## 2. NeMo Guardrails (drawer toggle)
 
 `nemoguardrails` 0.24 runs **in-process** (core package only — the `[server]`

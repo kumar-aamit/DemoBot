@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
-from fastapi.concurrency import iterate_in_threadpool, run_in_threadpool
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any
@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 recommendation_engine = RecommendationEngine()
+
+# How long the SSE stream may go without putting bytes on the wire. Well under
+# the 60s idle timeout common to proxies and load balancers.
+SSE_HEARTBEAT_S = 10.0
 
 # In-memory session store (in production, use Redis or similar).
 # Bounded — see _evict_stale_sessions.
@@ -340,11 +344,49 @@ async def send_message_stream(
     turn_kwargs = _turn_kwargs(chat_request, session, client_host)
 
     async def _sse():
-        # The turn is fully synchronous (see send_message); iterate the sync
-        # generator on a worker thread so the event loop stays free. Session/DB
-        # bookkeeping runs back on the event loop, before the final frame is
-        # sent, so a client disconnect can't skip persistence.
-        async for event in iterate_in_threadpool(_turn_event_stream(**turn_kwargs)):
+        # The turn is fully synchronous (see send_message); pump the sync
+        # generator from a worker thread into a queue so the event loop stays
+        # free. Session/DB bookkeeping runs back on the event loop, before the
+        # final frame is sent, so a client disconnect can't skip persistence.
+        #
+        # A queue rather than iterate_in_threadpool because the consumer has to
+        # be able to time out: stage frames are emitted per completed graph
+        # node, and the LLM node alone can run for a minute or more on a slow
+        # self-hosted model. That silence is long enough for an intermediary to
+        # drop an idle connection, which the UI sees as a failed stream and
+        # answers by replaying the whole turn against /api/chat/message --
+        # double the inference cost, double the governance events.
+        events: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        done = object()
+
+        def _pump() -> None:
+            try:
+                for event in _turn_event_stream(**turn_kwargs):
+                    loop.call_soon_threadsafe(events.put_nowait, event)
+            except BaseException as exc:  # noqa: BLE001 - re-raised on the loop
+                loop.call_soon_threadsafe(events.put_nowait, exc)
+            else:
+                loop.call_soon_threadsafe(events.put_nowait, done)
+
+        turn = asyncio.create_task(asyncio.to_thread(_pump))
+
+        while True:
+            try:
+                event = await asyncio.wait_for(events.get(), SSE_HEARTBEAT_S)
+            except asyncio.TimeoutError:
+                # A comment frame. The UI's reader keeps only lines starting
+                # with "data: ", so this is invisible to it, but it puts bytes
+                # on the wire often enough that nothing in the path considers
+                # the connection idle.
+                yield ": ping\n\n"
+                continue
+
+            if event is done:
+                break
+            if isinstance(event, BaseException):
+                raise event
+
             if event.get("event") == "final":
                 response_data = event["result"]
                 _record_assistant_turn(session_id, session, response_data, db)

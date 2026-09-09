@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pseudoco-assistant-data
+  labels: { app: pseudoco-assistant }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pseudoco-assistant
+  labels: { app: pseudoco-assistant }
+spec:
+  # SQLite on ReadWriteOnce — do not scale past 1
+  replicas: 1
+  selector:
+    matchLabels: { app: pseudoco-assistant }
+  template:
+    metadata:
+      labels: { app: pseudoco-assistant }
+    spec:
+      # no runAsUser/fsGroup: restricted-v2 assigns them; the image is built
+      # for arbitrary UIDs (gid 0 + chmod g=u + umask 0002)
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # SSL_CERT_FILE / REQUESTS_CA_BUNDLE REPLACE the trust store rather than
+        # extend it, so a bundle holding only the gateway's chain would break
+        # every public TLS call (Anthropic, Splunk, Cloudflare). Build the real
+        # bundle at start: the image's certifi roots + the aid-ca chain.
+        - name: ca-bundle
+          image: pseudoco-assistant:latest
+          command:
+            - sh
+            - -c
+            - >-
+              cat "$(python -c 'import certifi; print(certifi.where())')"
+              /chain/aid-ingress-chain.pem > /certs/ca-bundle.pem
+              && echo "ca-bundle: $(grep -c 'BEGIN CERTIFICATE' /certs/ca-bundle.pem) certs"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: chain, mountPath: /chain, readOnly: true }
+            - { name: certs, mountPath: /certs }
+      containers:
+        - name: app
+          # Resolved through the ImageStream (lookupPolicy.local in buildconfig.yaml)
+          image: pseudoco-assistant:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef: { name: pseudoco-assistant-config }
+            - secretRef:    { name: pseudoco-assistant-secrets }
+          env:
+            - name: SERVER_HOSTNAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            # The AI Defense gateway presents a cluster-signed cert, so httpx
+            # and requests both need the chain or inspection fails with
+            # CERTIFICATE_VERIFY_FAILED. The bundle comes from the init container.
+            - name: SSL_CERT_FILE
+              value: /app/certs/ca-bundle.pem
+            - name: REQUESTS_CA_BUNDLE
+              value: /app/certs/ca-bundle.pem
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { cpu: "2",  memory: 2Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data,  mountPath: /app/data }
+            - { name: certs, mountPath: /app/certs, readOnly: true }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: pseudoco-assistant-data }
+        # Created from deploy/openshift/certs/aid-ingress-chain.pem; see README.md.
+        - name: chain
+          configMap: { name: aid-ca }
+        - name: certs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pseudoco-assistant
+  labels: { app: pseudoco-assistant }
+spec:
+  selector: { app: pseudoco-assistant }
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: pseudoco-assistant
+  labels: { app: pseudoco-assistant }
+spec:
+  to:
+    kind: Service
+    name: pseudoco-assistant
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

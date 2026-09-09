@@ -110,6 +110,15 @@ used by the EC2 bootstrap.</p>
 <p>Verify: <code>./run.sh</code> prints the host-capability line and the NIM preflight;
 <code>curl http://localhost:8000/v1/health/ready</code> → 200; a chat turn's governance
 event shows <code>provider_name=nvidia</code> and the NIM's model id.</p>
+<h3 id="remote-nim-on-openshift-provider-openai">Remote NIM on OpenShift (<code>provider=openai</code>)</h3>
+<p><code>provider=nvidia</code> never leaves the host, so a Nemotron served elsewhere — a NIM on another
+node, Ray Serve, vLLM — is reached as an OpenAI-compatible endpoint: <code>AI_PROVIDER=openai</code>,
+<code>OPENAI_BASE_URL</code> pointing at it, and <code>OPENAI_REASONING=False</code> so Nemotron 3's default
+thinking trace does not wrap the JSON answer contract (the flag rides
+<code>chat_template_kwargs.enable_thinking</code> and is only sent to self-hosted endpoints, never to
+<code>api.openai.com</code>). It is a Settings-card checkbox on the openai provider like the NVIDIA one.
+The OpenShift manifests that do exactly this, including the on-prem AI Defense gateway's CA
+chain, are in <a href="../deploy/openshift/README.html">deploy/openshift/README.md</a>.</p>
 <h2 id="2-nemo-guardrails-drawer-toggle">2. NeMo Guardrails (drawer toggle)</h2>
 <p><code>nemoguardrails</code> 0.24 runs <strong>in-process</strong> (core package only — the <code>[server]</code>
 extra would break the FastAPI/httpx pins). Input rails run on the prompt after

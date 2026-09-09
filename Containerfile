@@ -33,20 +33,30 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
-    chown -R appuser:appuser /app
+# Non-root user, built for arbitrary UIDs. OpenShift ignores USER at runtime and
+# runs the container as a random UID that is always a member of group 0
+# ("Support Arbitrary User IDs", deploy/openshift/README.md), so /app is handed
+# to group 0 with the owner's rights (chmod g=u) instead of being chown'ed to
+# appuser. appuser's primary group is 0 as well, so podman/docker (which do
+# honour USER) get the same permissions locally. HOME=/app because
+# /home/appuser is not group-writable and some libraries (boto3, pip) fall back
+# to $HOME for cache/config.
+RUN useradd --create-home --shell /bin/bash --gid 0 appuser && \
+    mkdir -p logs data && \
+    chgrp -R 0 /app && \
+    chmod -R g=u /app
+ENV HOME=/app
 USER appuser
-
-# Create logs directory
-RUN mkdir -p logs
 
 # Expose the application port
 EXPOSE 8001
 
-# Health check
+# Health check (docker/podman only — Kubernetes/OpenShift ignore this and use
+# the probes in deploy/openshift/deployment.yaml instead).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" || exit 1
 
-# Default command
-CMD ["python", "-m", "backend.main"]
+# umask 0002 so files the app creates at runtime (the SQLite db, log files) are
+# group-writable: on a PVC a pod restart lands a new arbitrary UID that only
+# shares the volume's group, not the previous UID.
+CMD ["sh", "-c", "umask 0002 && exec python -m backend.main"]

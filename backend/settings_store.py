@@ -119,7 +119,14 @@ _PROVIDER_FIELDS: Dict[str, List[_CredField]] = {
         _CredField("api_key", "API key", secret=True, settings_attr="openai_api_key",
                    placeholder="sk-…"),
         _CredField("base_url", "Base URL", settings_attr="openai_base_url",
-                   placeholder="https://api.openai.com/v1"),
+                   placeholder="https://api.openai.com/v1",
+                   help="api.openai.com, or any OpenAI-compatible endpoint: a remote "
+                        "NIM, Ray Serve or vLLM (provider=nvidia is local-only)."),
+        _CredField("reasoning", "Reasoning (thinking) mode", boolean=True,
+                   settings_attr="openai_reasoning",
+                   help="Self-hosted endpoints only (api.openai.com ignores it). Nemotron 3 "
+                        "defaults this ON; keep it off so the JSON answer contract is not "
+                        "wrapped in a reasoning trace."),
     ],
     "bedrock": [
         _CredField("region", "AWS region", settings_attr="aws_region", env="AWS_DEFAULT_REGION",
