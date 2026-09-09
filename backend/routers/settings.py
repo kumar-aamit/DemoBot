@@ -10,7 +10,7 @@ import socket
 from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from backend import settings_store
 from backend.config import settings
@@ -204,6 +204,34 @@ async def get_blueprint_setting():
 async def update_blueprint_setting(body: BlueprintSettings):
     try:
         return settings_store.set_blueprint(body.key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Demo Controls visibility (which drawer cards the chat page shows)
+# ---------------------------------------------------------------------------
+class DemoControlsSettings(BaseModel):
+    # StrictBool: "true" / 1 are not a visibility — a typo gets a 422, not a guess.
+    visible: Dict[str, StrictBool] = Field(default_factory=dict)
+
+
+@router.get("/settings/demo-controls")
+async def get_demo_controls():
+    """Every Demo Controls card (key, label, group, kind, visible) in drawer order
+    plus the group headers, generated from settings_store.DEMO_CONTROLS. The chat
+    page reads it to hide cards (chat.js applyDemoControlVisibility); the Settings
+    page renders its Demo Controls panel from it."""
+    return settings_store.get_demo_controls()
+
+
+@router.put("/settings/demo-controls")
+async def update_demo_controls(body: DemoControlsSettings):
+    """Merge {key: shown} into the stored overrides. Hiding is not gating: a hidden
+    per-request card sends no override (the server default governs its flag) and a
+    hidden generator keeps running."""
+    try:
+        return settings_store.set_demo_controls(body.visible)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

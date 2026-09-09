@@ -13,7 +13,7 @@ import re
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.database.db import get_db_context
 from backend.hec.config import HECConfig
@@ -46,6 +46,11 @@ _DEFAULTS: Dict[str, Any] = {
     # The "NemoClaw Guardrails" drawer toggle (server-side: tool calls are not
     # chat requests). Persisted so the demo posture survives a restart.
     "nemoclaw_guardrails": {"enabled": False},
+    # Which Demo Controls drawer cards the chat page shows: {key: bool} holding
+    # OVERRIDES only (an unlisted key is visible). Edited on the Settings page;
+    # the registry of keys is DEMO_CONTROLS below. Never mutate this dict —
+    # load() copies the blob shallowly, so a stored dict may still be this one.
+    "demo_controls": {},
 }
 _ID_RE = re.compile(r"[^a-z0-9-]+")
 
@@ -458,6 +463,101 @@ def apply_nemoclaw_guardrails_from_store() -> None:
     cfg = load().get("nemoclaw_guardrails")
     if isinstance(cfg, dict) and "enabled" in cfg:
         settings.nemoclaw_guardrails_enabled = bool(cfg["enabled"])
+
+
+# ---------------------------------------------------------------------------
+# Demo Controls visibility (which cards the chat page's Demo Controls drawer
+# shows; edited on the Settings page, persisted so the posture survives a restart)
+# ---------------------------------------------------------------------------
+# The registry every drawer card is checked against. Each card container in
+# frontend/index.html (#settingsDrawer) carries data-control="<key>"; the
+# Settings panel and chat.js applyDemoControlVisibility() are generated from
+# this list, in this order (= drawer order), and tests/test_demo_controls.py
+# fails when the markup and the registry diverge (CLAUDE.md "Demo Controls
+# drawer formatting"). ``kind``: "request" = the toggle's state rides on every
+# ChatRequest (chat.js CONTROL_FLAGS; a hidden card sends no override, so the
+# server default governs), "server" = the toggle drives a server-side API and
+# keeps running while hidden, "display" = browser-only.
+DEMO_CONTROL_GROUPS: List[Dict[str, str]] = [
+    {"key": "guardrails", "label": "Guardrails"},
+    {"key": "pipeline", "label": "Agent Pipeline"},
+    {"key": "synthetic", "label": "Synthetic Content"},
+    {"key": "generators", "label": "Load & Incident Generators"},
+    {"key": "display", "label": "Display"},
+]
+DEMO_CONTROL_KINDS: Tuple[str, ...] = ("request", "server", "display")
+
+
+def _control(key: str, label: str, group: str, kind: str) -> Dict[str, str]:
+    return {"key": key, "label": label, "group": group, "kind": kind}
+
+
+DEMO_CONTROLS: List[Dict[str, str]] = [
+    _control("ai_defense", "Cisco AI Defense Policy Review", "guardrails", "request"),
+    _control("agent_control", "Agent Observability Controls", "guardrails", "request"),
+    _control("nemo_guardrails", "NeMo Guardrails", "guardrails", "request"),
+    _control("nemoclaw_guardrails", "NemoClaw Guardrails", "guardrails", "server"),
+    _control("internal_policy", "Internal Policy Engine", "guardrails", "request"),
+    _control("multi_agent", "Multi-Agent Mode", "pipeline", "request"),
+    _control("synthetic_pii", "Include Synthetic PII/PHI in Responses", "synthetic", "request"),
+    _control("synthetic_toxic", "Include Toxic Content in Responses", "synthetic", "request"),
+    _control("synthetic_hallucination", "Include Hallucinated Content in Responses", "synthetic", "request"),
+    _control("synthetic_boundary", "Include Outside of Authority Content in Responses", "synthetic", "request"),
+    _control("auto_sessions", "Auto-Generate Sessions", "generators", "server"),
+    _control("demo_incident", "Trigger Demo Incident", "generators", "server"),
+    _control("injection_spray", "Prompt Injection Spray", "generators", "server"),
+    _control("appearance", "Appearance", "display", "display"),
+]
+DEMO_CONTROL_KEYS: Tuple[str, ...] = tuple(c["key"] for c in DEMO_CONTROLS)
+
+
+def _check_demo_control_registry() -> None:
+    """Fail at import, not at the first GET, when the registry is malformed."""
+    groups = {g["key"] for g in DEMO_CONTROL_GROUPS}
+    for c in DEMO_CONTROLS:
+        if c["group"] not in groups or c["kind"] not in DEMO_CONTROL_KINDS:
+            raise ValueError(f"DEMO_CONTROLS[{c['key']}]: unknown group {c['group']!r} "
+                             f"or kind {c['kind']!r}")
+    if len(set(DEMO_CONTROL_KEYS)) != len(DEMO_CONTROL_KEYS):
+        raise ValueError("DEMO_CONTROLS: duplicate key")
+
+
+_check_demo_control_registry()
+
+
+def get_demo_controls() -> Dict[str, Any]:
+    """Every registered control with its visibility, in drawer order, plus the
+    group headers. The store holds overrides only; an unlisted key is visible."""
+    stored = load().get("demo_controls")
+    if not isinstance(stored, dict):
+        stored = {}
+    return {
+        "controls": [dict(c, visible=bool(stored.get(c["key"], True))) for c in DEMO_CONTROLS],
+        "groups": [dict(g) for g in DEMO_CONTROL_GROUPS],
+    }
+
+
+def set_demo_controls(visible: Dict[str, bool]) -> Dict[str, Any]:
+    """Merge ``{key: shown}`` into the stored overrides. An unknown key or a
+    non-bool raises ValueError before anything is written (the router turns
+    that into a 422). Hiding is not gating: a hidden per-request card sends no
+    override for its ChatRequest flag, a hidden generator keeps running."""
+    unknown = [k for k in visible if k not in DEMO_CONTROL_KEYS]
+    if unknown:
+        raise ValueError(f"unknown demo control: {', '.join(unknown)}. "
+                         f"Valid: {', '.join(DEMO_CONTROL_KEYS)}")
+    bad = [k for k, v in visible.items() if not isinstance(v, bool)]
+    if bad:
+        raise ValueError(f"visible must be true or false for: {', '.join(bad)}")
+    data = load()
+    current = data.get("demo_controls")
+    # A fresh dict: load() copies the blob shallowly, so updating the stored dict
+    # in place would also rewrite the shared _DEFAULTS entry.
+    merged = dict(current) if isinstance(current, dict) else {}
+    merged.update(visible)
+    data["demo_controls"] = merged
+    _persist(data)
+    return get_demo_controls()
 
 
 # ---------------------------------------------------------------------------
