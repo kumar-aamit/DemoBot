@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     openai_base_url: str = "https://api.openai.com/v1"
+    openai_reasoning: bool = False
 
     # NVIDIA NIM Configuration (used when ai_provider="nvidia")
     # provider=nvidia is LOCAL inference, always: a NIM (NVIDIA Inference

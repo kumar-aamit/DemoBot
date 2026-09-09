@@ -119,6 +119,8 @@ def get_chat_model(settings, *, max_tokens: int = 2048, temperature: float = 0.7
         # part of the key or flipping it in Settings would keep serving the old
         # client until the next full cache clear.
         cache_key += f":think={int(bool(getattr(settings, 'nvidia_reasoning', False)))}"
+    elif provider == "openai":
+        cache_key += f":think={int(bool(getattr(settings, 'openai_reasoning', False)))}"
     cached = _MODEL_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -145,12 +147,23 @@ def get_chat_model(settings, *, max_tokens: int = 2048, temperature: float = 0.7
         elif provider == "openai":
             from langchain_openai import ChatOpenAI
 
+            extra: Dict[str, Any] = {}
+            # Only for a self-hosted endpoint: api.openai.com rejects unknown
+            # top-level params, and the flag is meaningless there.
+            if "api.openai.com" not in (settings.openai_base_url or ""):
+                extra["extra_body"] = {
+                    "chat_template_kwargs": {
+                        "enable_thinking": bool(getattr(settings, "openai_reasoning", False))
+                    }
+                }
+
             model = ChatOpenAI(
                 model=model_override or settings.openai_model,
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_base_url,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                **extra,
             )
         elif provider == "nvidia":
             from langchain_openai import ChatOpenAI
