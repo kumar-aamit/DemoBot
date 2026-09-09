@@ -46,9 +46,6 @@ _DEFAULTS: Dict[str, Any] = {
     # The "NemoClaw Guardrails" drawer toggle (server-side: tool calls are not
     # chat requests). Persisted so the demo posture survives a restart.
     "nemoclaw_guardrails": {"enabled": False},
-    # Runtime override of the default agentic architecture (the chat header's
-    # "Blueprint" dropdown). Empty = the ACTIVE_BLUEPRINT config default.
-    "blueprint": {"key": ""},
 }
 _ID_RE = re.compile(r"[^a-z0-9-]+")
 
@@ -370,7 +367,8 @@ def set_ai_defense_enabled_rules_supported(supported: bool) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Active blueprint (which agentic architecture serves chat turns by default)
+# Active blueprint (which agentic architecture serves chat turns by default;
+# always demobot_multi_agent unless ACTIVE_BLUEPRINT or a PUT says otherwise)
 # ---------------------------------------------------------------------------
 def get_blueprint_setting() -> Dict[str, Any]:
     from backend.agents.blueprints import get_blueprint, list_blueprints
@@ -384,29 +382,18 @@ def get_blueprint_setting() -> Dict[str, Any]:
 
 
 def set_blueprint(key: str) -> Dict[str, Any]:
+    """Switch the active architecture for this process only. Deliberately NOT
+    persisted: there is no Blueprint picker in the UI, so every restart comes
+    back up on the ACTIVE_BLUEPRINT default (demobot_multi_agent) rather than on
+    a choice nobody can see or undo."""
     from backend.agents.blueprints import BLUEPRINTS
     from backend.config import settings
 
     key = (key or "").strip()
     if key not in BLUEPRINTS:
         raise ValueError(f"unknown blueprint: {key}. Valid: {', '.join(BLUEPRINTS)}")
-    data = load()
-    data["blueprint"] = {"key": key}
-    _persist(data)
     settings.active_blueprint = key   # compiled workflows are cached per key: no rebuild needed
     return get_blueprint_setting()
-
-
-def apply_blueprint_from_store() -> None:
-    """Startup hook: the persisted dropdown choice wins over the .env default."""
-    from backend.agents.blueprints import BLUEPRINTS
-    from backend.config import settings
-
-    key = ((load().get("blueprint") or {}).get("key") or "").strip()
-    if key in BLUEPRINTS:
-        settings.active_blueprint = key
-    elif key:
-        logger.warning("ignoring stored blueprint %r (unknown); keeping %s", key, settings.active_blueprint)
 
 
 # ---------------------------------------------------------------------------

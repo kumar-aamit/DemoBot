@@ -586,12 +586,10 @@
                         <p class="text-xs text-gray-400 mt-2">Session ID: <span id="sessionId" class="font-mono"></span></p>
                         <!-- Interactive active-LLM controls: Provider → filtered Model; Static emission (Emit Actual by default). -->
                         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
-                            <!-- Agentic architecture serving chat turns. Every guardrail, toggle and
-                                 governance field is shared by all blueprints (CLAUDE.md "Blueprint feature parity"). -->
-                            <label class="inline-flex items-center gap-1.5" title="Agentic architecture serving chat turns (every guardrail runs in both)">
-                                <span class="text-teal-600 font-semibold uppercase tracking-wide text-[10px]">Blueprint</span>
-                                <select id="blueprintSelect" onchange="onBlueprintChange()" class="text-xs font-mono border border-teal-200 bg-teal-50 text-teal-800 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal-300"></select>
-                            </label>
+                            <!-- No Blueprint picker: chat turns always run the DemoBot Multi-Agent
+                                 core (ACTIVE_BLUEPRINT / ChatRequest.blueprint still override it for
+                                 non-UI callers). Every guardrail, toggle and governance field is shared
+                                 by all blueprints anyway (CLAUDE.md "Blueprint feature parity"). -->
                             <label class="inline-flex items-center gap-1.5" title="LLM provider backing the chat">
                                 <span class="text-violet-500 font-semibold uppercase tracking-wide text-[10px]">Provider</span>
                                 <select id="providerSelect" onchange="onProviderChange()" class="text-xs font-mono border border-violet-200 bg-violet-50 text-violet-800 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-300"></select>
@@ -703,6 +701,6 @@
         </div>
     </div>
 
-    <script src="/static/js/chat.js?v=24"></script>
+    <script src="/static/js/chat.js?v=25"></script>
 </body>
 </html>

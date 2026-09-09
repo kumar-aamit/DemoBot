@@ -29,7 +29,8 @@ Run the regression test after editing any of:
 - `run.sh` (the `opentelemetry-instrument` / OTEL_* section)
 - `backend/agents/llm.py`, `backend/agents/graph.py`, `backend/agents/nodes/*`
 - `backend/agents/blueprints/*` (both cores run every guardrail node — run the
-  regression with the Blueprint dropdown on each, or `blueprint=` per request)
+  regression on each via `blueprint=` per request or `ACTIVE_BLUEPRINT`; the UI
+  has no Blueprint picker)
 - `backend/services/nemo_guardrails.py`, `backend/agents/nodes/nemo_rails.py`
   (new agent spans `nemo_guardrails_input_agent` / `nemo_guardrails_output_agent`)
 - the OpenTelemetry / `splunk-*` packages in `requirements.txt`

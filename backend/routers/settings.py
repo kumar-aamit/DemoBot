@@ -195,7 +195,8 @@ class BlueprintSettings(BaseModel):
 @router.get("/settings/blueprint")
 async def get_blueprint_setting():
     """The server-default blueprint + every choice (key, label, description,
-    workflow_name, stage labels) for the chat header dropdown."""
+    workflow_name, stage labels). The UI reads it for stage labels only — it has
+    no Blueprint picker."""
     return settings_store.get_blueprint_setting()
 
 

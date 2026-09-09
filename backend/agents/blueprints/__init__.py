@@ -1,10 +1,10 @@
 """Blueprint registry — the selectable agentic architectures.
 
 Each blueprint contributes only a generation core; the guardrail chain is
-shared (``guardrails.wire_guardrails``). The active default is chosen from the
-chat header's Blueprint dropdown (persisted in settings_store) and can be
-overridden per request (``ChatRequest.blueprint``) so tests and demo scripts can
-drive both without flipping global state.
+shared (``guardrails.wire_guardrails``). The active default is ``ACTIVE_BLUEPRINT``
+(demobot_multi_agent; there is no picker in the UI) and can be overridden per
+request (``ChatRequest.blueprint``) so tests and demo scripts can drive both
+without flipping global state.
 """
 
 from __future__ import annotations

@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 def active_blueprint_key() -> str:
-    """The server-default blueprint (header dropdown / ACTIVE_BLUEPRINT)."""
+    """The server-default blueprint (ACTIVE_BLUEPRINT / PUT /api/settings/blueprint)."""
     return (getattr(settings, "active_blueprint", "") or "").strip() or DEFAULT_BLUEPRINT
 
 
