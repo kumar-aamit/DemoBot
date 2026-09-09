@@ -25,6 +25,7 @@ SUITES=(
   tests/test_model_emitter.py
   tests/test_ollama_provider.py
   tests/test_integration_settings.py
+  tests/test_demo_controls.py
   tests/test_nemo_guardrails.py
   tests/test_nemoclaw_guard.py
   tests/test_tool_guard.py

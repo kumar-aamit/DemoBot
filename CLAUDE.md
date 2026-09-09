@@ -40,6 +40,20 @@ Options a host cannot run are greyed out with the reason as a tooltip, driven by
 `GET /api/server-info` `gated` (`backend/host_capabilities.py`) — never by a
 client-side guess.
 
+Every card also carries a `data-control="<key>"` hook, and that key is
+registered in `backend/settings_store.py` `DEMO_CONTROLS` (key, label, group,
+kind) — the same group as the card's `<section data-group>`. The Settings
+page's **Demo Controls** panel and the chat page's per-card visibility
+(`GET`/`PUT /api/settings/demo-controls`, `chat.js applyDemoControlVisibility`)
+are generated from that registry, so adding, renaming, moving or removing a
+card updates the registry in the same PR; `tests/test_demo_controls.py` fails
+on any divergence between the markup and the registry. A card is never
+hard-coded `hidden` in the markup — hide it from the Settings panel. Hiding is
+not gating (gating stays `GET /api/server-info` `gated`): a hidden per-request
+card sends no override for its `ChatRequest` flag (`CONTROL_FLAGS` → `null`),
+so the server default applies, and a hidden server-side generator keeps
+running.
+
 Color is reserved for **state**, never identity. These may stay colored:
 
 - the status pill (`#…Status`) — one look for every card, set only through

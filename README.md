@@ -208,6 +208,19 @@ chain — see [deploy/openshift/README.md](deploy/openshift/README.md).
 - **Governance Logs**: http://localhost:8001/governance-ui
 - **API Docs**: http://localhost:8001/docs
 - **Health Check**: http://localhost:8001/health
+- **Settings**: http://localhost:8001/settings-ui (its own access code, on top of the app key)
+
+**Demo Controls visibility.** The Settings page's **Demo Controls** card chooses
+which cards the chat page's Demo Controls drawer shows (`GET`/`PUT
+/api/settings/demo-controls`, persisted in `app_settings`). Untick a card and it
+leaves the drawer within 10 s; a group whose cards are all hidden takes its header
+with it. Hiding is not gating: a hidden per-request toggle sends no override, so
+the server default governs that flag; hidden generators (auto sessions, incident,
+spray, NemoClaw) keep running; options this host cannot run stay greyed out via
+`GET /api/server-info`. The list is generated from `backend/settings_store.py`
+`DEMO_CONTROLS`, the registry every drawer card's `data-control` hook is checked
+against (`tests/test_demo_controls.py`; see CLAUDE.md "Demo Controls drawer
+formatting").
 
 ### Agentic Surface (OpenClaw, optional)
 

@@ -764,7 +764,7 @@ def main() -> int:
         # Every collapsible card. Keep in sync with SECTIONS in frontend/js/settings.js —
         # a card missing from that array still toggles, but its collapsed state is
         # silently dropped on reload.
-        sections = ("logs", "creds", "aidefense", "nemo", "o11y", "hec")
+        sections = ("controls", "logs", "creds", "aidefense", "nemo", "o11y", "hec")
         check(f"Settings: a collapsible toggle per section ({len(sections)})",
               all(f'data-toggle="{s}"' in s_html for s in sections))
         check(f"Settings: a collapsible body per section ({len(sections)})",
@@ -777,6 +777,8 @@ def main() -> int:
         # The integration cards render client-side; assert their mount points exist.
         check("Settings: AI Defense + NeMo Guardrails + Splunk O11y field containers present",
               'id="aiDefenseFields"' in s_html and 'id="nemoFields"' in s_html and 'id="o11yFields"' in s_html)
+        check("Settings: Demo Controls visibility panel mount point + status line present",
+              'id="demoControlsList"' in s_html and 'id="controlsStatus"' in s_html)
         check("Settings: host-capabilities strip present (greyed-out options explained here)",
               'id="hostCaps"' in s_html)
         # Accordion a11y: each toggle is a <button> nested INSIDE its <h2> (heading role preserved),
@@ -807,6 +809,11 @@ def main() -> int:
                          re.findall(r"<section [^>]*data-group=[^>]*>(.*?)</section>", _drawer, re.S))
         check("Drawer: every control card sits inside a group (none loose at top level)",
               _drawer.count(_card) == _in_groups and _in_groups >= 14, f"{_drawer.count(_card)} vs {_in_groups}")
+        # The Settings-page visibility panel keys on this hook (CLAUDE.md sync rule;
+        # tests/test_demo_controls.py checks the keys against the registry).
+        check("Drawer: every control card carries a data-control hook (visibility panel)",
+              _drawer.count('data-control="') == _drawer.count(_card),
+              f"{_drawer.count('data-control=')} hooks vs {_drawer.count(_card)} cards")
         check("Drawer: spray card is 'Prompt Injection Spray' (no hyphen anywhere on the page)",
               "Prompt Injection Spray" in _drawer and "Prompt-Injection" not in a_html)
         check("Drawer: spray duration defaults to 60s",
