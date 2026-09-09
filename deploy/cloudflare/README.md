@@ -35,12 +35,18 @@ label and appends its own zone. Asking it for `pseudocoassistant.com` against
 the `yeackbot.com` cert creates `pseudocoassistant.com.yeackbot.com` and reports
 success.
 
-That is exactly what happened on the first cutover attempt on 2026-09-09. The
-bogus record was created, the ingress was rewritten to a hostname with no DNS
-record, and the old rule was gone, so the public tunnel served nothing for about
-three minutes until `--rollback`. The preflight now checks the cert's zone
-against the target hostname, and `--apply` additionally refuses if the record
-`cloudflared` reports creating is not the one that was asked for.
+That is exactly what happened on the first cutover attempt on 2026-09-09.
+`cloudflared` reported `Added CNAME pseudocoassistant.com.yeackbot.com`, the
+ingress was rewritten to a hostname with no DNS record, and the old rule was
+gone, so the public tunnel served nothing for about three minutes until
+`--rollback`. The preflight now checks the cert's zone against the target
+hostname, and `--apply` additionally refuses if the record `cloudflared` reports
+creating is not the one that was asked for.
+
+A later audit of the zone found no `pseudocoassistant.com.yeackbot.com` record —
+the name is NXDOMAIN and the API lists it nowhere — so whatever `cloudflared`
+logged, nothing durable was left behind. The guards stand regardless: the failure
+mode they prevent is the ingress rewrite, not the record.
 
 ## Step 1 — create the DNS record (manual, one time)
 
@@ -107,8 +113,7 @@ destructive or lives in a console the script has no credentials for.
 
 | System | What to do | Reference |
 | --- | --- | --- |
-| Cloudflare DNS | Delete the old `medadvice` CNAME on `yeackbot.com`. Left up, it serves a 1033 error page, which looks like an outage to anyone holding an old link. | dashboard |
-| Cloudflare DNS | Delete the stray `pseudocoassistant.com.yeackbot.com` CNAME left by the failed first attempt. It is harmless but meaningless. | dashboard |
+| ~~Cloudflare DNS~~ | **Done.** The old `medadvice` CNAME was deleted; the name is now NXDOMAIN and `yeackbot.com` holds no records. | — |
 | Cisco AI Defense | Re-point the API connection on app **YeackBot**. | `.claude/skills/connect-ai-defense` |
 | Agent Observability | Environment names derive from the hostname's first label. New turns land under the new label; historical data stays under `medadvice` and does not move. | `.claude/skills/fan-tunnel-to-agent-observability` |
 | Browser sessions | localStorage is per-origin, so the new hostname starts with empty session history and needs the access key entered again. | — |

@@ -61,12 +61,17 @@ not reject a hostname outside the cert's zone.</strong> It treats the hostname a
 label and appends its own zone. Asking it for <code>pseudocoassistant.com</code> against
 the <code>yeackbot.com</code> cert creates <code>pseudocoassistant.com.yeackbot.com</code> and reports
 success.</p>
-<p>That is exactly what happened on the first cutover attempt on 2026-09-09. The
-bogus record was created, the ingress was rewritten to a hostname with no DNS
-record, and the old rule was gone, so the public tunnel served nothing for about
-three minutes until <code>--rollback</code>. The preflight now checks the cert's zone
-against the target hostname, and <code>--apply</code> additionally refuses if the record
-<code>cloudflared</code> reports creating is not the one that was asked for.</p>
+<p>That is exactly what happened on the first cutover attempt on 2026-09-09.
+<code>cloudflared</code> reported <code>Added CNAME pseudocoassistant.com.yeackbot.com</code>, the
+ingress was rewritten to a hostname with no DNS record, and the old rule was
+gone, so the public tunnel served nothing for about three minutes until
+<code>--rollback</code>. The preflight now checks the cert's zone against the target
+hostname, and <code>--apply</code> additionally refuses if the record <code>cloudflared</code> reports
+creating is not the one that was asked for.</p>
+<p>A later audit of the zone found no <code>pseudocoassistant.com.yeackbot.com</code> record —
+the name is NXDOMAIN and the API lists it nowhere — so whatever <code>cloudflared</code>
+logged, nothing durable was left behind. The guards stand regardless: the failure
+mode they prevent is the ingress rewrite, not the record.</p>
 <h2>Step 1 — create the DNS record (manual, one time)</h2>
 <p>Cloudflare dashboard → <strong>pseudocoassistant.com</strong> → <strong>DNS</strong> → <strong>Add record</strong>:</p>
 <table>
@@ -166,14 +171,9 @@ destructive or lives in a console the script has no credentials for.</p>
 </thead>
 <tbody>
 <tr>
-<td>Cloudflare DNS</td>
-<td>Delete the old <code>medadvice</code> CNAME on <code>yeackbot.com</code>. Left up, it serves a 1033 error page, which looks like an outage to anyone holding an old link.</td>
-<td>dashboard</td>
-</tr>
-<tr>
-<td>Cloudflare DNS</td>
-<td>Delete the stray <code>pseudocoassistant.com.yeackbot.com</code> CNAME left by the failed first attempt. It is harmless but meaningless.</td>
-<td>dashboard</td>
+<td>~~Cloudflare DNS~~</td>
+<td><strong>Done.</strong> The old <code>medadvice</code> CNAME was deleted; the name is now NXDOMAIN and <code>yeackbot.com</code> holds no records.</td>
+<td>—</td>
 </tr>
 <tr>
 <td>Cisco AI Defense</td>
