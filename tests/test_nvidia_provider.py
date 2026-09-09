@@ -110,6 +110,71 @@ def test_get_chat_model_local_nim() -> None:
     llm._MODEL_CACHE.clear()
 
 
+def test_openai_reasoning_for_self_hosted_endpoints() -> None:
+    """provider=openai is how a REMOTE NIM / Ray Serve Nemotron is reached
+    (provider=nvidia is loopback-only). enable_thinking rides extra_body for
+    self-hosted endpoints only; api.openai.com rejects unknown params."""
+    llm._MODEL_CACHE.clear()
+
+    class _Remote(_Stub):
+        ai_provider = "openai"
+        openai_api_key = "not-checked-by-ray-serve"
+        openai_base_url = "http://ray-serve-llama.example.internal/v1"
+        openai_model = "nvidia/nemotron-3-super"
+        openai_reasoning = False
+
+    model = get_chat_model(_Remote(), max_tokens=1024, temperature=0.7)
+    check("get_chat_model(openai, self-hosted) -> ChatOpenAI", type(model).__name__ == "ChatOpenAI")
+    eb = model.extra_body or {}
+    check("self-hosted: enable_thinking=False by default",
+          eb.get("chat_template_kwargs", {}).get("enable_thinking") is False, str(eb))
+
+    class _RemoteThink(_Remote):
+        openai_reasoning = True
+
+    thinking = get_chat_model(_RemoteThink(), max_tokens=1024, temperature=0.7)
+    check("self-hosted: enable_thinking=True when OPENAI_REASONING is on",
+          (thinking.extra_body or {}).get("chat_template_kwargs", {}).get("enable_thinking") is True)
+    check("openai reasoning flag is part of the cache key", thinking is not model)
+
+    class _Cloud(_Remote):
+        openai_base_url = "https://api.openai.com/v1"
+        openai_model = "gpt-4o"
+
+    cloud = get_chat_model(_Cloud(), max_tokens=1024, temperature=0.7)
+    check("api.openai.com: no extra_body at all", not cloud.extra_body, str(cloud.extra_body))
+    llm._MODEL_CACHE.clear()
+
+
+def test_openai_reasoning_settings_field() -> None:
+    from backend.config import settings
+
+    f = settings_store.get_provider_fields()["openai"]
+    keys = [it["key"] for it in f]
+    check("openai fields: api_key, base_url, reasoning", keys == ["api_key", "base_url", "reasoning"], str(keys))
+    check("openai reasoning is a boolean field", any(it["key"] == "reasoning" and it.get("boolean") for it in f))
+
+    mem = {"ai_provider_creds": {}}
+    orig_load, orig_persist = settings_store.load, settings_store._persist
+    orig_reason = settings.openai_reasoning
+    try:
+        settings_store.load = lambda: {k: dict(v) if isinstance(v, dict) else v for k, v in mem.items()}
+
+        def _fake_persist(data):
+            mem.clear(); mem.update(data)
+        settings_store._persist = _fake_persist
+
+        settings_store.set_provider_creds("openai", {"reasoning": "true"})
+        check("openai reasoning applied as a bool", settings.openai_reasoning is True)
+        check("openai reasoning persisted as 'true'", mem["ai_provider_creds"]["openai"]["reasoning"] == "true")
+        settings_store.set_provider_creds("openai", {"reasoning": "false"})
+        check("openai reasoning switched back off", settings.openai_reasoning is False)
+    finally:
+        settings_store.load, settings_store._persist = orig_load, orig_persist
+        settings.openai_reasoning = orig_reason
+        llm.clear_caches()
+
+
 def test_think_trace_stripped() -> None:
     msg = AIMessage(content="<think>\nreasoning here\n</think>\n{\"severity\": \"LOW\"}")
     check("leading <think> block stripped", _extract_text(msg) == '{"severity": "LOW"}')
@@ -258,6 +323,8 @@ def main() -> int:
     for fn in (
         test_loopback_rule,
         test_get_chat_model_local_nim,
+        test_openai_reasoning_for_self_hosted_endpoints,
+        test_openai_reasoning_settings_field,
         test_think_trace_stripped,
         test_catalog_featured_first_and_status,
         test_featured_parse_tolerates_junk,

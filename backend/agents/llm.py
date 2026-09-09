@@ -120,7 +120,11 @@ def get_chat_model(settings, *, max_tokens: int = 2048, temperature: float = 0.7
         # client until the next full cache clear.
         cache_key += f":think={int(bool(getattr(settings, 'nvidia_reasoning', False)))}"
     elif provider == "openai":
-        cache_key += f":think={int(bool(getattr(settings, 'openai_reasoning', False)))}"
+        # Same for the openai provider — and the base URL decides whether the
+        # flag is sent at all (self-hosted endpoint vs api.openai.com), so a
+        # runtime switch between the two must not be served a stale client.
+        cache_key += (f":base={settings.openai_base_url or ''}"
+                      f":think={int(bool(getattr(settings, 'openai_reasoning', False)))}")
     cached = _MODEL_CACHE.get(cache_key)
     if cached is not None:
         return cached

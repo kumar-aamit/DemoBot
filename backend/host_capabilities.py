@@ -135,7 +135,8 @@ def gated_rules(caps: Dict[str, Any], settings) -> Dict[str, Dict[str, Any]]:
     provider_nvidia = _gate(
         gpu["present"],
         "provider=nvidia is local NIM inference on this host's NVIDIA GPU — none "
-        "detected. Run DemoBot on a GPU host (deploy/ec2 --with-nim) to use it.",
+        "detected. Run the app on a GPU host (deploy/ec2 --with-nim), or reach a "
+        "remote NIM through provider=openai (OPENAI_BASE_URL + OPENAI_REASONING).",
     )
     if nim["url_error"]:
         nim_local = _gate(False, nim["url_error"])
