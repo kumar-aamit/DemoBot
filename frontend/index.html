@@ -234,7 +234,7 @@
                 <section data-group="guardrails" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-2">Guardrails</h3>
                     <!-- Cisco AI Defense Policy Review -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="ai_defense">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -255,7 +255,7 @@
                     <!-- Agent Observability Controls (the Agent Control runtime guardrail;
                          its identifiers keep the vendor name, user-facing copy says
                          "Splunk Agent Observability") -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="agent_control">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -275,7 +275,7 @@
 
                     <!-- NeMo Guardrails (NVIDIA NeMo Guardrails, in-process: input rails on the
                          prompt after AI Defense, output rails on the answer before AI Defense) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="nemo_guardrails">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -295,7 +295,7 @@
 
                     <!-- NemoClaw Guardrails (server-side toggle: governs the OpenClaw agent's tool
                          calls in Mode C via the NemoClaw/OpenShell sandbox policy — not a chat field) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="nemoclaw_guardrails">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -314,7 +314,7 @@
                     </div>
 
                     <!-- Internal Policy Engine (built-in, separate from Cisco AI Defense) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="internal_policy">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -336,7 +336,7 @@
                 <section data-group="pipeline" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-2">Agent Pipeline</h3>
                     <!-- Multi-Agent Mode (pipeline control: coordinator + specialists vs. domain agent alone) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="multi_agent">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -358,7 +358,7 @@
                 <section data-group="synthetic" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-2">Synthetic Content</h3>
                     <!-- Include Synthetic PII/PHI in Responses -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="synthetic_pii">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -377,7 +377,7 @@
                     </div>
 
                     <!-- Include Toxic Content in Responses -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="synthetic_toxic">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -396,7 +396,7 @@
                     </div>
 
                     <!-- Include Hallucinated Content in Responses -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="synthetic_hallucination">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -415,7 +415,7 @@
                     </div>
 
                     <!-- Outside-of-Authority toggle (label is theme-specific; MedAdvice => "Prescriptive Overreach") -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="synthetic_boundary">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -437,7 +437,7 @@
                 <section data-group="generators" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-2">Load &amp; Incident Generators</h3>
                     <!-- Auto-Generate Sessions -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="auto_sessions">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -461,7 +461,7 @@
                     </div>
 
                     <!-- Trigger Demo Incident (APM fault injection for the Troubleshooting Agent demo) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="demo_incident">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -495,7 +495,7 @@
                     </div>
 
                     <!-- Prompt Injection Spray (drives real Cisco AI Defense turns for the ES detection demo) -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="injection_spray">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -536,7 +536,7 @@
                 <section data-group="display" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-2">Display</h3>
                     <!-- Appearance: Light / Dark mode -->
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" data-control="appearance">
                         <div class="flex items-center justify-between">
                             <div>
                                 <span class="text-sm font-semibold text-gray-700">Appearance</span>
@@ -702,6 +702,6 @@
         </div>
     </div>
 
-    <script src="/static/js/chat.js?v=26"></script>
+    <script src="/static/js/chat.js?v=27"></script>
 </body>
 </html>

@@ -391,6 +391,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedInternalPolicyEnabled = localStorage.getItem('medadvice_internal_policy_enabled');
     const savedMultiAgentEnabled = localStorage.getItem('medadvice_multi_agent_enabled');
 
+    // Which drawer cards this box shows (Settings page → Demo Controls). Server
+    // state, never localStorage; refreshIndicators() re-applies it on its poll.
+    applyDemoControlVisibility();
+
     // Always start a fresh chat session on page load/reload (and browser restart):
     // if the disclaimer was previously accepted, skip the modal and restore prefs,
     // but mint a brand-new session instead of reusing the saved one.
@@ -745,11 +749,51 @@ async function refreshActiveBlueprint() {
     } catch (e) { /* best-effort: never break the chat */ }
 }
 
+// ---- Demo Controls visibility (Settings page → GET /api/settings/demo-controls).
+// Every drawer card carries data-control="<key>"; the keys are registered in
+// backend/settings_store.py DEMO_CONTROLS (CLAUDE.md "Demo Controls drawer
+// formatting"), and this is generated from that registry — nothing here names a
+// card. A hidden per-request card sends NO override for its ChatRequest flag
+// (buildChatPayload nulls it, so the server default governs); a hidden
+// server-side generator keeps running. Hiding is not gating — gating stays
+// GET /api/server-info `gated` — and visibility is never kept in localStorage:
+// the server is the source of truth. ----
+const CONTROL_FLAGS = {
+    ai_defense: 'ai_defense_review',
+    agent_control: 'agent_control_review',
+    nemo_guardrails: 'nemo_guardrails_review',
+    internal_policy: 'internal_policy_review',
+    multi_agent: 'multi_agent_mode',
+    synthetic_pii: 'force_pii_injection',
+    synthetic_toxic: 'force_toxic_injection',
+    synthetic_hallucination: 'force_hallucination_injection',
+    synthetic_boundary: 'force_boundary_injection',
+};
+let _hiddenControls = new Set();
+
+async function applyDemoControlVisibility() {
+    try {
+        const res = await fetch('/api/settings/demo-controls');
+        if (!res.ok) return;
+        const data = await res.json();   // {controls:[{key,label,group,kind,visible}], groups:[{key,label}]}
+        const hidden = new Set((data.controls || []).filter(c => c.visible === false).map(c => c.key));
+        _hiddenControls = hidden;
+        document.querySelectorAll('[data-control]').forEach(el => {
+            el.hidden = hidden.has(el.dataset.control);
+        });
+        // A group whose cards are all hidden takes its header with it.
+        document.querySelectorAll('section[data-group]').forEach(sec => {
+            sec.hidden = !sec.querySelector('[data-control]:not([hidden])');
+        });
+    } catch (e) { /* best-effort: the drawer keeps its last state */ }
+}
+
 function refreshIndicators() {
     // Capabilities first: the provider/model gating in refreshActiveProvider reads them.
     refreshServerInfo().then(refreshActiveProvider);
     refreshActiveBlueprint();
     refreshStaticEmission();
+    applyDemoControlVisibility();   // a Settings-page change shows within the poll interval
 }
 
 function startProviderPolling() {
@@ -864,7 +908,7 @@ function clientTz() {
 }
 
 function buildChatPayload(message, schedulingAction = null) {
-    return {
+    const payload = {
         session_id: sessionId,
         message: message,
         disclaimer_accepted: disclaimerAccepted,
@@ -882,6 +926,11 @@ function buildChatPayload(message, schedulingAction = null) {
         client_tz: clientTz(),
         scheduling_action: schedulingAction || null
     };
+    // A hidden card sends no override: null lets the server default govern the flag.
+    for (const [key, flag] of Object.entries(CONTROL_FLAGS)) {
+        if (_hiddenControls.has(key)) payload[flag] = null;
+    }
+    return payload;
 }
 
 // The user bubble for a chip click reads like something the user would type.

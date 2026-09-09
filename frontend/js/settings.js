@@ -27,7 +27,7 @@ async function api(method, url, body) {
 // Each top-level card (logs / creds / hec) collapses via a chevron in its header.
 // State persists per-section in localStorage so it survives reloads.
 const COLLAPSE_KEY = 'medadvice.settings.collapsed';
-const SECTIONS = ['logs', 'creds', 'aidefense', 'nemo', 'o11y', 'hec'];
+const SECTIONS = ['controls', 'logs', 'creds', 'aidefense', 'nemo', 'o11y', 'hec'];
 
 function _readCollapsed() {
   try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY)) || {}; } catch (_) { return {}; }
@@ -55,6 +55,72 @@ function toggleSection(name) {
 function initSections() {
   const map = _readCollapsed();
   SECTIONS.forEach(n => applySection(n, !!map[n]));
+}
+
+// ------------------------------------------------- Demo Controls visibility
+// Which cards the Demo Controls drawer on /app shows. Keys, labels and groups
+// come from GET /api/settings/demo-controls — generated from
+// backend/settings_store.py DEMO_CONTROLS, the registry every drawer card's
+// data-control hook is checked against — so a card added to the drawer shows
+// up here without a UI change. One bordered sub-block per drawer group, with
+// the drawer's own header text; checked = shown.
+let _demoControls = { controls: [], groups: [] };
+
+function demoControlHtml(c) {
+  return `<label class="flex items-start gap-2 text-sm text-gray-700">
+      <input type="checkbox" data-control-key="${attr(c.key)}" ${c.visible ? 'checked' : ''}
+        class="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-2 focus:ring-violet-500">
+      <span>${esc(c.label)}</span>
+    </label>`;
+}
+
+function renderDemoControls() {
+  const box = document.getElementById('demoControlsList');
+  if (!box) return;
+  const controls = _demoControls.controls || [];
+  if (!controls.length) {
+    box.innerHTML = '<p class="text-sm text-gray-400">No controls registered.</p>';
+    return;
+  }
+  box.innerHTML = (_demoControls.groups || []).map(g => {
+    const items = controls.filter(c => c.group === g.key);
+    if (!items.length) return '';
+    return `<div class="border border-gray-200 rounded-lg p-4">
+      <h3 class="text-sm font-semibold text-gray-700 mb-2">${esc(g.label)}</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${items.map(demoControlHtml).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadDemoControls() {
+  try {
+    _demoControls = await api('GET', '/api/settings/demo-controls');
+    renderDemoControls();
+  } catch (e) {
+    const box = document.getElementById('demoControlsList');
+    if (box) box.innerHTML = `<p class="text-red-600 text-sm">Failed to load: ${esc(e.message)}</p>`;
+    setControlsStatus('Error: ' + e.message, false);
+  }
+}
+
+async function saveDemoControls() {
+  const visible = {};
+  document.querySelectorAll('#demoControlsList [data-control-key]').forEach(cb => {
+    visible[cb.dataset.controlKey] = cb.checked;
+  });
+  try {
+    _demoControls = await api('PUT', '/api/settings/demo-controls', { visible });
+    renderDemoControls();
+    const hidden = (_demoControls.controls || []).filter(c => !c.visible).length;
+    setControlsStatus(hidden
+      ? `Saved — ${hidden} card${hidden === 1 ? '' : 's'} hidden; the chat page picks it up within 10 s.`
+      : 'Saved — every card shown.', true);
+  } catch (e) { setControlsStatus('Error: ' + e.message, false); }
+}
+
+function setControlsStatus(msg, ok) {
+  const el = document.getElementById('controlsStatus');
+  if (el) { el.textContent = msg; el.className = 'text-sm mt-3 ' + (ok ? 'text-green-600' : 'text-red-600'); }
 }
 
 // ---------------------------------------------------------------- log dir
@@ -544,6 +610,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // survives the innerHTML re-renders of its child inputs.
   const credsBox = document.getElementById('providerCredsList');
   if (credsBox) credsBox.addEventListener('input', () => { _credsDirty = true; });
+  await loadDemoControls();
   await loadLogsDir();
   await loadProviderCreds();
   await loadIntegrations();
