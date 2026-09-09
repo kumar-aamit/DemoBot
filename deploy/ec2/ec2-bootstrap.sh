@@ -1,12 +1,12 @@
 #!/bin/bash
-# DemoBot EC2 bootstrap — run as the service user (default 'splunk') on Ubuntu
+# PseudoCo Assistant EC2 bootstrap — run as the service user (default 'splunk') on Ubuntu
 # 22.04. Builds a complete, RUNNING replica: prereqs, Ollama + every model the
-# .env asks for (including the locally-built poisoned model), DemoBot, the OTel
+# .env asks for (including the locally-built poisoned model), PseudoCo Assistant, the OTel
 # collector, the Cloudflare tunnel, and the systemd units.
 #
 #   ./ec2-bootstrap.sh                      # payload at ~/demobot-payload
-#   ./ec2-bootstrap.sh --replica 2          # deployment.environment=demobot-ec2-2
-#   ./ec2-bootstrap.sh --env-name demobot-ec2-lab
+#   ./ec2-bootstrap.sh --replica 2          # deployment.environment=pseudoco-assistant-ec2-2
+#   ./ec2-bootstrap.sh --env-name pseudoco-assistant-ec2-lab
 #   ./ec2-bootstrap.sh --gpu require        # abort unless inference lands on the GPU
 #   ./ec2-bootstrap.sh --num-parallel 4     # Ollama concurrent request slots
 #   ./ec2-bootstrap.sh --set OLLAMA_MODEL=mistral-nemo:12b-poisoned   # .env override
@@ -56,7 +56,7 @@ REPO="$HOME/DemoBot"
 # --with-nim [model]: run a LOCAL NVIDIA NIM (docker, :8000) and point
 # provider=nvidia at it. Default model fits one A10G; nemotron-3-super-120b-a12b
 # needs 8x H100 (p5-class). --with-nemoclaw: run the NVIDIA NemoClaw runtime
-# (OpenClaw in an OpenShell sandbox) with DemoBot's governance seat baked in.
+# (OpenClaw in an OpenShell sandbox) with PseudoCo Assistant's governance seat baked in.
 WITH_NIM=false
 NIM_MODEL="nvidia/nvidia-nemotron-nano-9b-v2"
 WITH_NEMOCLAW=false
@@ -186,7 +186,7 @@ fi
 if [ "$WITH_NIM" = true ]; then
   # The NIM needs ~20 GB of the A10G's 23 GB. Ollama stays installed (models
   # pulled, provider switch-back possible) but must hold NO VRAM: one model at a
-  # time, unloaded as soon as a request finishes. Stop demobot-nim before
+  # time, unloaded as soon as a request finishes. Stop pseudoco-assistant-nim before
   # switching this box back to provider=ollama.
   LOADED=1; KEEP="0"; PARALLEL="${NUM_PARALLEL:-1}"
 elif [ "$GPU" = true ]; then
@@ -225,8 +225,8 @@ if [ "$GPU" = true ]; then
   fi
 fi
 
-# --- 5. DemoBot repo + venv ------------------------------------------------
-log "DemoBot repo + venv"
+# --- 5. PseudoCo Assistant repo + venv ------------------------------------------------
+log "PseudoCo Assistant repo + venv"
 if [ ! -d "$REPO/.git" ]; then git clone "$REPO_URL" "$REPO"; fi
 cd "$REPO"
 git pull --ff-only || warn "git pull failed (local changes?) — continuing with the current checkout"
@@ -291,15 +291,15 @@ fi
 # argument would leak to every user on the box for the life of the process.
 if [ -z "$ENV_NAME" ]; then
   if [ -n "$REPLICA" ]; then
-    ENV_NAME="demobot-ec2-$REPLICA"
+    ENV_NAME="pseudoco-assistant-ec2-$REPLICA"
   else
     # Collision-free default derived from the instance id.
     TOK=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
           -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null || true)
     IID=$(curl -s -H "X-aws-ec2-metadata-token: $TOK" \
           http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)
-    ENV_NAME="demobot-ec2-${IID##i-}"
-    [ "$ENV_NAME" = "demobot-ec2-" ] && ENV_NAME="demobot-ec2-$(hostname -s)"
+    ENV_NAME="pseudoco-assistant-ec2-${IID##i-}"
+    [ "$ENV_NAME" = "pseudoco-assistant-ec2-" ] && ENV_NAME="pseudoco-assistant-ec2-$(hostname -s)"
   fi
 fi
 log "deployment.environment = $ENV_NAME"
@@ -533,9 +533,9 @@ if [ "$WITH_NIM" = true ]; then
   NIM_MAX_MODEL_LEN="${NIM_MAX_MODEL_LEN:-8192}"
   NIM_MAX_NUM_SEQS="${NIM_MAX_NUM_SEQS:-8}"
   NIM_KVCACHE_PERCENT="${NIM_KVCACHE_PERCENT:-0.95}"
-  sudo install -m 600 -o root -g root /dev/null /etc/demobot-nim.env
+  sudo install -m 600 -o root -g root /dev/null /etc/pseudoco-assistant-nim.env
   printf 'NGC_API_KEY=%s\nNIM_IMAGE=%s\nNIM_MAX_MODEL_LEN=%s\nNIM_MAX_NUM_SEQS=%s\nNIM_KVCACHE_PERCENT=%s\n' \
-    "$NGC_API_KEY" "$NIM_IMAGE" "$NIM_MAX_MODEL_LEN" "$NIM_MAX_NUM_SEQS" "$NIM_KVCACHE_PERCENT" | sudo tee /etc/demobot-nim.env >/dev/null
+    "$NGC_API_KEY" "$NIM_IMAGE" "$NIM_MAX_MODEL_LEN" "$NIM_MAX_NUM_SEQS" "$NIM_KVCACHE_PERCENT" | sudo tee /etc/pseudoco-assistant-nim.env >/dev/null
   sudo mkdir -p /opt/nim-cache && sudo chown "$(id -u):$(id -g)" /opt/nim-cache
   printf '%s' "$NGC_API_KEY" | sg docker -c "docker login nvcr.io -u '\$oauthtoken' --password-stdin" >/dev/null \
     || die "docker login nvcr.io failed — is NGC_API_KEY valid?"
@@ -546,21 +546,36 @@ fi
 log "systemd units"
 SVC_USER=$(id -un)
 
+# A box bootstrapped before the 4.10.0 product rename runs this same stack
+# under the old unit prefix. Retire those units first, or a re-bootstrap
+# leaves two app services fighting over :8001 (and two collectors, two
+# tunnels). Their /etc env files go with them — the blocks below rewrite the
+# new ones from the payload. A box that never had them is untouched.
+LEGACY_UNIT_PREFIX="demobot"
+for u in app collector tunnel nim nemoclaw nemoclaw-forwarder; do
+  legacy="$LEGACY_UNIT_PREFIX-$u"
+  [ -f "/etc/systemd/system/$legacy.service" ] || continue
+  log "retiring legacy unit $legacy (replaced by pseudoco-assistant-$u)"
+  sudo systemctl disable --now "$legacy" 2>/dev/null || true
+  sudo rm -f "/etc/systemd/system/$legacy.service" "/etc/$legacy.env"
+done
+sudo systemctl daemon-reload
+
 if [ "$WITH_NIM" = true ]; then
-  sudo tee /etc/systemd/system/demobot-nim.service >/dev/null <<UNIT
+  sudo tee /etc/systemd/system/pseudoco-assistant-nim.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot local NVIDIA NIM ($NIM_MODEL) on :8000
+Description=PseudoCo Assistant local NVIDIA NIM ($NIM_MODEL) on :8000
 After=network-online.target docker.service
 Requires=docker.service
 Wants=network-online.target
 
 [Service]
 User=$SVC_USER
-EnvironmentFile=/etc/demobot-nim.env
-ExecStartPre=-/usr/bin/docker rm -f demobot-nim
-ExecStart=/usr/bin/docker run --rm --name demobot-nim --gpus all --shm-size=16GB \\
+EnvironmentFile=/etc/pseudoco-assistant-nim.env
+ExecStartPre=-/usr/bin/docker rm -f pseudoco-assistant-nim
+ExecStart=/usr/bin/docker run --rm --name pseudoco-assistant-nim --gpus all --shm-size=16GB \\
   -e NGC_API_KEY -e NIM_MAX_MODEL_LEN -e NIM_MAX_NUM_SEQS -e NIM_KVCACHE_PERCENT -p 127.0.0.1:8000:8000 -v /opt/nim-cache:/opt/nim/.cache -u $(id -u) \${NIM_IMAGE}
-ExecStop=/usr/bin/docker stop demobot-nim
+ExecStop=/usr/bin/docker stop pseudoco-assistant-nim
 Restart=always
 RestartSec=10
 
@@ -570,18 +585,18 @@ UNIT
 fi
 
 if [ "$WITH_NEMOCLAW" = true ]; then
-  # The sandbox reaches DemoBot at this host's private IP (run-nemoclaw.sh
+  # The sandbox reaches PseudoCo Assistant at this host's private IP (run-nemoclaw.sh
   # derives it and trusts it with --trusted-private-host). Never 127.0.0.1 —
   # inside the sandbox that is the sandbox (every guard call refused, 2026-09-02).
   # NemoClaw guarantees nothing restarts after a reboot: this unit re-runs the
   # (idempotent) launcher, which starts the existing sandbox and re-applies the
   # guard policy; the forwarder unit tails the sandbox's OCSF denials.
-  sudo install -m 600 -o root -g root /dev/null /etc/demobot-nemoclaw.env
-  grep -E '^(ACCESS_KEY|NVIDIA_INFERENCE_API_KEY)=' "$REPO/.env" 2>/dev/null | sudo tee /etc/demobot-nemoclaw.env >/dev/null || true
-  sudo tee /etc/systemd/system/demobot-nemoclaw.service >/dev/null <<UNIT
+  sudo install -m 600 -o root -g root /dev/null /etc/pseudoco-assistant-nemoclaw.env
+  grep -E '^(ACCESS_KEY|NVIDIA_INFERENCE_API_KEY)=' "$REPO/.env" 2>/dev/null | sudo tee /etc/pseudoco-assistant-nemoclaw.env >/dev/null || true
+  sudo tee /etc/systemd/system/pseudoco-assistant-nemoclaw.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot NemoClaw sandbox (OpenClaw in OpenShell, governed by /api/toolguard)
-After=network-online.target docker.service demobot-app.service
+Description=PseudoCo Assistant NemoClaw sandbox (OpenClaw in OpenShell, governed by /api/toolguard)
+After=network-online.target docker.service pseudoco-assistant-app.service
 Requires=docker.service
 
 [Service]
@@ -589,25 +604,25 @@ Type=oneshot
 RemainAfterExit=yes
 User=$SVC_USER
 WorkingDirectory=$REPO
-EnvironmentFile=/etc/demobot-nemoclaw.env
+EnvironmentFile=/etc/pseudoco-assistant-nemoclaw.env
 Environment=PATH=$HOME/.nemoclaw/bin:$HOME/.local/bin:$REPO/venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/bin/bash $REPO/run-nemoclaw.sh --no-forwarder
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-  sudo tee /etc/systemd/system/demobot-nemoclaw-forwarder.service >/dev/null <<UNIT
+  sudo tee /etc/systemd/system/pseudoco-assistant-nemoclaw-forwarder.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot NemoClaw OCSF denial forwarder (-> /api/toolguard/nemoclaw/events)
-After=demobot-nemoclaw.service demobot-app.service
-Requires=demobot-nemoclaw.service
+Description=PseudoCo Assistant NemoClaw OCSF denial forwarder (-> /api/toolguard/nemoclaw/events)
+After=pseudoco-assistant-nemoclaw.service pseudoco-assistant-app.service
+Requires=pseudoco-assistant-nemoclaw.service
 
 [Service]
 User=$SVC_USER
 WorkingDirectory=$REPO
-EnvironmentFile=/etc/demobot-nemoclaw.env
+EnvironmentFile=/etc/pseudoco-assistant-nemoclaw.env
 Environment=PATH=$HOME/.nemoclaw/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=$REPO/venv/bin/python $REPO/scripts/nemoclaw/ocsf_forwarder.py --sandbox demobot-nemoclaw --guard http://127.0.0.1:8001 --state $HOME/.demobot-nemoclaw
+ExecStart=$REPO/venv/bin/python $REPO/scripts/nemoclaw/ocsf_forwarder.py --sandbox pseudoco-assistant-nemoclaw --guard http://127.0.0.1:8001 --state $HOME/.demobot-nemoclaw
 Restart=always
 RestartSec=10
 
@@ -616,9 +631,9 @@ WantedBy=multi-user.target
 UNIT
 fi
 
-sudo tee /etc/systemd/system/demobot-collector.service >/dev/null <<UNIT
+sudo tee /etc/systemd/system/pseudoco-assistant-collector.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot OTel Collector (-> Splunk Observability Cloud + Agent Observability)
+Description=PseudoCo Assistant OTel Collector (-> Splunk Observability Cloud + Agent Observability)
 After=network-online.target
 Wants=network-online.target
 
@@ -633,10 +648,10 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 
-sudo tee /etc/systemd/system/demobot-app.service >/dev/null <<UNIT
+sudo tee /etc/systemd/system/pseudoco-assistant-app.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot app (uvicorn :8001)
-After=network-online.target ollama.service demobot-collector.service
+Description=PseudoCo Assistant app (uvicorn :8001)
+After=network-online.target ollama.service pseudoco-assistant-collector.service
 Wants=network-online.target
 
 [Service]
@@ -651,10 +666,10 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 
-sudo tee /etc/systemd/system/demobot-tunnel.service >/dev/null <<UNIT
+sudo tee /etc/systemd/system/pseudoco-assistant-tunnel.service >/dev/null <<UNIT
 [Unit]
-Description=DemoBot Cloudflare named tunnel (medadvice replica)
-After=network-online.target demobot-app.service
+Description=PseudoCo Assistant Cloudflare named tunnel (medadvice replica)
+After=network-online.target pseudoco-assistant-app.service
 Wants=network-online.target
 
 [Service]
@@ -680,24 +695,24 @@ if [ "$WITH_NIM" = true ]; then
   # app's startup catalog probe then sees a ready NIM instead of "NIM DOWN".
   # First start pulls the image (~10 GB) and the weights (~18 GB): allow 40 min.
   log "starting the local NIM (first start pulls the image + weights — 10-25 min)"
-  sudo systemctl enable --now demobot-nim
+  sudo systemctl enable --now pseudoco-assistant-nim
   NIM_READY=false
   for i in $(seq 1 240); do
     if curl -sf -o /dev/null http://localhost:8000/v1/health/ready; then NIM_READY=true; break; fi
-    [ $((i % 3)) -eq 0 ] && echo "  waiting for NIM ($((i * 10)) s) — $(sudo docker logs --tail 1 demobot-nim 2>/dev/null | cut -c1-110)"
+    [ $((i % 3)) -eq 0 ] && echo "  waiting for NIM ($((i * 10)) s) — $(sudo docker logs --tail 1 pseudoco-assistant-nim 2>/dev/null | cut -c1-110)"
     sleep 10
   done
   if [ "$NIM_READY" = true ]; then
     echo "NIM ready: $(curl -s http://localhost:8000/v1/models | head -c 200)"
   else
     warn "NIM not ready after 40 min — the stack starts anyway; the final verify will FAIL.
-      Inspect: sudo journalctl -u demobot-nim -n 50 --no-pager ; sudo docker logs --tail 50 demobot-nim
+      Inspect: sudo journalctl -u pseudoco-assistant-nim -n 50 --no-pager ; sudo docker logs --tail 50 pseudoco-assistant-nim
       Re-run this bootstrap once the pull completes (idempotent; /opt/nim-cache persists)."
   fi
 fi
 
 log "starting services"
-sudo systemctl enable --now demobot-collector demobot-app demobot-tunnel
+sudo systemctl enable --now pseudoco-assistant-collector pseudoco-assistant-app pseudoco-assistant-tunnel
 # Collector must own :4317 before the app's first spans; units encode the
 # ordering, this is just the settling time.
 sleep 10
@@ -709,7 +724,7 @@ if [ "$WITH_NEMOCLAW" = true ]; then
   # that key. The first live run (2026-09-02) hit both: the app was still
   # starting 10 s after enable --now, and the key was only in the unit's
   # EnvironmentFile, so onboarding died before installing anything. Wait for
-  # /health, then run it exactly as the unit does: with /etc/demobot-nemoclaw.env
+  # /health, then run it exactly as the unit does: with /etc/pseudoco-assistant-nemoclaw.env
   # exported, as the service user with the docker group active.
   for _ in $(seq 1 60); do
     curl -sf -o /dev/null http://localhost:8001/health && break
@@ -717,12 +732,12 @@ if [ "$WITH_NEMOCLAW" = true ]; then
   done
   curl -sf -o /dev/null http://localhost:8001/health || warn "app not answering on :8001 yet — NemoClaw onboarding will likely fail"
   set -a; # shellcheck disable=SC1091
-  . <(sudo cat /etc/demobot-nemoclaw.env); set +a
+  . <(sudo cat /etc/pseudoco-assistant-nemoclaw.env); set +a
   sg docker -c "cd '$REPO' && ./run-nemoclaw.sh --no-forwarder" \
     || warn "NemoClaw onboarding failed — see the output above; the policy layer still works without the runtime"
   unset NVIDIA_INFERENCE_API_KEY
-  sudo systemctl enable demobot-nemoclaw demobot-nemoclaw-forwarder
-  sudo systemctl start demobot-nemoclaw-forwarder || true
+  sudo systemctl enable pseudoco-assistant-nemoclaw pseudoco-assistant-nemoclaw-forwarder
+  sudo systemctl start pseudoco-assistant-nemoclaw-forwarder || true
 fi
 
 log "verify"
@@ -739,7 +754,7 @@ fi
 if [ "$WITH_NEMOCLAW" = true ]; then
   # Onboarding is best-effort by design (the policy layer works without the
   # runtime), so these are informational, not gating.
-  for u in demobot-nemoclaw demobot-nemoclaw-forwarder; do
+  for u in pseudoco-assistant-nemoclaw pseudoco-assistant-nemoclaw-forwarder; do
     printf '  %-34s %s\n' "$u" "$(systemctl is-active "$u" 2>/dev/null || true)"
   done
 fi
@@ -753,10 +768,10 @@ if [ $rc -eq 0 ]; then
   echo
   echo "Confirm telemetry is landing under this replica's own environment:"
   echo "  cd $REPO && python3 tests/observability/check_o11y_metadata.py \\"
-  echo "      us1 \"\$(grep '^O11Y_API=' .env | cut -d= -f2-)\" demobot-v3 $ENV_NAME"
-  echo "  (verify_observability.sh hard-codes demobot-local, so it is wrong on a replica)"
+  echo "      us1 \"\$(grep '^O11Y_API=' .env | cut -d= -f2-)\" pseudoco-assistant $ENV_NAME"
+  echo "  (verify_observability.sh hard-codes pseudoco-assistant-local, so it is wrong on a replica)"
 else
   echo "BOOTSTRAP_INCOMPLETE — a health check failed. Logs:"
-  echo "  journalctl -u demobot-app -u demobot-collector -u demobot-tunnel$([ "$WITH_NIM" = true ] && echo ' -u demobot-nim') -n 50 --no-pager"
+  echo "  journalctl -u pseudoco-assistant-app -u pseudoco-assistant-collector -u pseudoco-assistant-tunnel$([ "$WITH_NIM" = true ] && echo ' -u pseudoco-assistant-nim') -n 50 --no-pager"
   exit 1
 fi

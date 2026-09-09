@@ -1,11 +1,11 @@
-# DemoBot's complete otel-collector-config.yaml WITH the workshop log fan-out
+# PseudoCo Assistant's complete otel-collector-config.yaml WITH the workshop log fan-out
 # added -- as deployed to medadvice1 on 2026-07-29 and verified on
 # otelcol-contrib 0.157.0.
 #
 # The log-specific parts are: the file_storage/checkpoints extension, the
-# filelog/demobot receiver, the resource/workshop_logs processor, the
+# filelog/pseudoco-assistant receiver, the resource/workshop_logs processor, the
 # splunk_hec/workshop exporter, and the service.pipelines.logs entry. Everything
-# else is DemoBot's pre-existing traces + metrics config and must keep working.
+# else is PseudoCo Assistant's pre-existing traces + metrics config and must keep working.
 #
 # ${env:WORKSHOP_*} values are exported by run-collector.sh from .env.
 # See ../SKILL.md step 3.
@@ -33,9 +33,9 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-  # DemoBot writes newline-delimited JSON governance/audit logs to logs/*.json.
+  # PseudoCo Assistant writes newline-delimited JSON governance/audit logs to logs/*.json.
   # Each file becomes its own sourcetype so Log Observer can facet on them.
-  filelog/demobot:
+  filelog/pseudoco-assistant:
     include: [/home/ubuntu/DemoBot/logs/*.json]
     start_at: beginning
     include_file_name: true
@@ -48,7 +48,7 @@ receivers:
         on_error: send_quiet
       - type: add
         field: resource["com.splunk.sourcetype"]
-        value: EXPR("demobot:" + attributes["log.file.name"])
+        value: EXPR("pseudoco-assistant:" + attributes["log.file.name"])
 
 processors:
   batch: {}
@@ -72,7 +72,7 @@ processors:
         value: "${env:WORKSHOP_ENVIRONMENT}"
         action: upsert
       - key: service.name
-        value: demobot
+        value: pseudoco-assistant
         action: upsert
       - key: host.name
         value: "${env:WORKSHOP_ENVIRONMENT}.yeackbot.com"
@@ -112,7 +112,7 @@ exporters:
     endpoint: "${env:WORKSHOP_HEC_URL}"
     index: "${env:WORKSHOP_HEC_INDEX}"
     source: "${env:WORKSHOP_ENVIRONMENT}"
-    sourcetype: "demobot:json"
+    sourcetype: "pseudoco-assistant:json"
     retry_on_failure:
       enabled: true
 
@@ -135,7 +135,7 @@ service:
       exporters: [signalfx]
     # Workshop logs -> Splunk Cloud HEC -> Log Observer Connect.
     logs:
-      receivers: [filelog/demobot, otlp]
+      receivers: [filelog/pseudoco-assistant, otlp]
       processors: [resource/workshop_logs, batch]
       exporters: [splunk_hec/workshop]
   telemetry:

@@ -1,5 +1,5 @@
 {
-  "description": "Blocks DemoBot LLM responses whose Output PII (SLM) scorer reports a sensitive identifier: ssn, date_of_birth, email, phone_number, address, credit_card_info, account_info, password. The scorer returns a LIST of categories, so each leaf is a `contains` over one category and they are OR'd. The `name` category is deliberately NOT included: a normal DemoBot answer that names a care provider (\"contact Dr. Robert Anderson\") scores ['name'], so blocking on it would withhold legitimate responses. Post-LLM, deny.",
+  "description": "Blocks PseudoCo Assistant LLM responses whose Output PII (SLM) scorer reports a sensitive identifier: ssn, date_of_birth, email, phone_number, address, credit_card_info, account_info, password. The scorer returns a LIST of categories, so each leaf is a `contains` over one category and they are OR'd. The `name` category is deliberately NOT included: a normal PseudoCo Assistant answer that names a care provider (\"contact Dr. Robert Anderson\") scores ['name'], so blocking on it would withhold legitimate responses. Post-LLM, deny.",
   "enabled": true,
   "execution": "server",
   "scope": {
@@ -149,6 +149,6 @@
     "pii",
     "phi",
     "compliance",
-    "demobot"
+    "pseudoco-assistant"
   ]
 }

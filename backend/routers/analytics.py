@@ -3,7 +3,7 @@
 The reference blueprint runs a separate analytics microservice that supervisors
 query ON DEMAND (never per turn): a session summary with overall sentiment,
 per-message sentiment, a session list, and feedback endpoints. This router is
-that service inside DemoBot, over the same ``Conversation`` rows the chat writes,
+that service inside PseudoCo Assistant, over the same ``Conversation`` rows the chat writes,
 with results cached in ``blueprint_analytics``. It uses the active chat model
 through the normal LLM boundary (``invoke_chat``), so it is governed and
 telemetered like everything else and stubbed by the API suite.

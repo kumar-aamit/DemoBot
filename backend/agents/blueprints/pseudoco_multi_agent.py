@@ -1,4 +1,4 @@
-"""The DemoBot multi-agent blueprint — the architecture the app shipped with.
+"""The PseudoCo Assistant multi-agent blueprint — the architecture the app shipped with.
 
 Generation core (between the shared guardrail chains):
 
@@ -25,7 +25,7 @@ from backend.agents.nodes.coordinator import make_coordinator_agent
 from backend.agents.nodes.specialists import make_specialists_agent
 from backend.agents.nodes.synthesizer import make_synthesizer_agent
 
-KEY = "demobot_multi_agent"
+KEY = "pseudoco_multi_agent"
 
 
 def _terminal_router(state: Dict[str, Any]) -> str:
@@ -67,13 +67,13 @@ def build_generation_core(g: StateGraph, theme_config) -> Tuple[str, str]:
 
 BLUEPRINT = Blueprint(
     key=KEY,
-    label="DemoBot Multi-Agent",
+    label="PseudoCo Assistant Multi-Agent",
     description=(
         "Supervisor-routed theme pipeline: a rule-based intake clarifier, then the "
         "theme's domain agent answers directly — or, with Multi-Agent Mode on, a "
         "coordinator selects themed specialists whose findings a synthesizer fuses."
     ),
-    workflow_name="demobot_multi_agent",
+    workflow_name="pseudoco_multi_agent",
     build_generation_core=build_generation_core,
     stage_labels={
         "intake": "Reviewing your message…",

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launch ALL DemoBot services together. "Launching the app" includes the OTel
+# Launch ALL PseudoCo Assistant services together. "Launching the app" includes the OTel
 # collector — without it the app runs but NO telemetry reaches Observability
 # Cloud (the #1 incident). Pass --tunnel to also start the public Cloudflare
 # tunnel, and --agentic to also start the OpenClaw gateway (agentic-risk demo).
@@ -36,7 +36,7 @@ start() {  # name  port  script  logfile
   fi
 }
 
-echo "Launching DemoBot services:"
+echo "Launching PseudoCo Assistant services:"
 # 1) OTel collector (telemetry -> Splunk Observability Cloud). MUST be first.
 start "OTel collector" 4317 run-collector.sh /tmp/medadvice_collector.log
 # 2) the app (launches under opentelemetry-instrument when OTLP is configured)
@@ -63,7 +63,7 @@ if [ "$WITH_NEMOCLAW" = true ]; then
   echo "  starting NemoClaw sandbox (run-nemoclaw.sh) -> /tmp/medadvice_nemoclaw.log"
   install -m 600 /dev/null /tmp/medadvice_nemoclaw.log
   nohup ./run-nemoclaw.sh >/tmp/medadvice_nemoclaw.log 2>&1 &
-  echo "  -> dashboard: nemoclaw demobot-nemoclaw dashboard-url --quiet"
+  echo "  -> dashboard: nemoclaw pseudoco-assistant-nemoclaw dashboard-url --quiet"
 fi
 
 # 4) optional public tunnel
@@ -76,6 +76,6 @@ fi
 echo
 echo "Done. Verify the full pipeline with:  ./tests/observability/verify_observability.sh"
 STOP="lsof -ti:8001 -ti:4317 | xargs kill ; pkill -f cloudflared"
-[ "$WITH_AGENTIC" = true ] && STOP="$STOP ; podman stop demobot-openclaw"
-[ "$WITH_NEMOCLAW" = true ] && STOP="$STOP ; nemoclaw demobot-nemoclaw stop ; pkill -f ocsf_forwarder.py"
+[ "$WITH_AGENTIC" = true ] && STOP="$STOP ; podman stop pseudoco-assistant-openclaw"
+[ "$WITH_NEMOCLAW" = true ] && STOP="$STOP ; nemoclaw pseudoco-assistant-nemoclaw stop ; pkill -f ocsf_forwarder.py"
 echo "Stop everything with:  $STOP"

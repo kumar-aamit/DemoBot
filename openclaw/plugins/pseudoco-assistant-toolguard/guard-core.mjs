@@ -1,11 +1,11 @@
 /**
- * demobot-toolguard core — pure decision logic, no OpenClaw SDK imports.
+ * pseudoco-assistant-toolguard core — pure decision logic, no OpenClaw SDK imports.
  *
  * Kept SDK-free so selftest.mjs can exercise it with plain `node` on the host
  * (the openclaw package only exists inside the gateway container). index.js
  * wires this into the before_tool_call (gate) and after_tool_call (observe) hooks.
  *
- * Contract with DemoBot (backend/routers/toolguard.py):
+ * Contract with PseudoCo Assistant (backend/routers/toolguard.py):
  *   POST {guardUrl}/api/toolguard/inspect  (HTTP Basic, password = access key)
  *   body: {tool_name, arguments, session_id, tool_call_id, agent_surface}
  *   200 -> {block: bool, decision, reason, rule_names, enforced, enforced_by, ...}
@@ -14,7 +14,7 @@
  *   -> a sandbox (NemoClaw/OpenShell) policy denial is attributed immediately.
  *
  * Fail policy: on timeout / network error / non-200, honor `failOpen`:
- *   failOpen=false (default, mirrors DemoBot's ai_defense_fail_open) -> BLOCK
+ *   failOpen=false (default, mirrors PseudoCo Assistant's ai_defense_fail_open) -> BLOCK
  *   failOpen=true -> allow (no decision).
  * The handlers NEVER throw — an exception here would leave the hook runner's
  * behavior version-dependent, so every path resolves to a result object.
@@ -33,7 +33,7 @@ export function decideFromGuardResponse(status, body, failOpen) {
       const reason = body.reason || "policy violation";
       return {
         block: true,
-        blockReason: `Blocked by DemoBot governance: ${reason}`,
+        blockReason: `Blocked by PseudoCo Assistant governance: ${reason}`,
       };
     }
     return undefined; // allow — no decision recorded
@@ -43,7 +43,7 @@ export function decideFromGuardResponse(status, body, failOpen) {
   return {
     block: true,
     blockReason:
-      "DemoBot tool guard unavailable (fail-closed). " +
+      "PseudoCo Assistant tool guard unavailable (fail-closed). " +
       `HTTP status: ${status ?? "network error"}.`,
   };
 }
@@ -131,7 +131,7 @@ function asText(value) {
 /**
  * after_tool_call observation. When the tool that just ran was refused by the
  * sandbox (OpenShell answers {"error":"policy_denied",...}), report it to
- * DemoBot so the block is attributed to NemoClaw immediately — the OCSF log
+ * PseudoCo Assistant so the block is attributed to NemoClaw immediately — the OCSF log
  * tail (scripts/nemoclaw/ocsf_forwarder.py) catches up later. Observation
  * only: never blocks, never throws; resolves to whether it reported.
  */

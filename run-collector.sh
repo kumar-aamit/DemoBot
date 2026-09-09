@@ -14,9 +14,9 @@ export SPLUNK_AO_REALM=$(grep '^SPLUNK_AO_REALM=' .env 2>/dev/null | cut -d= -f2
 export SPLUNK_AO_O11Y_TOKEN=$(grep '^SPLUNK_AO_O11Y_TOKEN=' .env 2>/dev/null | cut -d= -f2- || true)
 export SPLUNK_AO_PROJECT=$(grep '^SPLUNK_AO_PROJECT=' .env 2>/dev/null | cut -d= -f2- || true)
 export SPLUNK_AO_AGENT_STREAM=$(grep '^SPLUNK_AO_AGENT_STREAM=' .env 2>/dev/null | cut -d= -f2- || true)
-# The SDK path defaults both to DemoBot; keep the collector's headers identical.
-export SPLUNK_AO_PROJECT="${SPLUNK_AO_PROJECT:-DemoBot}"
-export SPLUNK_AO_AGENT_STREAM="${SPLUNK_AO_AGENT_STREAM:-DemoBot}"
+# The SDK path defaults both to PseudoCo Assistant; keep the collector's headers identical.
+export SPLUNK_AO_PROJECT="${SPLUNK_AO_PROJECT:-PseudoCo Assistant}"
+export SPLUNK_AO_AGENT_STREAM="${SPLUNK_AO_AGENT_STREAM:-PseudoCo Assistant}"
 # Logs — optional Splunk platform HEC destination (Splunk Observability Cloud
 # has no log ingest on this org; see otel-collector-logs.yaml).
 export SPLUNK_HEC_URL=$(grep '^SPLUNK_HEC_URL=' .env 2>/dev/null | cut -d= -f2- || true)

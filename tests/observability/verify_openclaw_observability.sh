@@ -37,13 +37,13 @@ echo "== Tier 0: plugin selftest + config sanity (code-level; no gateway) =="
 # gateway needed — `podman run` on a stopped image is enough.
 if ! command -v podman >/dev/null 2>&1; then
   skip "podman not on PATH -> cannot run plugin selftest"
-elif ! podman image exists demobot-openclaw 2>/dev/null; then
-  skip "image demobot-openclaw not built yet -> run ./run-openclaw.sh once"
-elif podman run --rm demobot-openclaw \
-       node /opt/demobot-plugins/demobot-toolguard/selftest.mjs >/tmp/oc_selftest.txt 2>&1; then
-  ok "demobot-toolguard selftest (allow/block/timeout/fail-policy)"
+elif ! podman image exists pseudoco-assistant-openclaw 2>/dev/null; then
+  skip "image pseudoco-assistant-openclaw not built yet -> run ./run-openclaw.sh once"
+elif podman run --rm pseudoco-assistant-openclaw \
+       node /opt/pseudoco-assistant-plugins/pseudoco-assistant-toolguard/selftest.mjs >/tmp/oc_selftest.txt 2>&1; then
+  ok "pseudoco-assistant-toolguard selftest (allow/block/timeout/fail-policy)"
 else
-  bad "demobot-toolguard selftest FAILED (see /tmp/oc_selftest.txt)"
+  bad "pseudoco-assistant-toolguard selftest FAILED (see /tmp/oc_selftest.txt)"
 fi
 # The generated gateway config is the source of the silent-failure traps.
 if [ -f "$CONF" ]; then
@@ -95,7 +95,7 @@ fail0=$(sum 'otelcol_exporter_send_failed_(spans|metric_points)')
 # Drive one agent turn that must make a tool call. `openclaw agent` runs a turn
 # via the gateway; the prompt asks it to read a workspace file (a `read` tool
 # call), which the guard inspects and the diagnostics-otel plugin traces.
-if podman exec demobot-openclaw openclaw agent \
+if podman exec pseudoco-assistant-openclaw openclaw agent \
      "List the files in your inbox and read the newest one." >/tmp/oc_agent_turn.txt 2>&1; then
   ok "agent turn executed (see /tmp/oc_agent_turn.txt)"
 else

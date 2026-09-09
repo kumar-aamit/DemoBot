@@ -1,7 +1,7 @@
 # Multi-Server Observability Fan-Out — Config & Secret Distribution Design
 
 **Status:** Design (not implemented — recommended next phase)
-**Scope:** how to distribute the identical set of API keys / endpoints / HEC targets to **every** server in a DemoBot fleet, so all servers fan **all** telemetry/guardrail traffic out to **all** four backends, while preserving per-host identity.
+**Scope:** how to distribute the identical set of API keys / endpoints / HEC targets to **every** server in a PseudoCo Assistant fleet, so all servers fan **all** telemetry/guardrail traffic out to **all** four backends, while preserving per-host identity.
 **Context date:** 2026-07-27. Live baseline: single EC2 host `<EC2_INSTANCE_ID>` (`main@edfcb88`, `AI_PROVIDER=ollama`) behind the named Cloudflare tunnel `<TUNNEL_HOSTNAME>`.
 
 ---
@@ -50,7 +50,7 @@ Two telemetry planes:
 Chosen substrate: **shared canonical `.env` distributed via config management** (Ansible / `scp` / `rsync`). This works cleanly because `backend/config.py` and the shell launchers honor **already-exported env vars over `.env`** (`config.py:30`), and the collector YAML is host-generic.
 
 **Identical across every server** (the "distribute to all" set):
-`SPLUNK_REALM`, `O11Y_INGEST` (ingest), `O11Y_API` (API), `SPLUNK_AO_REALM`, `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`, `SPLUNK_AO_AGENT_STREAM`, `AGENT_CONTROL_API_KEY`, `AGENT_CONTROL_CONSOLE_URL`, `AI_DEFENSE_API_KEY`, `AI_DEFENSE_REGION`/`AI_DEFENSE_ENDPOINT` + rule lists, provider keys (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, …), `ACCESS_KEY`, `AI_PROVIDER` + `*_MODEL`, all safety/injection/session flags, `OTEL_SERVICE_NAME=demobot-v3`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+`SPLUNK_REALM`, `O11Y_INGEST` (ingest), `O11Y_API` (API), `SPLUNK_AO_REALM`, `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`, `SPLUNK_AO_AGENT_STREAM`, `AGENT_CONTROL_API_KEY`, `AGENT_CONTROL_CONSOLE_URL`, `AI_DEFENSE_API_KEY`, `AI_DEFENSE_REGION`/`AI_DEFENSE_ENDPOINT` + rule lists, provider keys (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, …), `ACCESS_KEY`, `AI_PROVIDER` + `*_MODEL`, all safety/injection/session flags, `OTEL_SERVICE_NAME=pseudoco-assistant`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
 
 **Per-host (must differ / be templated):**
 `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment` + host id — how O11y/Agent Observability split one shared service by box), `SERVER_HOSTNAME`, `DATABASE_URL` (unless a shared DB — see 3.5). `OLLAMA_BASE_URL` stays `localhost` (identical string, host-local runtime).
@@ -66,16 +66,16 @@ This is the core new capability. Add a boot-time loader that reads the SQLite-on
 *Alternatives considered:* (a) a post-deploy script that `POST`s `/api/hec/destinations` per host (no code change, but an extra imperative step and secrets in shell history); (b) a shared **Postgres** `DATABASE_URL` so all hosts share one `app_settings` row (simplest conceptually, but turns the DB into shared infra and a single point of failure). The seed loader is recommended because it keeps the "config as data, pushed to each host" model consistent with Plane 1.
 
 ### 3.3 Per-host identity
-Template only three fields at provision time: `OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-<n>,host.name=<hostname>`, `SERVER_HOSTNAME=<hostname>`, and `DATABASE_URL`. Everything else is byte-identical — this is what makes "one shared service, split by host" work in O11y/Agent Observability.
+Template only three fields at provision time: `OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pseudoco-assistant-ec2-<n>,host.name=<hostname>`, `SERVER_HOSTNAME=<hostname>`, and `DATABASE_URL`. Everything else is byte-identical — this is what makes "one shared service, split by host" work in O11y/Agent Observability.
 
 ### 3.4 Divergence guardrail (provider selection)
 The SQLite active-provider override silently beating `.env` is a fleet foot-gun. Options: (a) make `.env` authoritative — ignore/clear the SQLite provider override on managed hosts; or (b) fold provider selection + creds into the seed (3.2) so they're distributed deterministically. Recommend documenting provider selection as **`.env`-only** on fleet hosts and having provisioning clear any stale SQLite override.
 
 ### 3.5 Provisioning (systemd)
-The live EC2 box runs systemd units `demobot-app` / `demobot-collector` / `demobot-tunnel` created out-of-band; the repo ships **launchd-only** templates (`deploy/launchd/`). Add a parallel **systemd** provisioning path mirroring `deploy/launchd/install.sh`: unit files + an `EnvironmentFile` (or the canonical `.env` in `WorkingDirectory`). A new server becomes turnkey:
+The live EC2 box runs systemd units `pseudoco-assistant-app` / `pseudoco-assistant-collector` / `pseudoco-assistant-tunnel` created out-of-band; the repo ships **launchd-only** templates (`deploy/launchd/`). Add a parallel **systemd** provisioning path mirroring `deploy/launchd/install.sh`: unit files + an `EnvironmentFile` (or the canonical `.env` in `WorkingDirectory`). A new server becomes turnkey:
 
 ```
-clone repo → drop canonical .env + hec_destinations.json → systemctl enable/start demobot-* → self-verify
+clone repo → drop canonical .env + hec_destinations.json → systemctl enable/start pseudoco-assistant-* → self-verify
 ```
 
 ### 3.6 Secret hygiene
@@ -100,7 +100,7 @@ that way). See the `provision-tokens` skill for generation, population and valid
 ```
    ┌── server-1 (app+collector) ──┐
    ├── server-2 (app+collector) ──┤        ┌─► Splunk O11y Cloud (realm us1)
-   ├── server-3 (app+collector) ──┼────────┼─► Agent Observability (project DemoBot)
+   ├── server-3 (app+collector) ──┼────────┼─► Agent Observability (project PseudoCo Assistant)
    └── server-N (app+collector) ──┘        ├─► Splunk Core (HEC destination[s])
         each identical config,             └─► Cisco AI Defense (inspection)
         each fans out to ALL four
@@ -120,6 +120,6 @@ Every server carries the same keys/endpoints (Plane 1) **and** the same HEC dest
 ## 6. Per-host verification (definition of done for each server)
 - `verify_observability.sh` → Tier 1–3 pass (needs a valid `O11Y_API`).
 - `GET /api/hec/stats` → `events_sent>0`, `failed=0`; the Splunk Core search finds the events.
-- Agent Observability shows the host's turns (project `DemoBot`, agent stream `DemoBot`).
+- Agent Observability shows the host's turns (project `PseudoCo Assistant`, agent stream `PseudoCo Assistant`).
 - One chat turn with `ai_defense_review=true` → AI Defense `200` + governance flags.
 - O11y/Agent Observability split the fleet by `host.name` / `deployment.environment`.

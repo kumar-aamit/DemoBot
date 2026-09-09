@@ -1,6 +1,6 @@
 # Appointment scheduling
 
-DemoBot can offer, book, list, reschedule and cancel appointments from the chat,
+PseudoCo Assistant can offer, book, list, reschedule and cancel appointments from the chat,
 **verticalized per Application Theme** — a clinician follow-up visit for MedAdvice, a
 tax-preparer meeting (Saturdays included) for TaxAdvice, a two-hour technician arrival
 window for TelecomChatbot. Bookings are persisted, visible on the **My Appointments**

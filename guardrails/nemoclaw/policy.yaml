@@ -1,6 +1,6 @@
-# NemoClaw / OpenShell-style sandbox policy for the DemoBot agentic surface.
+# NemoClaw / OpenShell-style sandbox policy for the PseudoCo Assistant agentic surface.
 #
-# This is the "NemoClaw Guardrails" drawer toggle's policy. DemoBot evaluates it
+# This is the "NemoClaw Guardrails" drawer toggle's policy. PseudoCo Assistant evaluates it
 # on EVERY agent tool call submitted to /api/toolguard/inspect (the policy layer,
 # backend/services/nemoclaw_guard.py), using the same vocabulary NemoClaw's own
 # sandbox policy uses (nemoclaw-blueprint/policies/openclaw-sandbox.yaml), so the
@@ -20,7 +20,7 @@ filesystem_policy:
     - /lib
     - /etc
     - /proc
-    - /opt/demobot-plugins
+    - /opt/pseudoco-assistant-plugins
   # Writable scopes: the agent workspace (both the podman Mode-C layout and the
   # NemoClaw sandbox layout) and scratch space.
   read_write:
@@ -45,9 +45,9 @@ process:
     - nmap
 
 network_policies:
-  # DemoBot's governance seat: the tool-guard plugin (node) POSTs every tool
+  # PseudoCo Assistant's governance seat: the tool-guard plugin (node) POSTs every tool
   # call here before it runs.
-  - name: demobot-guard
+  - name: pseudoco-assistant-guard
     endpoints:
       - host: 127.0.0.1
         port: 8001

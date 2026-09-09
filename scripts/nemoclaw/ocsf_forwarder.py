@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Forward NemoClaw/OpenShell sandbox denials to DemoBot as governance events.
+"""Forward NemoClaw/OpenShell sandbox denials to PseudoCo Assistant as governance events.
 
 OpenShell writes its policy decisions as OCSF JSONL inside the sandbox
 (/var/log/openshell-ocsf.YYYY-MM-DD.log, enabled with
 `openshell settings set --global --key ocsf_json_enabled --value true`). There is
 no host-side export, so this forwarder polls the file through the sandbox
-exec channel and POSTs new records to DemoBot's /api/toolguard/nemoclaw/events,
+exec channel and POSTs new records to PseudoCo Assistant's /api/toolguard/nemoclaw/events,
 where every Denied record becomes a governance event with
 guardrail_ids=["nemoclaw_guardrails"] plus an execute_tool span — the same
 attribution the policy layer and the after_tool_call hook produce.
 
 Usage (run-nemoclaw.sh starts it):
-    scripts/nemoclaw/ocsf_forwarder.py --sandbox demobot-nemoclaw \
+    scripts/nemoclaw/ocsf_forwarder.py --sandbox pseudoco-assistant-nemoclaw \
         --guard http://127.0.0.1:8001 [--interval 5] [--state ~/.demobot-nemoclaw]
 
 Offsets persist per log file so a restart never re-sends. Everything is
-best-effort: an unreadable sandbox or a down DemoBot is retried next tick.
+best-effort: an unreadable sandbox or a down PseudoCo Assistant is retried next tick.
 """
 from __future__ import annotations
 

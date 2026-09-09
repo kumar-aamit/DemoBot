@@ -1,4 +1,4 @@
-"""Agentic orchestration for DemoBot.
+"""Agentic orchestration for PseudoCo Assistant.
 
 This package rebuilds the chatbot's orchestration on LangChain + LangGraph as a
 supervisor-routed, per-theme multi-agent system. The legacy

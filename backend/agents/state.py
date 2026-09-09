@@ -1,4 +1,4 @@
-"""Shared state model for the DemoBot LangGraph workflow.
+"""Shared state model for the PseudoCo Assistant LangGraph workflow.
 
 Maps to the workshop's "Shared State" concept (section 4.2): a single
 ``TypedDict`` threaded through every node, replacing the local variables that
@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, TypedDict
 
 
-class DemoBotState(TypedDict, total=False):
+class PseudoCoAssistantState(TypedDict, total=False):
     # ---- Inputs (set by the router from the inbound request) ----
     session_id: str
     user_message: str
@@ -36,7 +36,7 @@ class DemoBotState(TypedDict, total=False):
     agent_control_review: Optional[bool]
     nemo_guardrails_review: Optional[bool]
     # Per-turn governance identity overrides. Unset on ordinary chat (the
-    # governance log then falls back to its own "demobot-v3" defaults); the
+    # governance log then falls back to its own "pseudoco-assistant" defaults); the
     # prompt-injection spray campaign sets them so one process can emit turns
     # tagged as several apps/deployments. Never forward these as ``None`` —
     # see the note in ``backend/logging/log_schemas.py``.
@@ -182,14 +182,14 @@ def build_initial_state(
     client_id: Optional[str] = None,
     client_tz: Optional[str] = None,
     scheduling_action: Optional[Dict[str, Any]] = None,
-) -> DemoBotState:
+) -> PseudoCoAssistantState:
     """Build the initial graph state from an inbound chat request.
 
     Mirrors the argument list of the legacy
     ``RecommendationEngine.process_message`` so the router integration is a
     drop-in replacement.
     """
-    return DemoBotState(
+    return PseudoCoAssistantState(
         session_id=session_id,
         user_message=user_message,
         conversation_history=conversation_history or [],

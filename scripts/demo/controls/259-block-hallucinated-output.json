@@ -1,5 +1,5 @@
 {
-  "description": "Blocks DemoBot LLM responses that Galileo's Correctness (factuality) scorer judges incorrect. The correctness preset emits a BOOLEAN, so the condition is score == false (false = incorrect). A numeric operator such as lt makes the Luna evaluator raise 'score False is not numeric', which the engine reports as an evaluator error and fails open — the control can then never fire. payload_field is inert here: selector path '*' selects the whole step, whose input/output keys are used directly. Post-LLM, deny.",
+  "description": "Blocks PseudoCo Assistant LLM responses that Galileo's Correctness (factuality) scorer judges incorrect. The correctness preset emits a BOOLEAN, so the condition is score == false (false = incorrect). A numeric operator such as lt makes the Luna evaluator raise 'score False is not numeric', which the engine reports as an evaluator error and fails open — the control can then never fire. payload_field is inert here: selector path '*' selects the whole step, whose input/output keys are used directly. Post-LLM, deny.",
   "enabled": true,
   "execution": "server",
   "scope": {
@@ -24,5 +24,5 @@
       }
     }
   },
-  "tags": ["hallucination", "demobot"]
+  "tags": ["hallucination", "pseudoco-assistant"]
 }

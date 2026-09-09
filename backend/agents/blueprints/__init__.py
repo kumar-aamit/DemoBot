@@ -2,7 +2,7 @@
 
 Each blueprint contributes only a generation core; the guardrail chain is
 shared (``guardrails.wire_guardrails``). The active default is ``ACTIVE_BLUEPRINT``
-(demobot_multi_agent; there is no picker in the UI) and can be overridden per
+(pseudoco_multi_agent; there is no picker in the UI) and can be overridden per
 request (``ChatRequest.blueprint``) so tests and demo scripts can drive both
 without flipping global state.
 """
@@ -12,20 +12,20 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional
 
-from backend.agents.blueprints import demobot_multi_agent
+from backend.agents.blueprints import pseudoco_multi_agent
 from backend.agents.blueprints.base import CORE_STATE_CONTRACT, Blueprint
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BLUEPRINT = demobot_multi_agent.KEY
+DEFAULT_BLUEPRINT = pseudoco_multi_agent.KEY
 
-_MODULES = [demobot_multi_agent]
+_MODULES = [pseudoco_multi_agent]
 try:
     from backend.agents.blueprints import nvidia_virtual_assistant  # noqa: E402
 
     _MODULES.append(nvidia_virtual_assistant)
 except Exception:  # noqa: BLE001 - a broken optional core must never take the default down, but say so loudly
-    logger.exception("NVIDIA AI Virtual Assistant blueprint failed to load; only the DemoBot blueprint is available")
+    logger.exception("NVIDIA AI Virtual Assistant blueprint failed to load; only the PseudoCo Assistant blueprint is available")
 
 BLUEPRINTS: Dict[str, Blueprint] = {m.BLUEPRINT.key: m.BLUEPRINT for m in _MODULES}
 

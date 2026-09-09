@@ -1,11 +1,11 @@
 ---
 name: launch-medadvice
-description: Launch / run / start / serve the DemoBot app AND its required services (the OpenTelemetry collector that forwards telemetry to Splunk) — locally on http://localhost:8001 or publicly via a Cloudflare tunnel behind the access key. Use when asked to run, start, serve, boot, or expose this application, or to confirm it's serving.
+description: Launch / run / start / serve the PseudoCo Assistant app AND its required services (the OpenTelemetry collector that forwards telemetry to Splunk) — locally on http://localhost:8001 or publicly via a Cloudflare tunnel behind the access key. Use when asked to run, start, serve, boot, or expose this application, or to confirm it's serving.
 ---
 
-# Launch DemoBot
+# Launch PseudoCo Assistant
 
-DemoBot is a FastAPI app (`backend/main.py`) launched by `./run.sh`, which
+PseudoCo Assistant is a FastAPI app (`backend/main.py`) launched by `./run.sh`, which
 activates `venv/`, then runs `python -m backend.main` → uvicorn on
 **`0.0.0.0:8001`**. It serves a chat UI at `/app`, admin/governance UIs, `/docs`,
 and the `/api/chat` + `/admin` JSON APIs.
@@ -133,7 +133,7 @@ or change the directory with `scripts/openclaw-edit.sh`; never `git restore
 openclaw/`.
 
 **Toggling the integration off:** nothing in the app calls the gateway, so
-`podman stop demobot-openclaw` fully removes it — Modes A/B are unaffected.
+`podman stop pseudoco-assistant-openclaw` fully removes it — Modes A/B are unaffected.
 `TOOL_GUARD_ENABLED` (default False) is a *separate* switch: it only controls
 whether a block is *enforced*, not whether the integration runs (False = the
 unguarded control run — telemetry still flows, blocks are computed but not
@@ -144,15 +144,15 @@ is **fail-closed**: if the app (`:8001`) is down, EVERY agent tool call is
 denied. That presents as a *broken agent*, not a broken app — so if the agent
 suddenly can't do anything, check that `./run.sh` is up before debugging the gateway.
 
-Stop it: `podman stop demobot-openclaw`. Logs: `podman logs -f demobot-openclaw`.
+Stop it: `podman stop pseudoco-assistant-openclaw`. Logs: `podman logs -f pseudoco-assistant-openclaw`.
 Gateway port **18789**.
 
 ---
 
 ## Mode D — NemoClaw runtime (alternative agentic surface, GPU replica / Colima)
 
-NVIDIA NemoClaw = OpenClaw inside an OpenShell sandbox. DemoBot's governance
-seat (the `demobot-toolguard` plugin) is baked into the sandbox image, so its
+NVIDIA NemoClaw = OpenClaw inside an OpenShell sandbox. PseudoCo Assistant's governance
+seat (the `pseudoco-assistant-toolguard` plugin) is baked into the sandbox image, so its
 tool calls hit `/api/toolguard/inspect` like Mode C, and the sandbox's own
 denials are forwarded (`scripts/nemoclaw/ocsf_forwarder.py`) as
 `nemoclaw_guardrails` governance events. **NemoClaw does not support podman**,
@@ -162,7 +162,7 @@ normal host is an EC2 replica (`deploy/ec2/ec2-bootstrap.sh --with-nemoclaw`).
 ```bash
 ./run-nemoclaw.sh                # onboard / start (refuses with the reason if the host cannot run it)
 ./start-all.sh --nemoclaw        # collector + app + NemoClaw
-nemoclaw demobot-nemoclaw stop ; pkill -f ocsf_forwarder.py   # stop
+nemoclaw pseudoco-assistant-nemoclaw stop ; pkill -f ocsf_forwarder.py   # stop
 ```
 
 The drawer's **NemoClaw Guardrails** toggle is the enforcement switch for the
@@ -173,11 +173,11 @@ sandbox reports denials. Verify: `./tests/observability/verify_nemoclaw_observab
 
 - `provider=nvidia` is a NIM container on **this host** (`localhost:8000`) —
   never a cloud API. This Mac has no NVIDIA GPU, so it is greyed out here; on a
-  GPU replica `ec2-bootstrap.sh --with-nim [model]` runs `demobot-nim.service`.
+  GPU replica `ec2-bootstrap.sh --with-nim [model]` runs `pseudoco-assistant-nim.service`.
 - **NeMo Guardrails** (drawer toggle) needs `nemoguardrails` installed (core
   only) and the Settings card's master switch. Judge = the active chat model.
 - **Blueprint** (the agentic architecture) is not selectable in the UI: turns
-  run `ACTIVE_BLUEPRINT` (`demobot_multi_agent`) unless a caller passes
+  run `ACTIVE_BLUEPRINT` (`pseudoco_multi_agent`) unless a caller passes
   `blueprint=` per request. Every guardrail runs in both. Details:
   `docs/nvidia-integration.md`.
 
@@ -196,7 +196,7 @@ For Mode B, swap `http://localhost:8001` for the printed `trycloudflare.com` URL
 
 ```bash
 lsof -ti:8001 | xargs kill          # stop the app (add -9 if it lingers)
-podman stop demobot-openclaw        # Mode C only: stop the OpenClaw gateway
+podman stop pseudoco-assistant-openclaw        # Mode C only: stop the OpenClaw gateway
 ```
 If launched in the foreground, Ctrl+C in that terminal instead.
 

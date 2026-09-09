@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Executive demo seeder: drive the 10 governed-AI scenarios through DemoBot.
+"""Executive demo seeder: drive the 10 governed-AI scenarios through PseudoCo Assistant.
 
 Reliably reproduces the Section 0 → Govern demo story by sending a fixed matrix
-of **safe, synthetic** prompts through the live DemoBot `/api/chat` endpoints.
+of **safe, synthetic** prompts through the live PseudoCo Assistant `/api/chat` endpoints.
 Each turn flows through the full agentic pipeline (policy → AI Defense → domain →
 safety → injection → compliance → AI Defense → governance) and emits a governance
 event — now carrying the executive overlay (risk_score, policy_action,
@@ -176,7 +176,7 @@ def main() -> int:
         if h.status_code != 200:
             print(f"FATAL: {base}/health -> {h.status_code}. Is the app running?")
             return 2
-        print(f"DemoBot reachable at {base} (auth={'yes' if auth else 'none'})\n")
+        print(f"PseudoCo Assistant reachable at {base} (auth={'yes' if auth else 'none'})\n")
 
         sent = 0
         for sc in SCENARIOS:
@@ -203,8 +203,8 @@ def main() -> int:
         print("Inspect in Splunk Core:  index=gen_ai_log sourcetype=medadvice3:json "
               "operation_name=chat token_type=output | table _time business_outcome "
               "risk_score policy_action contains_phi estimated_cost")
-        print("Inspect in Splunk O11y:  APM service 'demobot-v3' + AI Agent "
-              "Monitoring workflow 'demobot_multi_agent'")
+        print("Inspect in Splunk O11y:  APM service 'pseudoco-assistant' + AI Agent "
+              "Monitoring workflow 'pseudoco_multi_agent'")
     return 0
 
 

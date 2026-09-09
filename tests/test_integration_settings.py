@@ -275,7 +275,7 @@ def test_live_fields_report_no_restart() -> None:
 def test_resource_attributes_round_trip() -> None:
     """The per-instance identity field: what a multi-instance workshop edits."""
     with _TempEnv("SPLUNK_REALM=us1\n"
-                  "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-local\n"
+                  "OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pseudoco-assistant-local\n"
                   "OTEL_ENABLED=True\n") as env:
         restart = settings_store.set_integration_creds(
             "splunk_o11y",
@@ -299,9 +299,9 @@ def test_resource_attributes_rejects_malformed_values() -> None:
     """A malformed list fails SILENTLY in the OTel SDK — the box would just never
     get its identity. Reject it at save time instead."""
     bad = {
-        "no key=value pair": "demobot-local",
+        "no key=value pair": "pseudoco-assistant-local",
         "a stray comma": "deployment.environment=a,,host.name=b",
-        "an empty key": "=demobot-local",
+        "an empty key": "=pseudoco-assistant-local",
         # backend/config.py::_strip_env_value would truncate this on the next reload.
         "an unquoted ' #' comment": "deployment.environment=a # box 2",
     }
@@ -317,7 +317,7 @@ def test_resource_attributes_rejects_malformed_values() -> None:
                   _value(env, "OTEL_RESOURCE_ATTRIBUTES") == "deployment.environment=keep-me")
 
     with _TempEnv() as env:
-        for value in ("deployment.environment=demobot-local",
+        for value in ("deployment.environment=pseudoco-assistant-local",
                       "deployment.environment=a, host.name=b , service.version=4.1.0"):
             settings_store.set_integration_creds(
                 "splunk_o11y", {"resource_attributes": value})
@@ -333,15 +333,15 @@ def test_env_file_fields_prefill_from_env_not_the_process() -> None:
     the distro's internals into .env."""
     key = "OTEL_RESOURCE_ATTRIBUTES"
     orig = os.environ.get(key)
-    os.environ[key] = ("deployment.environment=demobot-local,"
+    os.environ[key] = ("deployment.environment=pseudoco-assistant-local,"
                        "telemetry.distro.name=splunk-opentelemetry,"
                        "telemetry.distro.version=2.8.0")
     try:
-        with _TempEnv(f"{key}=deployment.environment=demobot-local\n"):
+        with _TempEnv(f"{key}=deployment.environment=pseudoco-assistant-local\n"):
             f = [x for x in settings_store.get_integration_fields()["splunk_o11y"]
                  if x["key"] == "resource_attributes"][0]
             check("prefills from .env, not the mutated process environment",
-                  f["value"] == "deployment.environment=demobot-local")
+                  f["value"] == "deployment.environment=pseudoco-assistant-local")
             check("the distro's own attributes are not offered back for saving",
                   "telemetry.distro" not in f["value"])
     finally:

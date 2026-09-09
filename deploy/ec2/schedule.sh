@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start/stop the DemoBot GPU fleet on a schedule with EventBridge Scheduler.
+# Start/stop the PseudoCo Assistant GPU fleet on a schedule with EventBridge Scheduler.
 #
 #   ./deploy/ec2/schedule.sh install       # create start, stop, and safety-stop schedules
 #   ./deploy/ec2/schedule.sh show          # list schedules and next run times
@@ -110,9 +110,9 @@ cmd_install() {
   local payload; payload=$(fleet_ids_json)
   echo "  targets: $payload"
   log "schedules"
-  put_schedule demobot-start       "$START_CRON"  startInstances "$payload"
-  put_schedule demobot-stop        "$STOP_CRON"   stopInstances  "$payload"
-  put_schedule demobot-safety-stop "$SAFETY_CRON" stopInstances  "$payload"
+  put_schedule pseudoco-assistant-start       "$START_CRON"  startInstances "$payload"
+  put_schedule pseudoco-assistant-stop        "$STOP_CRON"   stopInstances  "$payload"
+  put_schedule pseudoco-assistant-safety-stop "$SAFETY_CRON" stopInstances  "$payload"
   echo
   warn "re-run 'install' after provisioning or terminating instances — the
       instance IDs are baked into each schedule's payload."
@@ -124,7 +124,7 @@ cmd_show() {
     --query 'Schedules[].[Name,State]' --output table 2>/dev/null \
     || warn "no schedule group '$GROUP' yet — run 'install'"
   local n
-  for n in demobot-start demobot-stop demobot-safety-stop; do
+  for n in pseudoco-assistant-start pseudoco-assistant-stop pseudoco-assistant-safety-stop; do
     "${AWS[@]}" scheduler get-schedule --name "$n" --group-name "$GROUP" \
       --query "{name:Name,cron:ScheduleExpression,tz:ScheduleExpressionTimezone,target:Target.Input}" \
       --output json 2>/dev/null || true
@@ -134,7 +134,7 @@ cmd_show() {
 cmd_remove() {
   log "deleting schedules"
   local n
-  for n in demobot-start demobot-stop demobot-safety-stop; do
+  for n in pseudoco-assistant-start pseudoco-assistant-stop pseudoco-assistant-safety-stop; do
     "${AWS[@]}" scheduler delete-schedule --name "$n" --group-name "$GROUP" 2>/dev/null \
       && echo "  deleted $n" || echo "  $n not present"
   done

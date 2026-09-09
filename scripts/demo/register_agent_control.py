@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Register DemoBot with Galileo Agent Control and attach its Controls.
+"""Register PseudoCo Assistant with Galileo Agent Control and attach its Controls.
 
 One-time (idempotent) setup for the "Agent Observability Controls" toggle. The
 Agent Control server resolves the effective control set for an evaluation from
 the *agent* the request names, so a control created in the Galileo console has
-no effect on DemoBot until it is attached to this agent.
+no effect on PseudoCo Assistant until it is attached to this agent.
 
 Usage:
     venv/bin/python scripts/demo/register_agent_control.py                 # register + list

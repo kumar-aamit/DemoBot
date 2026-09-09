@@ -1,8 +1,8 @@
-# NVIDIA NeMo Guardrails configuration for DemoBot.
+# NVIDIA NeMo Guardrails configuration for PseudoCo Assistant.
 #
 # Loaded by backend/services/nemo_guardrails.py with RailsConfig.from_path and
 # then adjusted at build time:
-#   - the `main` model below is a PLACEHOLDER. The client injects DemoBot's
+#   - the `main` model below is a PLACEHOLDER. The client injects PseudoCo Assistant's
 #     active chat model (LLMRails(config, llm=...)), so the self-check judge is
 #     whatever provider/model the demo is running on — no cloud call.
 #   - rails.input / rails.output flows are re-derived from NEMO_GUARDRAILS_RAILS
@@ -18,7 +18,7 @@ models:
 instructions:
   - type: general
     content: |
-      You are the safety reviewer for DemoBot, a governed advice assistant
+      You are the safety reviewer for PseudoCo Assistant, a governed advice assistant
       (medical, tax, benefits, legal, finance and telecom support themes).
       You only classify messages; you never answer the user yourself.
 

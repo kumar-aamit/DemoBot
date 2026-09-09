@@ -1,4 +1,4 @@
-# DemoBot — project instructions
+# PseudoCo Assistant — project instructions
 
 ## Demo Controls drawer formatting
 
@@ -73,8 +73,8 @@ palette does — which is another reason not to.
 ## Blueprint feature parity
 
 `backend/agents/blueprints/` holds the selectable agentic architectures
-(`demobot_multi_agent`, `nvidia_virtual_assistant`). The UI has **no Blueprint
-picker** — chat turns run `ACTIVE_BLUEPRINT` (`demobot_multi_agent`) unless a
+(`pseudoco_multi_agent`, `nvidia_virtual_assistant`). The UI has **no Blueprint
+picker** — chat turns run `ACTIVE_BLUEPRINT` (`pseudoco_multi_agent`) unless a
 caller overrides it per request or via `PUT /api/settings/blueprint` (runtime
 only, never persisted). A blueprint contributes only its **generation core**;
 everything else is shared and must behave identically whichever blueprint is
@@ -98,7 +98,7 @@ Rules:
   guardrail/toggle; a key in `CORE_STATE_CONTRACT` for a new field the POST
   chain reads). It runs the scenario matrix through every registered blueprint
   and fails on any divergence; `tests/run_all.sh` runs it with the rest.
-- Keys a core writes to the state must be declared on `DemoBotState` — LangGraph
+- Keys a core writes to the state must be declared on `PseudoCoAssistantState` — LangGraph
   silently drops undeclared keys.
 - Blocked turns carry the same `workflow_name`/`blueprint` identity as the happy
   path (`governance_identity_overrides`); keep passing it from every block handler.
@@ -123,14 +123,35 @@ Rules:
 - Extend `tests/test_scheduling.py` and the `scheduling_*` scenarios in
   `tests/test_blueprint_parity.py` in the same PR as any scheduling change.
 
-## Product naming in user-visible text
+## Product naming
+
+The product is **PseudoCo Assistant** (since 4.10.0). Its identifier forms are
+fixed; use them consistently and never coin another:
+
+- `PseudoCo Assistant` — the free-standing name: UI copy, docs, `app_name`
+  (`"PseudoCo Assistant v4"`), the Agent Observability project / agent stream
+  defaults;
+- `pseudoco-assistant` — the slug: OTel service name and `pseudoco-assistant.*`
+  span attributes, governance `service_name` / `deployment_id`, AI Defense
+  `src_app`, Agent Control agent / step names, container, systemd-unit and
+  plugin names, sourcetypes (`pseudoco-assistant:otel`);
+- `PseudoCoAssistant` — the identifier: `PseudoCoAssistantState`,
+  `EC2-PseudoCoAssistant-Runbook`, Agent Control controls
+  `PseudoCoAssistant-block-*`;
+- `PSEUDOCO_ASSISTANT_` — the env / template prefix
+  (`PSEUDOCO_ASSISTANT_GUARD_URL`, `__PSEUDOCO_ASSISTANT_DIR__`);
+- `pseudoco_*` — underscore keys: the blueprint / workflow keys
+  `pseudoco_multi_agent` and `pseudoco_nvidia_virtual_assistant`, and
+  `pseudoco_assistant_<word>` for everything else (`pseudoco_assistant_trace_id`).
 
 User-visible text says **"Splunk Agent Observability"**, never "Galileo". This
 covers UI copy, governance-log `reasons`, and `response_text` block banners —
 anything an audience sees in the app, the Governance Logs page, or Splunk. The
 "log stream" is called an **Agent stream** in user-visible text.
 
-Leave these names alone everywhere else, because they are load-bearing:
+These keep their old names, because each is load-bearing — either a contract
+something outside the repo reads, or the address of state that lives outside
+the repo:
 
 - the `splunk_ao` package (SDK imports) and the `SPLUNK_AO_REALM`,
   `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`, `SPLUNK_AO_AGENT_STREAM` env contract
@@ -147,17 +168,50 @@ Leave these names alone everywhere else, because they are load-bearing:
   the legacy eval scripts (`scripts/demo/galileo_*.py`,
   `tests/test_galileo_experiment.py`, the `galileo-poisoning-eval` skill) against
   the standalone Galileo console; the app's trace path must not import it
+- `medadvice*`: `medadvice.db`, the launchd labels `com.yeack.medadvice-*`, the
+  browser's localStorage keys, the `medadviceN.yeackbot.com` tunnel hostnames
+  and the `launch-medadvice` skill — state on disks, in browsers and in
+  Cloudflare that a rename would orphan
+- the theme keys (`medadvice`, `taxadvice`, `financeadvice`, …) — governance
+  rows and `src_app` values are keyed on them
+- the GitHub repo `github.com/mayeack/DemoBot` (and the fork
+  `github.com/kumar-aamit/DemoBot`), the checkout paths `/Applications/DemoBot`,
+  `$HOME/DemoBot` / `~/DemoBot` / `/home/<user>/DemoBot`, and the memory-dir
+  slug `-Applications-DemoBot`
+- home-dir state: `~/.demobot-openclaw`, `~/.demobot-nemoclaw`, `~/DemoBotDecoy`
+  (with its `.demobot-decoy` marker), `~/.ssh/demobot_ec2`, `~/demobot-payload`
+- cloud objects that already exist under the old name: the cloudflared tunnels
+  `demobot-<n>` and the matching EC2 `Name=demobot-<n>` tags, the EC2 tag key /
+  schedule group `demobot-fleet`, the `Project=DemoBot` tag, the IAM role
+  `DemoBotSchedulerRole` / policy `DemoBotFleetPower`, the EC2 key pair
+  `FLEET_KEY_NAME=demobot`
+- `LEGACY_UNIT_PREFIX="demobot"` in `deploy/ec2/ec2-bootstrap.sh`: the shim that
+  retires the pre-4.10 units on a re-bootstrapped box has to name them
 
 Internal comments, docstrings and log messages may still say Galileo where they
 describe Agent Control's vendor server or the legacy eval; that is deliberate, not
 an oversight.
 
+**Renames are scripted, never a blanket sed.** The 4.10.0 rename was generated
+by a re-runnable script whose rule set and exclusion list are recorded in the
+rename commit's message and in `docs/fork-assessment-kumar-aamit-2026-09.md`.
+It masks every address above span by span before substituting, renames paths
+with `git mv`, and rewrites `openclaw/` through the index only (it is
+sparse-excluded on the Mac). A case-insensitive search-and-replace turns those
+addresses into `/Applications/PseudoCo Assistant` and
+`~/.ssh/pseudoco-assistant_ec2` and breaks the box they point at — that is
+what the fork's sed did. Any future rename re-runs the same approach with the
+same list, and a new address of outside state goes on that list first.
+
 ## Versioning and releases
 
 Semver, with the version in **two** places that must move in the same commit:
-`app_version` in `backend/config.py` and `APP_VERSION` in `.env.example`. Leave
-`app_name` (`"DemoBot v4"`) alone unless the MAJOR changes — it names the 4.x
-line, and also appears in `run.sh`, `Containerfile`, and `requirements.txt`.
+`app_version` in `backend/config.py` and `APP_VERSION` in `.env.example`.
+`app_name` (`"PseudoCo Assistant v4"`) carries the product name and the MAJOR
+line: the `v4` moves only with the MAJOR (it also appears in `run.sh`,
+`Containerfile`, and `requirements.txt`, which say "v4" for the whole 4.x
+series); the product word in front of it may change on a MINOR — the 4.10.0
+rename did — never on a PATCH.
 
 Releases are annotated `vX.Y.Z` tags cut from `main` **after** the PR merges,
 then published with `gh release create`. Never tag a feature branch. Full

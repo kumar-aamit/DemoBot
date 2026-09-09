@@ -1,7 +1,7 @@
-# NemoClaw network-policy preset: let the sandboxed OpenClaw reach DemoBot's
+# NemoClaw network-policy preset: let the sandboxed OpenClaw reach PseudoCo Assistant's
 # governance seat, and nothing else. Applied by run-nemoclaw.sh with
 #   nemoclaw <sandbox> policy add --from-file <this file, host substituted> \
-#       --trusted-private-host <DEMOBOT_HOST>
+#       --trusted-private-host <PSEUDOCO_ASSISTANT_HOST>
 #
 # Schema: the `preset:` header + a `network_policies` map, the shape NemoClaw's
 # own presets use (nemoclaw-blueprint/policies/presets/*.yaml). The 4.2.0 file
@@ -13,17 +13,17 @@
 # address itself. Its validator refuses loopback (inside the sandbox 127.0.0.1
 # is the sandbox), refuses its managed aliases (host.openshell.internal,
 # host.docker.internal) for user presets, and refuses `allowed_ips` in a
-# user-supplied file. So run-nemoclaw.sh substitutes __DEMOBOT_HOST__ with this
+# user-supplied file. So run-nemoclaw.sh substitutes __PSEUDOCO_ASSISTANT_HOST__ with this
 # host's private IP (hostname -I / ipconfig getifaddr en0) and trusts it.
 preset:
-  name: demobot-guard
-  description: "DemoBot governance seat: the tool guard on the host, port 8001"
+  name: pseudoco-assistant-guard
+  description: "PseudoCo Assistant governance seat: the tool guard on the host, port 8001"
 
 network_policies:
-  demobot-guard:
-    name: demobot-guard
+  pseudoco-assistant-guard:
+    name: pseudoco-assistant-guard
     endpoints:
-      - host: __DEMOBOT_HOST__
+      - host: __PSEUDOCO_ASSISTANT_HOST__
         port: 8001
         protocol: rest
         enforcement: enforce

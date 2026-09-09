@@ -1,8 +1,8 @@
 /**
- * demobot-toolguard — OpenClaw plugin registering DemoBot's governance seats.
+ * pseudoco-assistant-toolguard — OpenClaw plugin registering PseudoCo Assistant's governance seats.
  *
  * before_tool_call (gate): every proposed agent tool call is POSTed to
- * DemoBot's /api/toolguard/inspect BEFORE execution; the endpoint runs the
+ * PseudoCo Assistant's /api/toolguard/inspect BEFORE execution; the endpoint runs the
  * deterministic tool policy, the NemoClaw policy layer and Cisco AI Defense,
  * logs the governance event, emits the execute_tool GenAI span, and answers
  * allow/block. This plugin only carries the verdict back to the hook runner
@@ -26,7 +26,7 @@ let lastConfig = {};
 function makeLog(api) {
   return (msg) => {
     try {
-      api.logger?.info?.(`demobot-toolguard: ${msg}`);
+      api.logger?.info?.(`pseudoco-assistant-toolguard: ${msg}`);
     } catch {
       /* logging must never break a hook */
     }
@@ -34,10 +34,10 @@ function makeLog(api) {
 }
 
 export default definePluginEntry({
-  id: "demobot-toolguard",
-  name: "DemoBot Tool Guard",
+  id: "pseudoco-assistant-toolguard",
+  name: "PseudoCo Assistant Tool Guard",
   description:
-    "Submits every agent tool call to DemoBot governance (tool policy + " +
+    "Submits every agent tool call to PseudoCo Assistant governance (tool policy + " +
     "NemoClaw policy + Cisco AI Defense) before execution; blocks on verdict; " +
     "reports sandbox policy denials after execution.",
   register(api) {
@@ -56,7 +56,7 @@ export default definePluginEntry({
           log(`unexpected error: ${err?.message ?? err}`);
           return config.failOpen === true
             ? undefined
-            : { block: true, blockReason: "DemoBot tool guard errored (fail-closed)." };
+            : { block: true, blockReason: "PseudoCo Assistant tool guard errored (fail-closed)." };
         }
       },
       // High priority: governance runs before any other tool middleware.

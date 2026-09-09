@@ -4,7 +4,7 @@ NVIDIA NemoClaw runs OpenClaw inside an OpenShell sandbox whose declarative
 policy governs the network (deny-by-default egress with host/port/method/path
 rules per binary), the filesystem (read-only vs read-write scopes), the process
 layer (what may run) and inference routing (the privacy router keeps model calls
-on local, managed endpoints). This module evaluates DemoBot's copy of that
+on local, managed endpoints). This module evaluates PseudoCo Assistant's copy of that
 policy (``guardrails/nemoclaw/policy.yaml``) on every agent tool call the
 gateway submits to ``/api/toolguard/inspect`` — so the demo can show a
 NemoClaw-shaped block on any host, and attribute it (``guardrail_ids``
@@ -14,7 +14,7 @@ sandbox's OCSF denials that the NemoClaw runtime forwards (see
 
 Optionally, a NeMo Guardrails input rail also reviews the rendered tool call
 (``nemoclaw_use_nemo_rails``): NemoClaw pairs OpenShell policy with NeMo rails,
-and DemoBot mirrors that pairing.
+and PseudoCo Assistant mirrors that pairing.
 
 Like ``tool_policy``, this module only EVALUATES. Whether a NemoClaw block is
 enforced is the router's decision, and the drawer toggle IS that switch.

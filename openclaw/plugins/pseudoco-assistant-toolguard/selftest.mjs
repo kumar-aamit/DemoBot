@@ -8,7 +8,7 @@
  * It runs from the image, not the working tree: openclaw/ is sparse-excluded
  * on the Mac (AMP deletes it), and the plugin is baked in at /opt.
  *
- *   podman run --rm demobot-openclaw node /opt/demobot-plugins/demobot-toolguard/selftest.mjs
+ *   podman run --rm pseudoco-assistant-openclaw node /opt/pseudoco-assistant-plugins/pseudoco-assistant-toolguard/selftest.mjs
  */
 import {
   agentSurface,
@@ -101,4 +101,4 @@ if (failures) {
   console.log(`FAILED (${failures})`);
   process.exit(1);
 }
-console.log("All demobot-toolguard selftests passed.");
+console.log("All pseudoco-assistant-toolguard selftests passed.");

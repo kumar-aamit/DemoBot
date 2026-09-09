@@ -1,12 +1,12 @@
 ---
 name: spin-up-ec2
-description: Provision / spin up / launch / deploy DemoBot EC2 GPU instances (g5.xlarge fleet) in the personal AWS account, each serving its own medadviceN.yeackbot.com subdomain via a dedicated Cloudflare tunnel. Use when asked to spin up, provision, launch, scale, add, or tear down EC2 instances, boxes, replicas, or the GPU fleet — and also when asked where the DemoBot app is, what its public URL or tunnel is, or for a link to the running demo. ALWAYS ask how many instances before provisioning — never assume a count. ALWAYS return the public URL as a markdown link with its access key.
+description: Provision / spin up / launch / deploy PseudoCo Assistant EC2 GPU instances (g5.xlarge fleet) in the personal AWS account, each serving its own medadviceN.yeackbot.com subdomain via a dedicated Cloudflare tunnel. Use when asked to spin up, provision, launch, scale, add, or tear down EC2 instances, boxes, replicas, or the GPU fleet — and also when asked where the PseudoCo Assistant app is, what its public URL or tunnel is, or for a link to the running demo. ALWAYS ask how many instances before provisioning — never assume a count. ALWAYS return the public URL as a markdown link with its access key.
 ---
 
-# Spin up DemoBot EC2 GPU instances
+# Spin up PseudoCo Assistant EC2 GPU instances
 
 Provisions N × `g5.xlarge` (NVIDIA A10G 24 GB) in the personal AWS account
-(`177835492378`, profile `default`, `us-east-1`), each running the full DemoBot
+(`177835492378`, profile `default`, `us-east-1`), each running the full PseudoCo Assistant
 stack behind its own Cloudflare tunnel and its own subdomain.
 
 ## RULE 0 — ask how many instances. Every time. No exceptions.
@@ -74,7 +74,7 @@ medadviceN.yeackbot.com ──CNAME──> <tunnel-uuid-N>.cfargotunnel.com ─�
 - One named tunnel (`demobot-N`) and one subdomain per box. The URL is the
   session pin — affinity is structural, so no load balancer, no affinity
   cookie, no paid Cloudflare add-on, and per-box SQLite is fine.
-- Distinct `deployment.environment=demobot-ec2-N` per box separates replicas in
+- Distinct `deployment.environment=pseudoco-assistant-ec2-N` per box separates replicas in
   Splunk O11y and Agent Observability. A collision silently merges two boxes into one
   apparent service and hides a sick box behind a healthy one.
 - Distinct four-word `ACCESS_KEY` per box (Basic-auth gate), from
@@ -156,7 +156,7 @@ curl -s -o /dev/null -w '%{http_code}\n' https://medadviceN.yeackbot.com/app
 curl -su "x:$KEY" -o /dev/null -w '%{http_code}\n' https://medadviceN.yeackbot.com/app
 
 # telemetry lands under this box's own environment
-python3 tests/observability/check_o11y_metadata.py us1 "$O11Y_API" demobot-v3 demobot-ec2-N
+python3 tests/observability/check_o11y_metadata.py us1 "$O11Y_API" pseudoco-assistant pseudoco-assistant-ec2-N
 ```
 
 **Measured on a real g5.xlarge, 2026-07-28** (not estimated — this is what a
@@ -184,7 +184,7 @@ used means a third model, or a much larger context, fits without swapping.
   from the payload — so the config references env vars that no longer exist and
   the collector fails validation with `requires a non-empty "endpoint"`. Seen on
   box 1, 2026-07-29. Reset with `git -C ~/DemoBot checkout -- <file>` before
-  re-patching; `patch-demobot-es-only.py` does this automatically.
+  re-patching; `patch-pseudoco-assistant-es-only.py` does this automatically.
 - **Replica numbering came from access keys, not infrastructure.** Running
   `gen-access-keys.sh 8` before `provision` once made the next 7 boxes come up
   as replicas 9-15 instead of 2-8, because `claimed_replicas()` counted key
@@ -206,7 +206,7 @@ used means a third model, or a much larger context, fits without swapping.
   `InvalidParameterCombination: not eligible for Free Tier`, which reads like a
   bad instance type but is an account-plan gate — unrelated to vCPU quota.
   Upgrade to the paid plan in Billing → Account.
-- **`verify_observability.sh` hard-codes `demobot-local`.** Its tier 3 always
+- **`verify_observability.sh` hard-codes `pseudoco-assistant-local`.** Its tier 3 always
   fails on EC2 boxes. Call `check_o11y_metadata.py` directly with the box's
   environment name.
 - **Stale DNS after teardown.** `terminate` kills instances but NOT Cloudflare
@@ -227,8 +227,8 @@ used means a third model, or a much larger context, fits without swapping.
   takes ~20 GB of the A10G's 23 GB; the fleet drop-in's 60-minute keep-alive
   leaves ~11 GB of Ollama in VRAM and the NIM fails to allocate. `--with-nim`
   sets `OLLAMA_KEEP_ALIVE=0` and unloads after the GPU check. Switching a NIM box
-  back to `provider=ollama` in the UI while `demobot-nim` runs gives a slow
-  CPU/GPU split, not a crash — `sudo systemctl stop demobot-nim` first.
+  back to `provider=ollama` in the UI while `pseudoco-assistant-nim` runs gives a slow
+  CPU/GPU split, not a crash — `sudo systemctl stop pseudoco-assistant-nim` first.
 - **`--with-nim` on 4.2.0 never set `AI_PROVIDER=nvidia`.** The override was
   prepended after the `.env` rewrite, so the box booted on the Mac's Ollama
   provider while the NIM sat idle. Fixed in 4.2.1 (decided in step 3);
@@ -240,7 +240,7 @@ used means a third model, or a much larger context, fits without swapping.
   A10G, forever — and capping the context does NOT change it. The bootstrap
   passes `NIM_MAX_NUM_SEQS=8`, `NIM_KVCACHE_PERCENT=0.95` (+ `NIM_MAX_MODEL_LEN=8192`);
   vLLM's `reserved for KV Cache is …GiB` log line must be positive;
-  `sudo journalctl -u demobot-nim | grep -i "out of memory"` confirms the symptom
+  `sudo journalctl -u pseudoco-assistant-nim | grep -i "out of memory"` confirms the symptom
   if someone raises either.
 - **First NIM start is a 30-40 GB download** (image + weights into
   `/opt/nim-cache`). `/v1/health/ready` stays non-200 until the engine is

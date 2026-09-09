@@ -1,7 +1,7 @@
 """Synthetic per-theme data for the NVIDIA AI Virtual Assistant blueprint.
 
 The reference blueprint pairs an unstructured knowledge base (product manuals
-and FAQs in Milvus) with structured customer/order records (Postgres). DemoBot
+and FAQs in Milvus) with structured customer/order records (Postgres). PseudoCo Assistant
 ships small SYNTHETIC equivalents per Application Theme under
 ``blueprint_data/<theme>/``:
 

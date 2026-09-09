@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run the OpenClaw gateway (the agentic-risk demo surface) in podman, wired to:
 #   - local Ollama (llama3.2:3b) as the agent model
-#   - DemoBot's /api/toolguard/inspect as the before_tool_call governance seat
+#   - PseudoCo Assistant's /api/toolguard/inspect as the before_tool_call governance seat
 #   - the local OTel collector (:4318) via the diagnostics-otel plugin
 #
 # Podman, not host npm: Cisco Secure Endpoint quarantines OpenClaw installed on
@@ -14,8 +14,8 @@
 # See .claude/napkin.md.
 #
 # Run alongside ./run.sh (app) and ./run-collector.sh (collector).
-# Stop:  podman stop demobot-openclaw
-# Logs:  podman logs -f demobot-openclaw
+# Stop:  podman stop pseudoco-assistant-openclaw
+# Logs:  podman logs -f pseudoco-assistant-openclaw
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -46,8 +46,8 @@ for arg in "$@"; do
   esac
 done
 
-IMAGE="demobot-openclaw"
-CONTAINER="demobot-openclaw"
+IMAGE="pseudoco-assistant-openclaw"
+CONTAINER="pseudoco-assistant-openclaw"
 GATEWAY_PORT=18789
 STATE_DIR="$HOME/.demobot-openclaw"          # gateway config+state (persisted)
 DECOY_DIR="$HOME/DemoBotDecoy"               # agent workspace (decoy data only)
@@ -65,7 +65,7 @@ podman info >/dev/null 2>&1 || { echo "ERROR: podman machine not running (podman
 # label, so a committed change to the recipe or the plugin triggers a rebuild by
 # itself; an unchanged tree reuses the image and this is a no-op.
 OPENCLAW_TREE=$(git rev-parse HEAD:openclaw)
-IMAGE_TREE=$(podman image inspect "$IMAGE" --format '{{index .Labels "demobot.openclaw.tree"}}' 2>/dev/null || true)
+IMAGE_TREE=$(podman image inspect "$IMAGE" --format '{{index .Labels "pseudoco-assistant.openclaw.tree"}}' 2>/dev/null || true)
 if [ "$IMAGE_TREE" != "$OPENCLAW_TREE" ]; then
   if [ -n "$IMAGE_TREE" ]; then
     echo "openclaw/ changed in git (${IMAGE_TREE:0:12} -> ${OPENCLAW_TREE:0:12}) — rebuilding $IMAGE..."
@@ -79,7 +79,7 @@ if [ "$IMAGE_TREE" != "$OPENCLAW_TREE" ]; then
   # context, which is exactly openclaw/Containerfile.
   if ! git archive "HEAD:openclaw" \
        | podman build -t "$IMAGE" \
-           --label "demobot.openclaw.tree=$OPENCLAW_TREE" -; then
+           --label "pseudoco-assistant.openclaw.tree=$OPENCLAW_TREE" -; then
     echo "" >&2
     echo "Build failed. Recipe source: git archive HEAD:openclaw" >&2
     echo "  Inspect it with: scripts/openclaw-edit.sh --show openclaw/Containerfile" >&2
@@ -90,7 +90,7 @@ if [ "$IMAGE_TREE" != "$OPENCLAW_TREE" ]; then
     # plugin would start a gateway with NO governance seat, which looks like a
     # working demo while silently letting every tool call through. Never that.
     if podman image exists "$IMAGE" \
-       && podman run --rm "$IMAGE" test -f /opt/demobot-plugins/demobot-toolguard/index.js 2>/dev/null; then
+       && podman run --rm "$IMAGE" test -f /opt/pseudoco-assistant-plugins/pseudoco-assistant-toolguard/index.js 2>/dev/null; then
       echo "  Falling back to the existing $IMAGE (tree ${IMAGE_TREE:-unknown})." >&2
       echo "  It has the plugin baked in, so the guard still works — but it is STALE" >&2
       echo "  vs HEAD (${OPENCLAW_TREE:0:12}). Rerun with the network up to refresh." >&2
@@ -108,7 +108,7 @@ if ! curl -s --max-time 3 http://localhost:11434/api/tags | grep -q '"llama3.2:3
   exit 1
 fi
 if ! curl -s --max-time 3 http://localhost:8001/health >/dev/null; then
-  echo "WARN: DemoBot app is not up on :8001 — the tool guard is FAIL-CLOSED," >&2
+  echo "WARN: PseudoCo Assistant app is not up on :8001 — the tool guard is FAIL-CLOSED," >&2
   echo "      so every agent tool call will be denied until ./run.sh is running." >&2
 fi
 if ! curl -s --max-time 3 http://localhost:4318 >/dev/null 2>&1; then
@@ -121,7 +121,7 @@ mkdir -p "$STATE_DIR" "$DECOY_DIR"
 # baked into the image now; leaving the copy behind would keep OpenClaw .js/.mjs
 # on the disk AMP watches, which is the whole point of the change. Targeted at
 # our plugin only — the gateway keeps its own installed plugins under $STATE_DIR.
-rm -rf "$STATE_DIR/plugins/demobot-toolguard"
+rm -rf "$STATE_DIR/plugins/pseudoco-assistant-toolguard"
 
 if [ ! -e "$DECOY_DIR/inbox" ]; then
   echo "NOTE: decoy workspace $DECOY_DIR is unseeded — run:" >&2
@@ -171,11 +171,11 @@ cfg = {
         "deny": ["browser", "canvas", "nodes", "cron", "gateway"],
     },
     "plugins": {
-        "allow": ["diagnostics-otel", "demobot-toolguard"],
-        "load": {"paths": ["/opt/demobot-plugins/demobot-toolguard"]},
+        "allow": ["diagnostics-otel", "pseudoco-assistant-toolguard"],
+        "load": {"paths": ["/opt/pseudoco-assistant-plugins/pseudoco-assistant-toolguard"]},
         "entries": {
             "diagnostics-otel": {"enabled": True},
-            "demobot-toolguard": {
+            "pseudoco-assistant-toolguard": {
                 "enabled": True,
                 "config": {
                     "guardUrl": "http://host.containers.internal:8001",

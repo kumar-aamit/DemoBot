@@ -1,12 +1,12 @@
 ---
 name: connect-ai-defense
-description: Connect a DemoBot deployment (this Mac, an EC2 fleet replica, or the OpenClaw tool guard) to a Cisco AI Defense application in Security Cloud Control, and verify the connection end to end. Use when asked to connect/wire/hook DemoBot or a medadviceN box up to AI Defense, to check whether AI Defense is actually enforcing on a box, when prompts are being blocked or NOT blocked unexpectedly, or when the AI Defense inspection key is rotated or a new connection is created.
+description: Connect a PseudoCo Assistant deployment (this Mac, an EC2 fleet replica, or the OpenClaw tool guard) to a Cisco AI Defense application in Security Cloud Control, and verify the connection end to end. Use when asked to connect/wire/hook PseudoCo Assistant or a medadviceN box up to AI Defense, to check whether AI Defense is actually enforcing on a box, when prompts are being blocked or NOT blocked unexpectedly, or when the AI Defense inspection key is rotated or a new connection is created.
 ---
 
-# Connect DemoBot to Cisco AI Defense
+# Connect PseudoCo Assistant to Cisco AI Defense
 
 "Connecting" is not a network peering or an agent install. AI Defense runtime
-protection for DemoBot is an **outbound API integration**: the app calls the
+protection for PseudoCo Assistant is an **outbound API integration**: the app calls the
 Chat Inspection API before (and after) the model, and the API key it presents
 is what binds the traffic to a specific **application + connection** in Security
 Cloud Control (SCC). Point the key at a different connection and the traffic
@@ -83,7 +83,7 @@ replica. To change it in place:
 
 ```bash
 ssh -i ~/.ssh/demobot_ec2 ubuntu@<ip> \
-  'sed -i "s|^AI_DEFENSE_API_KEY=.*|AI_DEFENSE_API_KEY=NEWKEY|" ~/DemoBot/.env && sudo systemctl restart demobot-app'
+  'sed -i "s|^AI_DEFENSE_API_KEY=.*|AI_DEFENSE_API_KEY=NEWKEY|" ~/DemoBot/.env && sudo systemctl restart pseudoco-assistant-app'
 ```
 
 Find `<ip>` with `./deploy/ec2/fleet.sh status`. Fleet boxes are `ubuntu`@port 22
@@ -160,7 +160,7 @@ appear in SCC under **AI Defense → Events**, filtered to the YeackBot app.
 - **Blocks appear in the app but not in SCC Events** — the key is valid but bound
   to a different connection/application than the one being viewed.
 - **A replica was deployed before the Mac had AI Defense configured** — it has
-  the stale `.env`. Redeploy it, or patch in place and restart `demobot-app`.
+  the stale `.env`. Redeploy it, or patch in place and restart `pseudoco-assistant-app`.
 
 ## Rotation
 

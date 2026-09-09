@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NVIDIA stack test report — DemoBot 4.2.1 on a g5.xlarge EC2 box (+ Mac baseline)</title>
+<title>NVIDIA stack test report — PseudoCo Assistant 4.2.1 on a g5.xlarge EC2 box (+ Mac baseline)</title>
 <style>
 :root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--border:#d7dbe0;--accent:#0b6bcb;--code-bg:#f5f7f9;--th:#eef2f6;--warn:#8a5a00}
 @media (prefers-color-scheme: dark){:root{--bg:#14171a;--fg:#e6e8ea;--muted:#9aa3ad;--border:#2c3238;--accent:#63a9f0;--code-bg:#1c2126;--th:#1f252b;--warn:#e0b050}}
@@ -34,7 +34,7 @@ ul,ol{padding-left:1.4rem}
 @media print{body{padding:0}pre,table{page-break-inside:avoid}}
 </style></head>
 <body><main>
-<h1 id="nvidia-stack-test-report-demobot-421-on-a-g5xlarge-ec2-box-mac-baseline">NVIDIA stack test report — DemoBot 4.2.1 on a g5.xlarge EC2 box (+ Mac baseline)</h1>
+<h1 id="nvidia-stack-test-report-pseudoco-assistant-421-on-a-g5xlarge-ec2-box-mac-baseline">NVIDIA stack test report — PseudoCo Assistant 4.2.1 on a g5.xlarge EC2 box (+ Mac baseline)</h1>
 <p><strong>Date:</strong> 2026-09-02 · <strong>Branch:</strong> <code>fix/ec2-nim-nemoclaw-bootstrap</code> (from <code>main</code> 112708a, PR #55) ·
 <strong>Account:</strong> personal AWS 177835492378, us-east-1 · <strong>Box:</strong> 1 × g5.xlarge (A10G 24 GB), 150 GB gp3 ·
 <strong>Stack under test:</strong> <code>provider=nvidia</code> local NIM (<code>nvidia/nvidia-nemotron-nano-9b-v2</code>), host-capability
@@ -105,11 +105,11 @@ plus the prior-version (Ollama) regression on the same box.</p>
 <td>7</td>
 <td><code>deploy/ec2/ec2-bootstrap.sh</code></td>
 <td>the NIM unit ran the image at its defaults; vLLM pre-allocates the hybrid-Mamba SSM state cache for <code>max_num_seqs=256</code> — 33.75 GiB regardless of context — next to 17.35 GiB of weights on the 22 GiB A10G → CUDA OOM, restart loop, never ready (capping the context alone changed nothing)</td>
-<td><code>NIM_MAX_NUM_SEQS=8</code> (~1 GiB SSM cache), <code>NIM_KVCACHE_PERCENT=0.95</code> and <code>NIM_MAX_MODEL_LEN=8192</code> in <code>/etc/demobot-nim.env</code>, passed to the container and overridable (16 sequences at 0.90 still left −0.69 GiB for KV blocks); found live, guarded by the test</td>
+<td><code>NIM_MAX_NUM_SEQS=8</code> (~1 GiB SSM cache), <code>NIM_KVCACHE_PERCENT=0.95</code> and <code>NIM_MAX_MODEL_LEN=8192</code> in <code>/etc/pseudoco-assistant-nim.env</code>, passed to the container and overridable (16 sequences at 0.90 still left −0.69 GiB for KV blocks); found live, guarded by the test</td>
 </tr>
 <tr>
 <td>8</td>
-<td><code>nemoclaw/policies/demobot-guard.yaml</code>, <code>run-nemoclaw.sh</code></td>
+<td><code>nemoclaw/policies/pseudoco-assistant-guard.yaml</code>, <code>run-nemoclaw.sh</code></td>
 <td>the network-policy preset predated NemoClaw's schema (<code>Preset must declare preset.name</code>) so the sandbox never got a route to the guard; the sandbox was also pointed at <code>127.0.0.1</code>, which inside the sandbox is the sandbox; and the plugin-config write raced the sandbox start (<code>Connection refused</code>) and silently kept the loopback URL</td>
 <td>preset rewritten in the shipped-preset shape (<code>preset</code> header, <code>network_policies</code>, node + curl binaries, no <code>allowed_ips</code> — the validator refuses it in user presets and pins the <code>--trusted-private-host</code> itself); the sandbox reaches the host at its private IP (the validator also refuses loopback and NemoClaw's managed aliases for user presets); config write waits for phase Ready; bootstrap no longer overrides <code>--host</code></td>
 </tr>
@@ -117,7 +117,7 @@ plus the prior-version (Ollama) regression on the same box.</p>
 <td>9</td>
 <td><code>deploy/ec2/ec2-bootstrap.sh</code></td>
 <td>NemoClaw onboarding ran 10 s after <code>enable --now</code> (app not answering yet) and without <code>NVIDIA_INFERENCE_API_KEY</code> in its environment (the key only reached the systemd unit's env file), so it died before installing anything</td>
-<td>wait for <code>/health</code>, export <code>/etc/demobot-nemoclaw.env</code>, then run onboarding exactly as the unit does</td>
+<td>wait for <code>/health</code>, export <code>/etc/pseudoco-assistant-nemoclaw.env</code>, then run onboarding exactly as the unit does</td>
 </tr>
 <tr>
 <td>10</td>
@@ -183,7 +183,7 @@ plus the prior-version (Ollama) regression on the same box.</p>
 <tr>
 <td>Ollama chat turn, default blueprint</td>
 <td><strong>PASS</strong></td>
-<td><code>recommendation</code>, 581 chars; governance <code>provider=ollama model=mistral-nemo:12b blueprint=demobot_multi_agent policy_action=allow</code></td>
+<td><code>recommendation</code>, 581 chars; governance <code>provider=ollama model=mistral-nemo:12b blueprint=pseudoco_multi_agent policy_action=allow</code></td>
 </tr>
 <tr>
 <td>NeMo Guardrails with the Ollama judge (master switch on, drawer toggle on)</td>
@@ -193,7 +193,7 @@ plus the prior-version (Ollama) regression on the same box.</p>
 <tr>
 <td>NVIDIA AI Virtual Assistant blueprint on Ollama (per-request <code>blueprint</code>)</td>
 <td><strong>PASS</strong></td>
-<td>record-lookup turn 642 chars, knowledge-retrieval turn 717 chars; governance <code>blueprint=nvidia_virtual_assistant workflow=demobot_nvidia_virtual_assistant</code>; <code>GET /api/analytics/sessions</code> lists the session; server default unchanged</td>
+<td>record-lookup turn 642 chars, knowledge-retrieval turn 717 chars; governance <code>blueprint=nvidia_virtual_assistant workflow=pseudoco_nvidia_virtual_assistant</code>; <code>GET /api/analytics/sessions</code> lists the session; server default unchanged</td>
 </tr>
 </tbody>
 </table>
@@ -234,7 +234,7 @@ left <code>0 MiB</code> used before the NIM started; the dpkg-lock wait absorbed
 <tbody>
 <tr>
 <td>A</td>
-<td>A10G present; Ollama holds nothing; <code>demobot-nim</code> container + all six units active; <code>/v1/health/ready</code> 200; <code>/v1/models</code> serves the Nemotron id; direct completion with <code>enable_thinking=false</code></td>
+<td>A10G present; Ollama holds nothing; <code>pseudoco-assistant-nim</code> container + all six units active; <code>/v1/health/ready</code> 200; <code>/v1/models</code> serves the Nemotron id; direct completion with <code>enable_thinking=false</code></td>
 <td><strong>PASS</strong> 10/10</td>
 <td>direct NIM: 23 prompt + 200 completion tokens in 8.4 s; VRAM 20.1 GB used</td>
 </tr>
@@ -294,9 +294,9 @@ left <code>0 MiB</code> used before the NIM started; the dpkg-lock wait absorbed
 </tr>
 <tr>
 <td>D</td>
-<td>NemoClaw policy layer + sandbox runtime: <code>verify_nemoclaw_observability.sh</code> Tier 0 (policy, Dockerfile, preset, forwarder, unit suite, plugin selftest), Tier 1 (toggle ON blocks an unlisted egress via the policy layer; a forwarded OCSF denial becomes a <code>nemoclaw_guardrails</code> governance event), <strong>Tier 2 live sandbox</strong> (answers status, <code>demobot-toolguard</code> enabled inside, the sandbox reaches DemoBot's guard through the applied <code>demobot-guard</code> policy)</td>
+<td>NemoClaw policy layer + sandbox runtime: <code>verify_nemoclaw_observability.sh</code> Tier 0 (policy, Dockerfile, preset, forwarder, unit suite, plugin selftest), Tier 1 (toggle ON blocks an unlisted egress via the policy layer; a forwarded OCSF denial becomes a <code>nemoclaw_guardrails</code> governance event), <strong>Tier 2 live sandbox</strong> (answers status, <code>pseudoco-assistant-toolguard</code> enabled inside, the sandbox reaches PseudoCo Assistant's guard through the applied <code>pseudoco-assistant-guard</code> policy)</td>
 <td><strong>PASS</strong> 13/13 (after defects 8, 9, 11 and the <code>start</code>-re-provision fix)</td>
-<td>sandbox guard URL <code>http://172.31.7.215:8001</code>; <code>Applied preset: demobot-guard</code>; <code>runtime_supported</code> ON; <code>toolguard/nemoclaw</code> shows <code>demobot-guard</code> among the loaded network policies. First passes failed on exactly the defects listed; one read taken during the script's own <code>nemoclaw gateway restart</code> was transiently 11/13 and was 13/13 three minutes later</td>
+<td>sandbox guard URL <code>http://172.31.7.215:8001</code>; <code>Applied preset: pseudoco-assistant-guard</code>; <code>runtime_supported</code> ON; <code>toolguard/nemoclaw</code> shows <code>pseudoco-assistant-guard</code> among the loaded network policies. First passes failed on exactly the defects listed; one read taken during the script's own <code>nemoclaw gateway restart</code> was transiently 11/13 and was 13/13 three minutes later</td>
 </tr>
 <tr>
 <td>D</td>
@@ -318,9 +318,9 @@ left <code>0 MiB</code> used before the NIM started; the dpkg-lock wait absorbed
 </tr>
 <tr>
 <td>F</td>
-<td>Telemetry under <code>deployment.environment=demobot-ec2-1</code></td>
+<td>Telemetry under <code>deployment.environment=pseudoco-assistant-ec2-1</code></td>
 <td><strong>PASS (spans)</strong> / <strong>known gap (metrics)</strong></td>
-<td>box collector counters: 510 spans → Splunk APM, 147 → Splunk Agent Observability, 10 503 metric points, no <code>send_failed</code> counters; <code>check_o11y_metadata.py … demobot-ec2-1</code> fails on the gen_ai metric MTS exactly as the Mac does (org-wide metric cap since 2026-07-29, unrelated to 4.2)</td>
+<td>box collector counters: 510 spans → Splunk APM, 147 → Splunk Agent Observability, 10 503 metric points, no <code>send_failed</code> counters; <code>check_o11y_metadata.py … pseudoco-assistant-ec2-1</code> fails on the gen_ai metric MTS exactly as the Mac does (org-wide metric cap since 2026-07-29, unrelated to 4.2)</td>
 </tr>
 </tbody>
 </table>
@@ -328,9 +328,9 @@ left <code>0 MiB</code> used before the NIM started; the dpkg-lock wait absorbed
 began with a reasoning-style preamble in plain text ("Okay, the user wants…"); the app's turns, which carry the
 JSON answer contract, came back clean, and no <code>&lt;think&gt;</code> block appeared anywhere.</p>
 <h2 id="4-prior-version-regression-on-the-same-box-switch-back-to-ollama">4. Prior-version regression on the same box: switch back to Ollama</h2>
-<p>Procedure (matrix section H): stop <code>demobot-nim</code>, <code>PUT /api/settings/ai-provider {"provider":"ollama"}</code>, chat turns
+<p>Procedure (matrix section H): stop <code>pseudoco-assistant-nim</code>, <code>PUT /api/settings/ai-provider {"provider":"ollama"}</code>, chat turns
 on <code>mistral-nemo:12b</code> and on the poisoned model, the synthetic-PII injection with Cisco AI Defense review, then
-back to <code>provider=nvidia</code> and <code>demobot-nim</code>.</p>
+back to <code>provider=nvidia</code> and <code>pseudoco-assistant-nim</code>.</p>
 <table>
 <thead>
 <tr>
@@ -363,7 +363,7 @@ back to <code>provider=nvidia</code> and <code>demobot-nim</code>.</p>
 <tr>
 <td>Back to <code>provider=nvidia</code>, NIM restarted and ready</td>
 <td><strong>PASS</strong></td>
-<td>NIM ready after the reload (300 s to <code>/v1/health/ready</code> after <code>systemctl start demobot-nim</code> with all Ollama models unloaded first; next turn 19.8 s); governance <code>provider=nvidia</code> on the next turn</td>
+<td>NIM ready after the reload (300 s to <code>/v1/health/ready</code> after <code>systemctl start pseudoco-assistant-nim</code> with all Ollama models unloaded first; next turn 19.8 s); governance <code>provider=nvidia</code> on the next turn</td>
 </tr>
 </tbody>
 </table>
@@ -424,7 +424,7 @@ stack (NeMo rails on a local judge, NemoClaw, the blueprint's native tool callin
 <tr>
 <td><code>sudo systemctl reboot</code>; everything must return unattended</td>
 <td><strong>PASS</strong> in 380 s</td>
-<td>app <code>/health</code> 200 and the public URL 200 at +30 s; collector + tunnel active at +30 s; <code>demobot-nemoclaw</code> (oneshot) re-onboarded the sandbox and the forwarder came up at +53 s; the NIM reached <code>/v1/health/ready</code> at +343 s (weights + profiling, no restart loop); sandbox phase Ready</td>
+<td>app <code>/health</code> 200 and the public URL 200 at +30 s; collector + tunnel active at +30 s; <code>pseudoco-assistant-nemoclaw</code> (oneshot) re-onboarded the sandbox and the forwarder came up at +53 s; the NIM reached <code>/v1/health/ready</code> at +343 s (weights + profiling, no restart loop); sandbox phase Ready</td>
 </tr>
 <tr>
 <td>Idempotent <code>fleet.sh deploy 1</code> re-run on the finished box</td>
@@ -444,5 +444,5 @@ by 17:43 PDT. Compute for the day ≈ 5.5 h × $1.006 ≈ $5.5.</p>
 ./ec2-bootstrap.sh --with-nim nvidia/nemotron-3-super-120b-a12b # needs 8x H100 (p5-class), not g5
 # NemoClaw runtime (OpenClaw in an OpenShell sandbox, governed by /api/toolguard)
 ./ec2-bootstrap.sh --with-nemoclaw</pre>
-<p><code>--with-nim</code> installs Docker + the NVIDIA Container Toolkit (the DL base AMI has both), logs into <code>nvcr.io</code> with <code>NGC_API_KEY</code> (from <code>.env</code> or the payload overrides), runs <code>demobot-nim.service</code> and sets <code>AI_PROVIDER=nvidia</code>, <code>NVIDIA_BASE_URL</code>, <code>NVIDIA_MODEL</code> (an explicit <code>--set</code> still wins). First start pulls the image + weights (minutes). <code>--with-nemoclaw</code> runs <code>run-nemoclaw.sh</code> once (needs <code>NVIDIA_INFERENCE_API_KEY</code> in <code>.env</code> for the sandbox's provider) and installs <code>demobot-nemoclaw</code> + <code>demobot-nemoclaw-forwarder</code> units — NemoClaw restarts nothing after a reboot by itself. Details: <code>docs/nvidia-integration.md</code>.</p>
+<p><code>--with-nim</code> installs Docker + the NVIDIA Container Toolkit (the DL base AMI has both), logs into <code>nvcr.io</code> with <code>NGC_API_KEY</code> (from <code>.env</code> or the payload overrides), runs <code>pseudoco-assistant-nim.service</code> and sets <code>AI_PROVIDER=nvidia</code>, <code>NVIDIA_BASE_URL</code>, <code>NVIDIA_MODEL</code> (an explicit <code>--set</code> still wins). First start pulls the image + weights (minutes). <code>--with-nemoclaw</code> runs <code>run-nemoclaw.sh</code> once (needs <code>NVIDIA_INFERENCE_API_KEY</code> in <code>.env</code> for the sandbox's provider) and installs <code>pseudoco-assistant-nemoclaw</code> + <code>pseudoco-assistant-nemoclaw-forwarder</code> units — NemoClaw restarts nothing after a reboot by itself. Details: <code>docs/nvidia-integration.md</code>.</p>
 </body></html>

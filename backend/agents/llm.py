@@ -190,7 +190,7 @@ def get_chat_model(settings, *, max_tokens: int = 2048, temperature: float = 0.7
                 max_tokens=max_tokens,
                 temperature=temperature,
                 top_p=getattr(settings, "nvidia_top_p", 0.95),
-                # Nemotron 3 defaults reasoning ON; DemoBot's answer contract is
+                # Nemotron 3 defaults reasoning ON; PseudoCo Assistant's answer contract is
                 # a JSON block, so thinking is opt-in (settings.nvidia_reasoning).
                 extra_body={
                     "chat_template_kwargs": {

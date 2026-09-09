@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.." || exit 2
 # PY=... overrides the interpreter (e.g. a worktree without its own venv).
 PY=${PY:-./venv/bin/python}
 if ! "$PY" -c "import fastapi" >/dev/null 2>&1; then
-  echo "ERROR: $PY is not a DemoBot venv interpreter (set PY=/path/to/venv/bin/python)" >&2
+  echo "ERROR: $PY is not a PseudoCo Assistant venv interpreter (set PY=/path/to/venv/bin/python)" >&2
   exit 2
 fi
 

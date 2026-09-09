@@ -13,7 +13,7 @@ blueprint's generation core (backend/agents/blueprints):
           -> injection -> compliance -> agent_control -> nemo_output_rails
           -> response_defense -> governance
 
-For the shipped ``demobot_multi_agent`` blueprint the core is
+For the shipped ``pseudoco_multi_agent`` blueprint the core is
 ``intake -> synthesizer`` (one LLM call as the theme's ``*_domain_agent``), or
 ``intake -> coordinator -> specialists -> synthesizer`` when the request sets
 ``multi_agent_mode`` True. The ``nvidia_virtual_assistant`` blueprint swaps in
@@ -43,7 +43,7 @@ from langgraph.graph import END, START, StateGraph
 
 from backend.agents.blueprints import DEFAULT_BLUEPRINT, get_blueprint
 from backend.agents.blueprints.guardrails import wire_guardrails
-from backend.agents.state import DemoBotState, build_initial_state
+from backend.agents.state import PseudoCoAssistantState, build_initial_state
 from backend.agents.supervisor import route_to_theme, router_node
 from backend.agents.themes import THEMES
 from backend.config import settings
@@ -69,7 +69,7 @@ def build_theme_subgraph(theme_config, blueprint=None):
 def build_workflow_graph(blueprint_key: Optional[str] = None):
     """Build and compile the supervisor-routed workflow for one blueprint."""
     bp = get_blueprint(blueprint_key or active_blueprint_key())
-    g = StateGraph(DemoBotState)
+    g = StateGraph(PseudoCoAssistantState)
     g.add_node("router", router_node)
 
     route_map: Dict[str, str] = {}

@@ -29,7 +29,7 @@ from backend.agents.nodes.nemo_rails import nemo_input_rails_node, nemo_output_r
 from backend.agents.nodes.policy import policy_block_node
 from backend.agents.nodes.safety import safety_node
 from backend.agents.nodes.scheduling import scheduling_intake_node, scheduling_node
-from backend.agents.state import DemoBotState
+from backend.agents.state import PseudoCoAssistantState
 
 # Screen the PROMPT before any model call. Order matters: the internal policy
 # engine is free and deterministic, Cisco AI Defense inspects next, NeMo's
@@ -83,7 +83,7 @@ def _link(g: StateGraph, src: str, dst: str) -> None:
 def wire_guardrails(theme_config, blueprint: Blueprint):
     """Build and compile one theme's subgraph: the guardrail chain around the
     blueprint's generation core."""
-    g = StateGraph(DemoBotState)
+    g = StateGraph(PseudoCoAssistantState)
 
     for name in PRE_NODES:
         g.add_node(name, _NODE_FNS[name])

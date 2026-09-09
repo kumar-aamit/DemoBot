@@ -2,10 +2,10 @@
 
 Thin, dependency-light wrapper around Galileo's Agent Control server, used to
 submit the assistant's generated response for evaluation against the Controls
-defined centrally in the Galileo console before DemoBot returns it to the user.
+defined centrally in the Galileo console before PseudoCo Assistant returns it to the user.
 This is the "Agent Observability Controls" surface in the settings drawer: the
 Galileo counterpart of the Cisco AI Defense response review, and what makes a
-deny control such as ``DemoBot-block-hallucinated-output`` (Correctness score
+deny control such as ``PseudoCoAssistant-block-hallucinated-output`` (Correctness score
 below threshold) actually withhold an answer.
 
 Grounded on the Agent Control Server 8.x contract (its published OpenAPI):
@@ -92,7 +92,7 @@ _TOKEN_REFRESH_MARGIN_SECONDS = 60.0
 # Fallback lifetime when a token carries no parseable expiry.
 _TOKEN_ASSUMED_TTL_SECONDS = 1800.0
 
-# The only evaluator DemoBot can run client-side. Anything else (a custom
+# The only evaluator PseudoCo Assistant can run client-side. Anything else (a custom
 # agent-scoped evaluator, regex/list/json/sql) is left to server execution —
 # guessing at its semantics would be worse than reporting it unevaluated.
 _LOCAL_EVALUATOR = "galileo.luna"
@@ -220,7 +220,7 @@ class ControlVerdict:
         """Whether the response must be withheld.
 
         - A real verdict containing a ``deny`` decision always blocks.
-        - ``steer`` and ``observe`` never block (they are advisory here; DemoBot
+        - ``steer`` and ``observe`` never block (they are advisory here; PseudoCo Assistant
           has no re-generation loop, so a steer is recorded, not enforced).
         - On error, honor the configured fail-open / fail-closed policy.
         """
@@ -617,7 +617,7 @@ class AgentControlClient:
         logger.warning(
             "Galileo Agent Control '%s' is declared execution=server but is being "
             "evaluated in-process, because this deployment cannot mint a runtime "
-            "token. The official engine would skip it; DemoBot runs it so the "
+            "token. The official engine would skip it; PseudoCo Assistant runs it so the "
             "guardrail still applies.",
             name,
         )
@@ -751,7 +751,7 @@ class AgentControlClient:
         instead of being guessed at.
 
         Deliberate deviation from the official engine, which skips any control
-        whose ``execution`` differs from its context: DemoBot also runs
+        whose ``execution`` differs from its context: PseudoCo Assistant also runs
         ``execution: "server"`` controls here, because the alternative on a
         deployment with no runtime-token grant is running nothing at all. It is
         logged once per process so a control marked *server* being enforced by
@@ -932,7 +932,7 @@ class AgentControlClient:
             "agent": {
                 "agent_name": self._agent_name,
                 "agent_description": description
-                or "DemoBot multi-theme advisory assistant",
+                or "PseudoCo Assistant multi-theme advisory assistant",
                 "agent_version": version,
                 "agent_metadata": {"app": settings.otel_service_name},
             },
@@ -940,7 +940,7 @@ class AgentControlClient:
                 {
                     "type": "llm",
                     "name": self._step_name,
-                    "description": "DemoBot synthesizer / domain agent response",
+                    "description": "PseudoCo Assistant synthesizer / domain agent response",
                 }
             ],
             "conflict_mode": "overwrite",

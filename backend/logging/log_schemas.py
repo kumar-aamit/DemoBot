@@ -26,7 +26,7 @@ def create_governance_log(
         "response_model": kwargs.get("response_model"),
         "response_id": kwargs.get("response_id"),
         "conversation_id": conversation_id,
-        "deployment_id": kwargs.get("deployment_id", "demobot-v3-prod"),
+        "deployment_id": kwargs.get("deployment_id", "pseudoco-assistant-prod"),
         # Additive: which agentic blueprint served the turn (None-stripped when unset).
         "blueprint": kwargs.get("blueprint"),
         "request_id": request_id or str(uuid.uuid4()),
@@ -139,7 +139,7 @@ def create_governance_log(
 
         # Actor / application context
         "enduser_id": kwargs.get("enduser_id"),
-        "service_name": kwargs.get("service_name", "demobot-v3"),
+        "service_name": kwargs.get("service_name", "pseudoco-assistant"),
         "client_address": kwargs.get("client_address"),
 
         # Timestamp

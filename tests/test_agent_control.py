@@ -171,7 +171,7 @@ parsed = ac.AgentControlClient._parse_response(
         "reason": "control matched",
         "matches": [
             {
-                "control_name": "DemoBot-block-hallucinated-output",
+                "control_name": "PseudoCoAssistant-block-hallucinated-output",
                 "action": "deny",
                 "result": {"matched": True, "confidence": 0.91, "message": "score 0.2 < 0.5"},
             }
@@ -179,7 +179,7 @@ parsed = ac.AgentControlClient._parse_response(
         "errors": [{"control_name": "some-broken-control"}],
     }
 )
-check("parses matched control name", parsed.matched_controls == ["DemoBot-block-hallucinated-output"])
+check("parses matched control name", parsed.matched_controls == ["PseudoCoAssistant-block-hallucinated-output"])
 check("parses decision", parsed.decisions == ["deny"])
 check("parses evaluator message", parsed.messages == ["score 0.2 < 0.5"])
 check("parses evaluator errors", parsed.evaluator_errors == ["some-broken-control"])
@@ -294,7 +294,7 @@ deny_verdict = ac.ControlVerdict(
     is_safe=False,
     confidence=0.9,
     decisions=["deny"],
-    matched_controls=["DemoBot-block-hallucinated-output"],
+    matched_controls=["PseudoCoAssistant-block-hallucinated-output"],
     messages=["correctness 0.2 < 0.5"],
 )
 with mock.patch.object(
@@ -373,7 +373,7 @@ errored_deny = ac.AgentControlClient._parse_response(
         "matches": [],
         "errors": [
             {
-                "control_name": "DemoBot-block-hallucinated-output",
+                "control_name": "PseudoCoAssistant-block-hallucinated-output",
                 "action": "deny",
                 "result": {"matched": False, "confidence": 0.0, "error": "not numeric"},
             }
@@ -383,7 +383,7 @@ errored_deny = ac.AgentControlClient._parse_response(
 check("is_safe=false with only errors is an ERROR, not a clean pass",
       errored_deny.errored is True)
 check("the errored deny control is named in the message",
-      "DemoBot-block-hallucinated-output" in (errored_deny.error_message or ""))
+      "PseudoCoAssistant-block-hallucinated-output" in (errored_deny.error_message or ""))
 with mock.patch.object(settings, "galileo_agent_control_fail_open", False):
     check("errored deny withholds under fail-closed", errored_deny.should_block is True)
 with mock.patch.object(settings, "galileo_agent_control_fail_open", True):
@@ -397,7 +397,7 @@ CONTROLS_BODY = {
     "controls": [
         {
             "id": 259,
-            "name": "DemoBot-block-hallucinated-output",
+            "name": "PseudoCoAssistant-block-hallucinated-output",
             "control": {
                 "enabled": True,
                 "execution": "server",
@@ -475,7 +475,7 @@ deny, post, calls, _ = _evaluate({"score": False, "status": "success"})
 check("falls back to client-side when no runtime token can be minted",
       deny.transport == "client")
 check("a false correctness score denies", deny.should_block is True)
-check("the matched control is named", deny.matched_controls == ["DemoBot-block-hallucinated-output"])
+check("the matched control is named", deny.matched_controls == ["PseudoCoAssistant-block-hallucinated-output"])
 check("decision is deny", deny.decisions == ["deny"])
 check("scorer invoked with query + response as plain strings",
       (post.invoke_body or {}).get("inputs")
@@ -594,7 +594,7 @@ PII_CONTROLS = {
     "controls": [
         {
             "id": 263,
-            "name": "DemoBot-block-output-pii",
+            "name": "PseudoCoAssistant-block-output-pii",
             "control": {
                 "enabled": True,
                 "execution": "server",
@@ -628,13 +628,13 @@ pii_hit, post_pii, calls_pii, _ = _evaluate(
     {"score": ["name", "phone_number"], "status": "success"}, controls=PII_CONTROLS
 )
 check("an OR of contains leaves denies on a later category",
-      pii_hit.should_block is True and pii_hit.matched_controls == ["DemoBot-block-output-pii"])
+      pii_hit.should_block is True and pii_hit.matched_controls == ["PseudoCoAssistant-block-output-pii"])
 check("the deciding category is reported in the message",
       "phone_number" in " ".join(pii_hit.messages))
 check("OR over one scorer costs ONE invoke, not one per leaf (memo)",
       len([u for u in calls_pii if u.endswith("/scorers/invoke")]) == 1)
 
-# `name` alone must not trigger: a normal DemoBot answer naming a care provider
+# `name` alone must not trigger: a normal PseudoCo Assistant answer naming a care provider
 # scores ["name"], so including that category would withhold good responses.
 pii_name_only, _, calls_name, _ = _evaluate(
     {"score": ["name"], "status": "success"}, controls=PII_CONTROLS

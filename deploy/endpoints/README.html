@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DemoBot — endpoint wiring</title>
+<title>PseudoCo Assistant — endpoint wiring</title>
 <style>
 :root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--border:#d7dbe0;--accent:#0b6bcb;--code-bg:#f5f7f9;--th:#eef2f6;--warn:#8a5a00}
 @media (prefers-color-scheme: dark){:root{--bg:#14171a;--fg:#e6e8ea;--muted:#9aa3ad;--border:#2c3238;--accent:#63a9f0;--code-bg:#1c2126;--th:#1f252b;--warn:#e0b050}}
@@ -34,8 +34,8 @@ ul,ol{padding-left:1.4rem}
 @media print{body{padding:0}pre,table{page-break-inside:avoid}}
 </style>
 </head><body><main>
-<h1 id="demobot-endpoint-wiring">DemoBot endpoint wiring</h1>
-<p>How DemoBot is wired to each downstream endpoint it can send data to, and the
+<h1 id="pseudoco-assistant-endpoint-wiring">PseudoCo Assistant endpoint wiring</h1>
+<p>How PseudoCo Assistant is wired to each downstream endpoint it can send data to, and the
 procedures for wiring a new deployment (this Mac, an EC2 fleet replica, or a
 workshop box) to each one.</p>
 <p>This is the index. The assets themselves stay where the tooling expects them —
@@ -141,7 +141,7 @@ the passive path — every turn produces spans and metrics with no opt-in.</p>
 </tr>
 <tr>
 <td>Splunk-side field patches</td>
-<td><code>wire-tunnel-logs-to-o11y/reference/patch-demobot-*.py</code></td>
+<td><code>wire-tunnel-logs-to-o11y/reference/patch-pseudoco-assistant-*.py</code></td>
 <td>CIM / sourcetype / ES-only</td>
 </tr>
 </tbody>
@@ -150,13 +150,13 @@ the passive path — every turn produces spans and metrics with no opt-in.</p>
 <ul>
 <li><strong><code>otel-collector-logs.yaml</code></strong> (repo root, 38 lines) is a small <em>overlay</em>
   layered on by <code>run-collector.sh</code> only when <code>SPLUNK_HEC_TOKEN</code> is set. It ships
-  OTLP log records to the <strong>local</strong> Splunk with sourcetype <code>demobot:otel</code>. It is
+  OTLP log records to the <strong>local</strong> Splunk with sourcetype <code>pseudoco-assistant:otel</code>. It is
   <strong>retired</strong> — it flooded <code>gen_ai_log</code> with collector noise, and the governance
   JSON now rides the app HEC forwarder instead. Tracked for history; leave the
   <code>SPLUNK_HEC_*</code> keys commented in <code>.env</code> unless you intend to revive it.</li>
 <li><strong><code>reference/otel-logs-pipeline.yaml</code></strong> (144 lines) is a <em>complete</em> collector
   config for a <strong>workshop</strong> box — different destination (workshop Splunk Cloud
-  stack), different sourcetype (<code>demobot:json</code>), driven by <code>WORKSHOP_*</code> env
+  stack), different sourcetype (<code>pseudoco-assistant:json</code>), driven by <code>WORKSHOP_*</code> env
   vars, and it carries the Agent Observability fan-out too.</li>
 </ul>
 <p>Splunk Observability Cloud has no native log store. Logs reach O11y via Log
@@ -240,7 +240,7 @@ appears under. Six <code>.env</code> vars; annotated originals in <code>.env.exa
 </tr>
 <tr>
 <td>As-built EC2 record</td>
-<td><a href="EC2-DemoBot-Runbook.md"><code>EC2-DemoBot-Runbook.md</code></a></td>
+<td><a href="EC2-PseudoCoAssistant-Runbook.md"><code>EC2-PseudoCoAssistant-Runbook.md</code></a></td>
 </tr>
 <tr>
 <td>Secret provisioning</td>
@@ -252,7 +252,7 @@ appears under. Six <code>.env</code> vars; annotated originals in <code>.env.exa
 <code>i-0883a0ddedf54e4e8</code> (<code>c6i.2xlarge</code>, <code>35.175.173.5</code>) in the Cisco lab account
 <code>754184243988</code>, as built on 2026-07-27 against <code>main@edfcb88</code>. The current fleet
 is <code>g5.xlarge</code> GPU instances in the <strong>personal</strong> account <code>177835492378</code>. Read §6
-for the reproducible DemoBot layer; §§2–5 are the as-built record of that one
+for the reproducible PseudoCo Assistant layer; §§2–5 are the as-built record of that one
 host and do not describe the fleet.</p>
 <hr />
 <h2 id="provenance-and-drift">Provenance and drift</h2>
@@ -264,7 +264,7 @@ host and do not describe the fleet.</p>
 OneDrive sync, which is why these are tracked here. The workshop copies were
 left in place and still work, so <strong>the two copies can drift</strong>. Treat this repo
 as the source of truth and re-copy outward when these change.</p>
-<p><code>EC2-DemoBot-Runbook.md</code> came from the same workshop folder.</p>
+<p><code>EC2-PseudoCoAssistant-Runbook.md</code> came from the same workshop folder.</p>
 <h2 id="secrets">Secrets</h2>
 <p>No credentials in this package. Every file was scanned before it was committed;
 the only identifier-shaped strings are instance IDs, public IPs, Agent

@@ -7,7 +7,7 @@
 #     OLLAMA_MAX_LOADED_MODELS=3    # clean 12B + poisoned 12B + 3B internal model
 # so you don't have to launch `ollama serve` with them by hand each session.
 #
-# Belt-and-suspenders: the DemoBot poisoned model shares the mistral-nemo:12b weight
+# Belt-and-suspenders: the PseudoCo Assistant poisoned model shares the mistral-nemo:12b weight
 # blob (one runner serves both), and the app already sends a per-call keep_alive,
 # so MAX_LOADED_MODELS=2 isn't strictly required for that pair — this is durability
 # / hygiene, not a correctness fix.

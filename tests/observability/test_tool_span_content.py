@@ -74,10 +74,10 @@ def check_tool_span_enabled():
         "operation.name != execute_tool (genai_only filter would drop this span)"
     assert _attr(span, "gen_ai.tool.name") == "web_fetch", "missing gen_ai.tool.name"
     assert _attr(span, "gen_ai.tool.call.id") == "call-42", "missing gen_ai.tool.call.id"
-    assert _attr(span, "demobot.tool.decision") == "block", "missing tool decision"
-    assert "evil.example" in str(_attr(span, "demobot.tool.denied_reason") or ""), \
+    assert _attr(span, "pseudoco-assistant.tool.decision") == "block", "missing tool decision"
+    assert "evil.example" in str(_attr(span, "pseudoco-assistant.tool.denied_reason") or ""), \
         "missing denied reason"
-    assert _attr(span, "demobot.ai_defense.event_id") == "evt-1", "missing AI Defense event id"
+    assert _attr(span, "pseudoco-assistant.ai_defense.event_id") == "evt-1", "missing AI Defense event id"
 
 
 def check_tool_span_disabled():

@@ -5,7 +5,7 @@ description: Run the observability regression test after ANY change that affects
 
 # Verify the Splunk Observability integration
 
-DemoBot emits OpenTelemetry GenAI telemetry → a **local OTel Collector**
+PseudoCo Assistant emits OpenTelemetry GenAI telemetry → a **local OTel Collector**
 (`run-collector.sh`, `otel-collector-config.yaml`) → **Splunk Observability
 Cloud** (realm `us1`). The app exports OTLP to `localhost:4317`; the collector
 forwards traces (APM) and metrics (signalfx, `send_otlp_histograms: true`).
@@ -42,12 +42,12 @@ For the **OpenClaw agentic surface** (`gen_ai` `execute_tool` spans), also run
 - `backend/telemetry/otel.py` `tool_span` / `record_tool_result`
 - `backend/routers/toolguard.py`, `backend/services/tool_policy.py`
 - `run-openclaw.sh` (the generated `diagnostics.otel` config)
-- `openclaw/plugins/demobot-toolguard/*` (the gateway plugin — sparse-excluded
+- `openclaw/plugins/pseudoco-assistant-toolguard/*` (the gateway plugin — sparse-excluded
   from the working tree; edit via `scripts/openclaw-edit.sh` and **commit**, or
   the rebuild will not pick the change up)
 It SKIPs its live-gateway tiers when the gateway is down, so it is safe to run
 without Mode C up (Tier 0 config/selftest still runs). Tier 0 runs the plugin
-selftest inside the `demobot-openclaw` image, so it SKIPs until that image has
+selftest inside the `pseudoco-assistant-openclaw` image, so it SKIPs until that image has
 been built once by `./run-openclaw.sh`.
 
 For the **NemoClaw Guardrails** surface (the policy layer in
@@ -56,7 +56,7 @@ For the **NemoClaw Guardrails** surface (the policy layer in
 - `backend/services/nemoclaw_guard.py`, `guardrails/nemoclaw/policy.yaml`
 - `backend/routers/toolguard.py` (`compose_decision`, `/nemoclaw/events`, `/observe`)
 - `nemoclaw/*`, `run-nemoclaw.sh`, `scripts/nemoclaw/ocsf_forwarder.py`
-- the plugin's `after_tool_call` observer (`openclaw/plugins/demobot-toolguard/*`)
+- the plugin's `after_tool_call` observer (`openclaw/plugins/pseudoco-assistant-toolguard/*`)
 Its live-sandbox tier SKIPs on this Mac (NemoClaw needs Docker/Colima, not podman).
 
 ## How to run
@@ -86,7 +86,7 @@ because the LangChain auto-instrumentation can't read the request model on the
 this by removing `record_genai_tokens`.
 
 ## Interpreting Splunk
-- **APM** → service `demobot-v3` → traces/agent spans (`workflow … → step
+- **APM** → service `pseudoco-assistant` → traces/agent spans (`workflow … → step
   domain → step call_model → chat`).
-- **APM → AI Agent Monitoring**, Environment `demobot-local` → Requests,
+- **APM → AI Agent Monitoring**, Environment `pseudoco-assistant-local` → Requests,
   Tokens, Latency. Token panels are fed by `gen_ai.client.token.usage`.

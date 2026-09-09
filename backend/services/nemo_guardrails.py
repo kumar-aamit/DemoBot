@@ -8,7 +8,7 @@ extra) over the same message the other guardrails see:
                    before AI Defense response inspection — Cisco stays last)
   tool calls    -> ``check_tool_call(rendered)``    (the NemoClaw policy layer)
 
-The judge for the built-in self-check rails is DemoBot's ACTIVE chat model,
+The judge for the built-in self-check rails is PseudoCo Assistant's ACTIVE chat model,
 injected via ``LLMRails(config, llm=get_chat_model(...))``, so the toggle works
 on every provider without a cloud call. NemoGuard content safety is an optional
 SECOND local NIM (``nemo_guardrails_content_safety_url``).
@@ -152,7 +152,7 @@ class NemoGuardrailsClient:
     def _build_rails(self):
         from nemoguardrails import LLMRails
 
-        # The judge: DemoBot's active chat model, deterministic and short.
+        # The judge: PseudoCo Assistant's active chat model, deterministic and short.
         judge = _judge_model(int(settings.nemo_guardrails_judge_max_tokens or 64))
         config = self._build_config()
         try:
@@ -290,7 +290,7 @@ _OLLAMA_REQUEST_KEYS = {"options", "format", "response_format", "stream", "model
 
 
 def _judge_model(max_tokens: int):
-    """The rails' judge = DemoBot's active chat model, deterministic and short.
+    """The rails' judge = PseudoCo Assistant's active chat model, deterministic and short.
 
     NeMo's LangChain adapter passes ``temperature`` / ``max_tokens`` as
     per-call kwargs. Cloud chat models absorb those; ``ChatOllama`` spreads

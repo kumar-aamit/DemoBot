@@ -1,9 +1,9 @@
 #!/bin/bash
 # Stage this Mac's secrets onto an EC2 host and bootstrap it into a running
-# DemoBot replica. Run from the Mac, inside the repo:
+# PseudoCo Assistant replica. Run from the Mac, inside the repo:
 #
 #   ./deploy/ec2/push-replica.sh --host 35.175.173.5 --replica 2
-#   ./deploy/ec2/push-replica.sh --host new.box --env-name demobot-ec2-lab
+#   ./deploy/ec2/push-replica.sh --host new.box --env-name pseudoco-assistant-ec2-lab
 #   ./deploy/ec2/push-replica.sh --host new.box --stage-only     # copy, don't build
 #
 #   # fleet mode: give this box its OWN tunnel, on a GPU instance

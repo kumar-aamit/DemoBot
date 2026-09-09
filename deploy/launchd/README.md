@@ -1,6 +1,6 @@
 # launchd service definitions (macOS)
 
-Per-user **LaunchAgents** that keep the DemoBot stack running across logout-free
+Per-user **LaunchAgents** that keep the PseudoCo Assistant stack running across logout-free
 reboots and sleep/wake, with auto-restart on crash (`KeepAlive`). These are copies
 of what gets installed under `~/Library/LaunchAgents/`.
 
@@ -17,7 +17,7 @@ of what gets installed under `~/Library/LaunchAgents/`.
 > Ollama.app once so the menu-bar daemon inherits them. These vars are read by `ollama
 > serve`, not by the app.
 
-> The plists in this directory are **templates**: they contain `__DEMOBOT_DIR__`,
+> The plists in this directory are **templates**: they contain `__PSEUDOCO_ASSISTANT_DIR__`,
 > `__HOME__`, and `__CLOUDFLARED__` placeholders instead of hardcoded absolute
 > paths, so they work regardless of where you cloned the repo. `install.sh` fills
 > in the real values for your checkout. launchd bakes absolute paths into the

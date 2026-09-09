@@ -1,5 +1,5 @@
 """The NVIDIA AI Virtual Assistant blueprint — a faithful port of
-NVIDIA-AI-Blueprints/ai-virtual-assistant's agent onto DemoBot's themes.
+NVIDIA-AI-Blueprints/ai-virtual-assistant's agent onto PseudoCo Assistant's themes.
 
 The reference graph: ``fetch_purchase_history -> primary_assistant`` which
 routes by the tool the model calls (``ToProductQAAssistant``,
@@ -23,7 +23,7 @@ ask_clarification`` when a request is ambiguous. Here, per Application Theme:
                         knowledge articles) and ``lookup_record`` (the structured
                         record) — producing internal findings.
 - ``respond``           the user-facing answer in the theme's contract. It is
-                        the same synthesizer agent as the DemoBot blueprint
+                        the same synthesizer agent as the PseudoCo Assistant blueprint
                         (agent name ``{theme}_domain_agent``), which is what
                         guarantees the governance-directive and state contract
                         the shared POST chain relies on.
@@ -83,7 +83,7 @@ def routing_mode() -> str:
 
 def _internal_override() -> Optional[str]:
     # Internal (non-user-facing) agents run on the clean Ollama model, like the
-    # DemoBot blueprint's coordinator/specialists.
+    # PseudoCo Assistant blueprint's coordinator/specialists.
     return settings.ollama_model_internal if settings.ai_provider == "ollama" else None
 
 
@@ -126,7 +126,7 @@ def parse_route(output_text: str, valid: Dict[str, str], primary_key: Optional[s
 
     ``valid`` maps tool name -> sub key. Returns (selected keys, other_talk).
     An empty/invalid plan defaults to the theme's primary specialist so a turn
-    always has an assistant (the reference raises; DemoBot degrades).
+    always has an assistant (the reference raises; PseudoCo Assistant degrades).
     """
     text = output_text or ""
     # Tool names are plain strings, so read them straight out of the JSON text:
@@ -344,7 +344,7 @@ def build_generation_core(g: StateGraph, theme_config) -> Tuple[str, str]:
     g.add_node("ask_clarification", intake_node)
     g.add_node("primary_assistant", make_primary_assistant(theme_config))
     g.add_node("sub_assistant", make_sub_assistant(theme_config))
-    # The responder IS the DemoBot synthesizer: same answer contract, directive
+    # The responder IS the PseudoCo Assistant synthesizer: same answer contract, directive
     # handling, agent name and state fields, so the shared POST chain sees no
     # difference between blueprints.
     g.add_node("respond", make_synthesizer_agent(theme_config))
@@ -365,7 +365,7 @@ BLUEPRINT = Blueprint(
         "base and a structured record lookup, then a responder answers in the theme's contract. "
         "Session analytics (summary, sentiment) are served on demand from /api/analytics."
     ),
-    workflow_name="demobot_nvidia_virtual_assistant",
+    workflow_name="pseudoco_nvidia_virtual_assistant",
     build_generation_core=build_generation_core,
     stage_labels={
         "fetch_record": "Looking up your record…",

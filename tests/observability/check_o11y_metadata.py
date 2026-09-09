@@ -189,7 +189,7 @@ def main() -> int:
         and counts.get("gen_ai.client.operation.duration", 0) > 0
         and {"input", "output"} <= ttypes
         and any(m != "unknown_model" for m in models)
-        # named agent reaches the "AI agents" view (the core fix for demobot-v3);
+        # named agent reaches the "AI agents" view (the core fix for pseudoco-assistant);
         # OpenClaw's GenAI metrics don't carry it, so --no-agent relaxes this.
         and (len(agents) > 0 or not require_agent)
         and fresh_ok

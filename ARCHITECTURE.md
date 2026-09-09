@@ -1,4 +1,4 @@
-# DemoBot v3 - System Architecture
+# PseudoCo Assistant v3 - System Architecture
 
 ## High-Level Architecture
 
@@ -39,7 +39,7 @@
 │   policy ▶ prompt_defense ▶ nemo_input_rails ▶ <core> ▶ safety  │
 │     ▶ injection ▶ compliance ▶ agent_control ▶ nemo_output_rails│
 │     ▶ response_defense ▶ governance                             │
-│   cores: demobot_multi_agent (intake ▶ [coordinator ▶           │
+│   cores: pseudoco_multi_agent (intake ▶ [coordinator ▶           │
 │          specialists] ▶ synthesizer) | nvidia_virtual_assistant │
 │          (fetch_record ▶ ask_clarification ▶ primary_assistant  │
 │           ▶ sub_assistant ▶ respond)                            │
@@ -181,7 +181,7 @@ policy -> prompt_defense -> intake -> domain(theme) -> safety
 - **Supervisor / Router** (`supervisor.py`): sets correlation IDs (`request_id`,
   `trace_id`), resolves the Application Theme, logs the input event, and routes to
   the matching theme subgraph via a conditional edge.
-- **Shared state** (`state.py`): `DemoBotState` `TypedDict` carries the turn's
+- **Shared state** (`state.py`): `PseudoCoAssistantState` `TypedDict` carries the turn's
   inputs, intermediate agent outputs, LLM usage, safety/injection flags, and the
   final `result` dict between nodes.
 - **Specialist nodes** (`nodes/`): each node wraps an existing service so the

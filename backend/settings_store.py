@@ -1,7 +1,7 @@
 """Runtime-mutable app settings, persisted in a single ``app_settings`` row.
 
 Holds the local log directory and the list of Splunk HEC destinations. This is
-DemoBot's analog of ThreatGenerator's active-config store. Tokens are kept in
+PseudoCo Assistant's analog of ThreatGenerator's active-config store. Tokens are kept in
 the JSON blob (local SQLite, gitignored) and stripped by ``mask`` before they
 ever reach an API response.
 """
@@ -158,7 +158,7 @@ _PROVIDER_FIELDS: Dict[str, List[_CredField]] = {
                    help="Only if the NIM was started behind an API-key gate."),
         _CredField("reasoning", "Reasoning (thinking) mode", boolean=True,
                    settings_attr="nvidia_reasoning",
-                   help="Nemotron 3 defaults this ON; DemoBot keeps it off so the "
+                   help="Nemotron 3 defaults this ON; PseudoCo Assistant keeps it off so the "
                         "JSON answer contract is not wrapped in a reasoning trace."),
     ],
 }
@@ -205,7 +205,7 @@ def _validate_resource_attributes(value: str) -> None:
             raise ValueError(
                 f"resource attribute {pair!r} is not key=value — expected a "
                 "comma-separated list like "
-                "'deployment.environment=demobot-local,host.name=my-box'"
+                "'deployment.environment=pseudoco-assistant-local,host.name=my-box'"
             )
         if not pair.split("=", 1)[0].strip():
             raise ValueError(f"resource attribute {pair!r} has an empty key")
@@ -240,9 +240,9 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
         _CredField("resource_attributes", "Resource attributes",
                    env="OTEL_RESOURCE_ATTRIBUTES", env_file=True, restart="app",
                    wide=True, validate=_validate_resource_attributes,
-                   placeholder="deployment.environment=demobot-local,host.name=my-box",
+                   placeholder="deployment.environment=pseudoco-assistant-local,host.name=my-box",
                    help="Comma-separated key=value list stamped on every span and "
-                        "metric. deployment.environment is what splits one DemoBot "
+                        "metric. deployment.environment is what splits one PseudoCo Assistant "
                         "instance from another in O11y — give every box in a "
                         "multi-instance workshop a distinct value. Leave "
                         "service.name alone (OTEL_SERVICE_NAME) so they stay one "
@@ -276,9 +276,9 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
                         "(the ingest token cannot call that API). Leave blank to log "
                         "turns without sessions."),
         _CredField("project", "Project", env="SPLUNK_AO_PROJECT", env_file=True, restart="collector",
-                   placeholder="DemoBot", help="Created on first ingest if it does not exist."),
+                   placeholder="PseudoCo Assistant", help="Created on first ingest if it does not exist."),
         _CredField("agent_stream", "Agent stream", env="SPLUNK_AO_AGENT_STREAM", env_file=True,
-                   restart="collector", placeholder="DemoBot",
+                   restart="collector", placeholder="PseudoCo Assistant",
                    help="Stream inside the project that this box's turns land in. Created on "
                         "first ingest."),
         _CredField("agent_control_api_key", "Agent Control API key", secret=True,
@@ -297,7 +297,7 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
         _CredField("rails", "Rails", settings_attr="nemo_guardrails_rails", wide=True,
                    placeholder="self_check_input,self_check_output,overreach",
                    help="Comma-separated: self_check_input, self_check_output (NeMo's LLM "
-                        "self-checks on the active chat model) and overreach (DemoBot's "
+                        "self-checks on the active chat model) and overreach (PseudoCo Assistant's "
                         "prescriptive-overreach output rail)."),
         _CredField("content_safety_url", "NemoGuard content-safety NIM (this host)",
                    settings_attr="nemo_guardrails_content_safety_url",
@@ -408,7 +408,7 @@ def set_ai_defense_enabled_rules_supported(supported: bool) -> bool:
 
 # ---------------------------------------------------------------------------
 # Active blueprint (which agentic architecture serves chat turns by default;
-# always demobot_multi_agent unless ACTIVE_BLUEPRINT or a PUT says otherwise)
+# always pseudoco_multi_agent unless ACTIVE_BLUEPRINT or a PUT says otherwise)
 # ---------------------------------------------------------------------------
 def get_blueprint_setting() -> Dict[str, Any]:
     from backend.agents.blueprints import get_blueprint, list_blueprints
@@ -424,7 +424,7 @@ def get_blueprint_setting() -> Dict[str, Any]:
 def set_blueprint(key: str) -> Dict[str, Any]:
     """Switch the active architecture for this process only. Deliberately NOT
     persisted: there is no Blueprint picker in the UI, so every restart comes
-    back up on the ACTIVE_BLUEPRINT default (demobot_multi_agent) rather than on
+    back up on the ACTIVE_BLUEPRINT default (pseudoco_multi_agent) rather than on
     a choice nobody can see or undo."""
     from backend.agents.blueprints import BLUEPRINTS
     from backend.config import settings

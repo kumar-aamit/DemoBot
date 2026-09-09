@@ -1,11 +1,11 @@
 ---
 name: provision-tokens
-description: Generate, populate, validate and rotate every secret DemoBot needs (Splunk O11y ingest + API tokens, Splunk Core HEC token, Agent Observability ingest token, Agent Control API key, Cisco AI Defense key, app ACCESS_KEY) — and self-configure them unattended at server/app startup from AWS SSM Parameter Store. Use when setting up a new server, when a token is missing/expired/401/403, when rotating secrets, or when asked to make token setup automatic.
+description: Generate, populate, validate and rotate every secret PseudoCo Assistant needs (Splunk O11y ingest + API tokens, Splunk Core HEC token, Agent Observability ingest token, Agent Control API key, Cisco AI Defense key, app ACCESS_KEY) — and self-configure them unattended at server/app startup from AWS SSM Parameter Store. Use when setting up a new server, when a token is missing/expired/401/403, when rotating secrets, or when asked to make token setup automatic.
 ---
 
-# Provision DemoBot tokens (self-configuring)
+# Provision PseudoCo Assistant tokens (self-configuring)
 
-DemoBot talks to **four external backends**, each gated by its own secret. This skill
+PseudoCo Assistant talks to **four external backends**, each gated by its own secret. This skill
 covers **how each token is generated, where it must land, how to validate it, and how to
 populate it unattended at startup** so no human is in the loop on a server boot.
 
@@ -19,7 +19,7 @@ populate it unattended at startup** so no human is in the loop on a server boot.
 | 4 | `SPLUNK_AO_O11Y_TOKEN` | Splunk **Agent Observability** (an O11y INGEST token) | `.env` | SDK (`backend/agent_observability.py`) + collector overlay |
 | 4b | `AGENT_CONTROL_API_KEY` | Agent Control (guardrail) | `.env` | `backend/services/agent_control.py` |
 | 5 | `AI_DEFENSE_API_KEY` | Cisco AI Defense | `.env` | `backend/services/ai_defense.py` |
-| 6 | `ACCESS_KEY` | DemoBot itself | `.env` | `backend/middleware/access_key.py` (HTTP Basic gate) |
+| 6 | `ACCESS_KEY` | PseudoCo Assistant itself | `.env` | `backend/middleware/access_key.py` (HTTP Basic gate) |
 
 **Critical:** #3 is the odd one out — it is **NOT an env var**. It lives in each host's
 SQLite blob and is normally typed into the Settings UI. It does **not** travel when you
@@ -37,7 +37,7 @@ machine-to-machine and never pass through a chat transcript, a log, or an agent'
 AWS SSM Parameter Store (SecureString, KMS-encrypted)
         │   authN via EC2 instance profile — no "secret zero" on disk
         ▼
-  bootstrap-secrets.sh   (runs before demobot-app / demobot-collector)
+  bootstrap-secrets.sh   (runs before pseudoco-assistant-app / pseudoco-assistant-collector)
         ├─► writes .env keys        (#1,2,4,4b,5,6)
         └─► PUTs HEC token via API  (#3 → settings_store + reconfigure_hec)
         ▼
@@ -73,17 +73,17 @@ The EC2 host already has an instance profile — `<INSTANCE_ROLE>` on
 ```json
 { "Version": "2012-10-17", "Statement": [
   { "Effect": "Allow", "Action": ["ssm:GetParameter","ssm:GetParameters","ssm:GetParametersByPath"],
-    "Resource": "arn:aws:ssm:us-east-1:<AWS_ACCOUNT_ID>:parameter/demobot/*" },
+    "Resource": "arn:aws:ssm:us-east-1:<AWS_ACCOUNT_ID>:parameter/pseudoco-assistant/*" },
   { "Effect": "Allow", "Action": ["kms:Decrypt"], "Resource": "*" } ]}
 ```
 
 Then seed the parameters **once** (run by a human, from a machine with the values):
 
 ```bash
-aws ssm put-parameter --name /demobot/SPLUNK_ACCESS_TOKEN --type SecureString --value "<paste>" --overwrite
+aws ssm put-parameter --name /pseudoco-assistant/SPLUNK_ACCESS_TOKEN --type SecureString --value "<paste>" --overwrite
 ```
-Repeat for `/demobot/SPLUNK_API_TOKEN`, `/demobot/GALILEO_API_KEY`,
-`/demobot/AI_DEFENSE_API_KEY`, `/demobot/ACCESS_KEY`, `/demobot/HEC_TOKEN`.
+Repeat for `/pseudoco-assistant/SPLUNK_API_TOKEN`, `/pseudoco-assistant/GALILEO_API_KEY`,
+`/pseudoco-assistant/AI_DEFENSE_API_KEY`, `/pseudoco-assistant/ACCESS_KEY`, `/pseudoco-assistant/HEC_TOKEN`.
 
 > **Parameter names still use the old env-var spelling.** The two O11y tokens were
 > renamed in `.env` (`SPLUNK_ACCESS_TOKEN` -> `O11Y_INGEST`, `SPLUNK_API_TOKEN` ->
@@ -93,13 +93,13 @@ Repeat for `/demobot/SPLUNK_API_TOKEN`, `/demobot/GALILEO_API_KEY`,
 > parameter path as separate arguments precisely so they can diverge:
 >
 > ```bash
-> set_env O11Y_INGEST /demobot/SPLUNK_ACCESS_TOKEN
-> set_env O11Y_API    /demobot/SPLUNK_API_TOKEN
-> set_env SPLUNK_AO_O11Y_TOKEN /demobot/SPLUNK_ACCESS_TOKEN   # same ingest token as O11Y_INGEST
-> set_env AGENT_CONTROL_API_KEY /demobot/GALILEO_API_KEY       # param keeps its old name
+> set_env O11Y_INGEST /pseudoco-assistant/SPLUNK_ACCESS_TOKEN
+> set_env O11Y_API    /pseudoco-assistant/SPLUNK_API_TOKEN
+> set_env SPLUNK_AO_O11Y_TOKEN /pseudoco-assistant/SPLUNK_ACCESS_TOKEN   # same ingest token as O11Y_INGEST
+> set_env AGENT_CONTROL_API_KEY /pseudoco-assistant/GALILEO_API_KEY       # param keeps its old name
 > ```
 
-*No AWS?* Fallback: a root-owned `/etc/demobot/secrets.env` (`chmod 600`) placed by config
+*No AWS?* Fallback: a root-owned `/etc/pseudoco-assistant/secrets.env` (`chmod 600`) placed by config
 management. Same bootstrap logic, weaker rotation story.
 
 ---
@@ -123,7 +123,7 @@ HEC must be **listening** first. On the app host (Splunk Enterprise at `/opt/spl
 ```bash
 sudo systemctl start Splunkd
 sudo /opt/splunk/bin/splunk http-event-collector enable -uri https://localhost:8089 -enable-ssl 1 -port 8088
-sudo /opt/splunk/bin/splunk http-event-collector create demobot-governance -index gen_ai_log -sourcetype gen_ai:json -uri https://localhost:8089
+sudo /opt/splunk/bin/splunk http-event-collector create pseudoco-assistant-governance -index gen_ai_log -sourcetype gen_ai:json -uri https://localhost:8089
 ```
 The target index must **exist** and the token must be **allowed** to write it. Without the
 admin password, create an index by writing `/opt/splunk/etc/system/local/indexes.conf`
@@ -131,12 +131,12 @@ admin password, create an index by writing `/opt/splunk/etc/system/local/indexes
 then in the token stanza set `index = <name>` plus `indexes = main,<name>`.
 Health check (no token needed): `curl -sk https://localhost:8088/services/collector/health` → **200**.
 The token is then readable from `/opt/splunk/etc/apps/splunk_httpinput/local/inputs.conf`
-(stanza `[http://demobot-governance]`) — which is what makes step 3 self-configurable.
+(stanza `[http://pseudoco-assistant-governance]`) — which is what makes step 3 self-configurable.
 
 ### 4. Splunk Agent Observability — `SPLUNK_AO_O11Y_TOKEN`
 Same INGEST token as #1 (O11y → Settings → Access Tokens, authorization = Ingest). Also set
 the non-secret `SPLUNK_AO_REALM=us1`, `SPLUNK_AO_PROJECT` / `SPLUNK_AO_AGENT_STREAM` (both
-`DemoBot`; created on first ingest).
+`PseudoCo Assistant`; created on first ingest).
 
 ### 4b. Agent Control — `AGENT_CONTROL_API_KEY`
 Console (`https://console.multitenant.galileocloud.io`) → user settings → **API Keys**. Set
@@ -155,7 +155,7 @@ openssl rand -hex 24
 ```
 Generate and store directly into SSM without displaying it:
 ```bash
-aws ssm put-parameter --name /demobot/ACCESS_KEY --type SecureString --overwrite --value "$(openssl rand -hex 24)"
+aws ssm put-parameter --name /pseudoco-assistant/ACCESS_KEY --type SecureString --overwrite --value "$(openssl rand -hex 24)"
 ```
 
 ---
@@ -165,7 +165,7 @@ aws ssm put-parameter --name /demobot/ACCESS_KEY --type SecureString --overwrite
 ### `.env` keys (#1,2,4,4b,5,6)
 Fetch from SSM and **replace in place** — never append (see Gotchas):
 ```bash
-set_env() {  # set_env KEY /demobot/PARAM   — value never printed
+set_env() {  # set_env KEY /pseudoco-assistant/PARAM   — value never printed
   local k="$1" v; v=$(aws ssm get-parameter --name "$2" --with-decryption --query Parameter.Value --output text) || return 1
   [ -n "$v" ] || return 1
   if grep -q "^${k}=" .env; then
@@ -191,25 +191,25 @@ curl -s -u x:"$KEY" -X POST http://localhost:8001/api/hec/destinations -H 'Conte
   -d '{"name":"Splunk Core (local)","url":"https://localhost:8088/services/collector/event","index":"main","source":"medadvice","sourcetype":"gen_ai:json","host":"'"$(hostname)"'","verify_tls":false,"enabled":false}'
 
 # token straight from the authoritative source — never echoed
-T=$(sudo awk '/^\[http:\/\/demobot-governance\]/{f=1} f&&/^token *=/{sub(/^token *= */,""); gsub(/[[:space:]]/,""); print; exit}' \
+T=$(sudo awk '/^\[http:\/\/pseudoco-assistant-governance\]/{f=1} f&&/^token *=/{sub(/^token *= */,""); gsub(/[[:space:]]/,""); print; exit}' \
      /opt/splunk/etc/apps/splunk_httpinput/local/inputs.conf)
 curl -s -u x:"$KEY" -X PUT http://localhost:8001/api/hec/destinations/splunk-core-ec2-local \
   -H 'Content-Type: application/json' -d "{\"token\":\"$T\",\"enabled\":true}" >/dev/null
 unset T
 ```
 `PUT` triggers `reconfigure_hec()` → the forwarder hot-restarts. **No app restart needed.**
-(Substitute `aws ssm get-parameter --name /demobot/HEC_TOKEN` for the `awk` when the token
+(Substitute `aws ssm get-parameter --name /pseudoco-assistant/HEC_TOKEN` for the `awk` when the token
 comes from SSM instead of a co-located Splunk.)
 
 ### Wiring into startup
 Run the bootstrap **before** the app in systemd:
 ```ini
-# /etc/systemd/system/demobot-app.service
+# /etc/systemd/system/pseudoco-assistant-app.service
 ExecStartPre=/home/<SSH_USER>/DemoBot/deploy/bootstrap-secrets.sh
 ExecStart=/bin/bash /home/<SSH_USER>/DemoBot/run.sh
 ```
-The HEC `PUT` must run **after** the app is listening — either a `demobot-seed.service`
-with `After=demobot-app.service`, or the app-side seed loader proposed in
+The HEC `PUT` must run **after** the app is listening — either a `pseudoco-assistant-seed.service`
+with `After=pseudoco-assistant-app.service`, or the app-side seed loader proposed in
 `docs/observability-fleet-distribution.md` §3.2 (preferred: no ordering race).
 
 ---
@@ -254,7 +254,7 @@ Full sweep: `./tests/observability/verify_observability.sh` then `GET /api/hec/s
   A host can diverge from a perfectly distributed `.env`. Prefer `.env` as authoritative.
 - **Self-signed HEC certs** on `localhost:8088` require `verify_tls:false` on the
   destination (or install a trusted cert).
-- **Changing a destination's index needs the token's permission too.** Repointing DemoBot
+- **Changing a destination's index needs the token's permission too.** Repointing PseudoCo Assistant
   to `gen_ai_log` fails unless the index exists *and* the token stanza's `indexes` allowlist
   includes it — fix both in `inputs.conf`, then restart `Splunkd`.
 - **`PUT /api/hec/destinations/{id}` resets the forwarder stats** (it calls
@@ -264,19 +264,19 @@ Full sweep: `./tests/observability/verify_observability.sh` then `GET /api/hec/s
   so the MCP will not find them. Verify EC2 indexing via
   `grep per_index_thruput /opt/splunk/var/log/splunk/metrics.log`.
 
-## NVIDIA credentials (added with the NVIDIA stack, DemoBot 4.2)
+## NVIDIA credentials (added with the NVIDIA stack, PseudoCo Assistant 4.2)
 
 | Secret | Consumer | SSM parameter | Notes |
 |---|---|---|---|
-| `NGC_API_KEY` | `deploy/ec2/ec2-bootstrap.sh --with-nim` (`docker login nvcr.io`, `/etc/demobot-nim.env`) | `/demobot/NGC_API_KEY` | Pulls `nvcr.io/nim/*` images. Not read by the app. |
-| `NVIDIA_INFERENCE_API_KEY` | `run-nemoclaw.sh` / `--with-nemoclaw` (the NemoClaw sandbox's own inference provider, `--provider build`) | `/demobot/NVIDIA_INFERENCE_API_KEY` | nvapi- key. NOT DemoBot's provider — `provider=nvidia` is a local NIM and needs no key. |
+| `NGC_API_KEY` | `deploy/ec2/ec2-bootstrap.sh --with-nim` (`docker login nvcr.io`, `/etc/pseudoco-assistant-nim.env`) | `/pseudoco-assistant/NGC_API_KEY` | Pulls `nvcr.io/nim/*` images. Not read by the app. |
+| `NVIDIA_INFERENCE_API_KEY` | `run-nemoclaw.sh` / `--with-nemoclaw` (the NemoClaw sandbox's own inference provider, `--provider build`) | `/pseudoco-assistant/NVIDIA_INFERENCE_API_KEY` | nvapi- key. NOT PseudoCo Assistant's provider — `provider=nvidia` is a local NIM and needs no key. |
 | `NVIDIA_API_KEY` | app, optional | — | Only if a local NIM was started behind an API-key gate. Usually unset. |
 
 Seed once (human, from a machine with the values):
 
 ```bash
-aws ssm put-parameter --name /demobot/NGC_API_KEY --type SecureString --overwrite --value "<paste>"
-aws ssm put-parameter --name /demobot/NVIDIA_INFERENCE_API_KEY --type SecureString --overwrite --value "<paste>"
+aws ssm put-parameter --name /pseudoco-assistant/NGC_API_KEY --type SecureString --overwrite --value "<paste>"
+aws ssm put-parameter --name /pseudoco-assistant/NVIDIA_INFERENCE_API_KEY --type SecureString --overwrite --value "<paste>"
 ```
 
 Fetch into `.env` with the same replace-in-place helper as the other keys.

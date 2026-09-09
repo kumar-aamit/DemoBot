@@ -2,7 +2,7 @@
 # Regression test for the NemoClaw Guardrails surface: the policy layer inside
 # /api/toolguard/inspect, the runtime denial feed (OCSF + after_tool_call), and
 # — when the NemoClaw sandbox is up on this host — the real sandbox's tool
-# calls reaching DemoBot's governance seat. Run after changes to
+# calls reaching PseudoCo Assistant's governance seat. Run after changes to
 # backend/services/nemoclaw_guard.py, backend/routers/toolguard.py,
 # guardrails/nemoclaw/policy.yaml, nemoclaw/, run-nemoclaw.sh or the plugin.
 #
@@ -25,24 +25,24 @@ skip() { echo "  SKIP  $1"; SKIP=$((SKIP+1)); }
 APP=http://127.0.0.1:8001
 KEY=$(grep '^ACCESS_KEY=' .env 2>/dev/null | cut -d= -f2-)
 PY=./venv/bin/python
-SANDBOX="${NEMOCLAW_SANDBOX_NAME:-demobot-nemoclaw}"
+SANDBOX="${NEMOCLAW_SANDBOX_NAME:-pseudoco-assistant-nemoclaw}"
 
 echo "== Tier 0: code-level =="
 $PY -c "import yaml,sys; p=yaml.safe_load(open('guardrails/nemoclaw/policy.yaml')); assert p['network_policies'] and p['inference']['local_only']" 2>/dev/null \
   && ok "guardrails/nemoclaw/policy.yaml parses (network_policies + local-only inference)" \
   || bad "guardrails/nemoclaw/policy.yaml invalid"
-grep -q "openclaw plugins install /opt/demobot-toolguard" nemoclaw/Dockerfile \
-  && ok "nemoclaw/Dockerfile bakes the demobot-toolguard plugin (NemoClaw's custom-image recipe)" \
+grep -q "openclaw plugins install /opt/pseudoco-assistant-toolguard" nemoclaw/Dockerfile \
+  && ok "nemoclaw/Dockerfile bakes the pseudoco-assistant-toolguard plugin (NemoClaw's custom-image recipe)" \
   || bad "nemoclaw/Dockerfile does not install the plugin"
-grep -q "__DEMOBOT_HOST__" nemoclaw/policies/demobot-guard.yaml \
-  && ok "demobot-guard policy preset uses a real host IP placeholder (not host.docker.internal)" \
-  || bad "demobot-guard preset missing the host placeholder"
+grep -q "__PSEUDOCO_ASSISTANT_HOST__" nemoclaw/policies/pseudoco-assistant-guard.yaml \
+  && ok "pseudoco-assistant-guard policy preset uses a real host IP placeholder (not host.docker.internal)" \
+  || bad "pseudoco-assistant-guard preset missing the host placeholder"
 $PY -m py_compile scripts/nemoclaw/ocsf_forwarder.py && ok "ocsf_forwarder.py compiles" || bad "ocsf_forwarder.py does not compile"
 bash -n run-nemoclaw.sh && ok "run-nemoclaw.sh syntax" || bad "run-nemoclaw.sh syntax error"
 $PY tests/test_nemoclaw_guard.py >/tmp/nemoclaw_unit.txt 2>&1 && ok "tests/test_nemoclaw_guard.py" || bad "tests/test_nemoclaw_guard.py FAILED (see /tmp/nemoclaw_unit.txt)"
 # The plugin lives in git; its selftest covers the after_tool_call observer.
 if command -v node >/dev/null; then
-  T=$(mktemp -d); git archive HEAD:openclaw/plugins/demobot-toolguard | tar -x -C "$T"
+  T=$(mktemp -d); git archive HEAD:openclaw/plugins/pseudoco-assistant-toolguard | tar -x -C "$T"
   (cd "$T" && node selftest.mjs >/tmp/nemoclaw_selftest.txt 2>&1) \
     && ok "plugin selftest (before_tool_call gate + after_tool_call observer)" \
     || bad "plugin selftest FAILED (see /tmp/nemoclaw_selftest.txt)"
@@ -79,10 +79,10 @@ else
   # Every exec below is bounded: an exec into a sandbox can hang indefinitely
   # (seen 2026-09-02: 2 h 51 min inside one Tier 2 check), and a hung verify
   # blocks everything queued behind it.
-  if timeout 60 openshell sandbox exec --name "$SANDBOX" -- sh -c 'grep -q demobot-toolguard /sandbox/.openclaw/openclaw.json' 2>/dev/null; then
-    ok "demobot-toolguard is enabled inside the sandbox"
+  if timeout 60 openshell sandbox exec --name "$SANDBOX" -- sh -c 'grep -q pseudoco-assistant-toolguard /sandbox/.openclaw/openclaw.json' 2>/dev/null; then
+    ok "pseudoco-assistant-toolguard is enabled inside the sandbox"
   else
-    bad "demobot-toolguard not enabled inside the sandbox"
+    bad "pseudoco-assistant-toolguard not enabled inside the sandbox"
   fi
   # A guard call from inside the sandbox proves the egress policy for the seat.
   # Use the guard URL the plugin was configured with (run-nemoclaw.sh --host):
@@ -91,7 +91,7 @@ else
   GUARD_URL=${GUARD_URL:-http://127.0.0.1:8001}
   echo "  sandbox guard URL: $GUARD_URL"
   if timeout 60 openshell sandbox exec --name "$SANDBOX" -- sh -c "curl -s --max-time 5 -o /dev/null -w '%{http_code}' -u x:$KEY -X POST $GUARD_URL/api/toolguard/inspect -H 'Content-Type: application/json' -d '{\"tool_name\":\"read\",\"arguments\":{\"path\":\"/sandbox/.openclaw/workspace/x\"},\"agent_surface\":\"nemoclaw\"}'" 2>/dev/null | grep -q 200; then
-    ok "sandbox can reach DemoBot's guard endpoint (demobot-guard policy applied)"
+    ok "sandbox can reach PseudoCo Assistant's guard endpoint (pseudoco-assistant-guard policy applied)"
   else
     bad "sandbox cannot reach the guard endpoint — check run-nemoclaw.sh --host and the policy preset"
   fi

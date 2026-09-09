@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Appointment scheduling — DemoBot</title>
+<title>Appointment scheduling — PseudoCo Assistant</title>
 <style>
   body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; line-height: 1.55; }
   h1, h2, h3 { color: #111827; line-height: 1.25; }
@@ -22,7 +22,7 @@
 </head>
 <body>
 <h1>Appointment scheduling</h1>
-<p>DemoBot can offer, book, list, reschedule and cancel appointments from the chat, <strong>verticalized per Application Theme</strong> — a clinician follow-up visit for MedAdvice, a tax-preparer meeting (Saturdays included) for TaxAdvice, a two-hour technician arrival window for TelecomChatbot. Bookings are persisted, visible on the <strong>My Appointments</strong> page, and every mutation is a governed action (an <code>execute_tool</code> span and a <code>tool_call</code> governance event), so the feature doubles as a demo of an agent taking a real, auditable action.</p>
+<p>PseudoCo Assistant can offer, book, list, reschedule and cancel appointments from the chat, <strong>verticalized per Application Theme</strong> — a clinician follow-up visit for MedAdvice, a tax-preparer meeting (Saturdays included) for TaxAdvice, a two-hour technician arrival window for TelecomChatbot. Bookings are persisted, visible on the <strong>My Appointments</strong> page, and every mutation is a governed action (an <code>execute_tool</code> span and a <code>tool_call</code> governance event), so the feature doubles as a demo of an agent taking a real, auditable action.</p>
 
 <h2>Principle: deterministic scheduling, LLM voice</h2>
 <p>Nothing structured is ever parsed out of model text. The suggested times, the user's intent, the booking itself and the clickable options come from code (<code>backend/services/scheduling.py</code>); the model only writes conversational wording.</p>
