@@ -21,7 +21,7 @@ NO REAL DATA. Every identifier is synthetic. The PHI values are deliberately the
 — famous fake SSNs and checksum-invalid NHS numbers are IGNORED by AI Defense, so
 a roster of obviously-fake data would make the demo silently no-op. See _VALIDATED.
 
-The exfiltration target in the planted document is DemoBot's own loopback sink
+The exfiltration target in the planted document is PseudoCo Assistant's own loopback sink
 (/api/toolguard/decoy-sink) — the trace looks identical to real exfiltration, but
 nothing can leave the host in either the guarded or the unguarded run.
 
@@ -140,7 +140,7 @@ silently by the sync tooling.
 
 
 def _readme() -> str:
-    return """# DemoBot decoy workspace
+    return """# PseudoCo Assistant decoy workspace
 
 Disposable, synthetic workspace for the OpenClaw agentic-risk demo. Everything
 here is FAKE. It exists so a governed agent can be given real tools against

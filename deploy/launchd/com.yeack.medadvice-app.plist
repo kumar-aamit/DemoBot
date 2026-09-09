@@ -5,16 +5,16 @@
     <key>Label</key>
     <string>com.yeack.medadvice-app</string>
 
-    <!-- DemoBot FastAPI app on 0.0.0.0:8001. run.sh activates venv/, exports
+    <!-- PseudoCo Assistant FastAPI app on 0.0.0.0:8001. run.sh activates venv/, exports
          SPLUNK_AO_*/OTEL_* from .env, and exec's the app under the OTel
          auto-instrumentation wrapper. Relies on relative paths -> WorkingDirectory. -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__DEMOBOT_DIR__/run.sh</string>
+        <string>__PSEUDOCO_ASSISTANT_DIR__/run.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>__DEMOBOT_DIR__</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -24,8 +24,8 @@
     <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-app.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-app.log</string>
     <key>StandardErrorPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-app.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-app.log</string>
 </dict>
 </plist>

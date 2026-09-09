@@ -7,7 +7,7 @@ description: Run the Galileo clean-vs-poisoned model-poisoning evaluation — an
 
 # Galileo Model-Poisoning Evaluation (baseline vs poisoned)
 
-Drives one curated set of **benign** patient prompts through the live DemoBot
+Drives one curated set of **benign** patient prompts through the live PseudoCo Assistant
 pipeline twice — once on the clean `mistral-nemo:12b`, once on the tampered
 `mistral-nemo:12b-poisoned` — and registers a Galileo **experiment per arm**.
 The only variable is the model artifact, so input-side scorers stay clean on both

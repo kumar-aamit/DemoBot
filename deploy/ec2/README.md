@@ -1,6 +1,6 @@
 # EC2 replica deployment
 
-The Linux counterpart to `deploy/launchd/` (which runs DemoBot on the Mac).
+The Linux counterpart to `deploy/launchd/` (which runs PseudoCo Assistant on the Mac).
 Both produce the same thing: a host serving `https://medadvice.yeackbot.com` as
 a replica of the **same named Cloudflare tunnel**, with its own telemetry
 identity.
@@ -133,24 +133,24 @@ The payload is deleted from the target once the bootstrap finishes.
 ## `deployment.environment` — the one value that must differ per replica
 
 ```
-OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-2
+OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pseudoco-assistant-ec2-2
 ```
 
 `OTEL_RESOURCE_ATTRIBUTES` is a comma-separated list of OpenTelemetry **resource
 attributes** — facts about the emitting process, attached to every span and
 metric it produces. `deployment.environment` is the standard attribute for
 "which deployment of this service is this," and it is the *only* thing
-distinguishing one DemoBot replica from another downstream. Everything else —
-`service.name=demobot-v3`, the ingest token, the realm, the tunnel — is
+distinguishing one PseudoCo Assistant replica from another downstream. Everything else —
+`service.name=pseudoco-assistant`, the ingest token, the realm, the tunnel — is
 identical across replicas by design.
 
 Current allocation:
 
 | Host | Value |
 |---|---|
-| Mac, `/Applications/DemoBot` | `demobot-local` |
-| EC2 `i-0883a0ddedf54e4e8` | `demobot-ec2-1` |
-| next replica | `demobot-ec2-2`, … |
+| Mac, `/Applications/DemoBot` | `pseudoco-assistant-local` |
+| EC2 `i-0883a0ddedf54e4e8` | `pseudoco-assistant-ec2-1` |
+| next replica | `pseudoco-assistant-ec2-2`, … |
 
 ### Why a collision is worse than it sounds
 
@@ -171,13 +171,13 @@ views, detectors, and Agent Observability agent stream all filter on
 
 ### How the bootstrap sets it
 
-The value arrives from the Mac saying `demobot-local` and must be rewritten. The
+The value arrives from the Mac saying `pseudoco-assistant-local` and must be rewritten. The
 bootstrap rewrites **only** the `deployment.environment` key inside the list,
 preserving any sibling attributes:
 
 ```
-deployment.environment=demobot-local,service.version=3.0.0
-   ->  deployment.environment=demobot-ec2-2,service.version=3.0.0
+deployment.environment=pseudoco-assistant-local,service.version=3.0.0
+   ->  deployment.environment=pseudoco-assistant-ec2-2,service.version=3.0.0
 ```
 
 It adds the key if absent, and leaves the other ~50 `.env` lines byte-identical.
@@ -186,9 +186,9 @@ Three ways to choose the value:
 
 | Invocation | Result | Use when |
 |---|---|---|
-| `--replica 2` | `demobot-ec2-2` | normal — matches the naming convention |
-| `--env-name demobot-ec2-lab` | verbatim | one-off or non-numbered box |
-| neither | `demobot-ec2-<instance-id>` from IMDS | unattended builds; guaranteed unique, ugly but collision-proof |
+| `--replica 2` | `pseudoco-assistant-ec2-2` | normal — matches the naming convention |
+| `--env-name pseudoco-assistant-ec2-lab` | verbatim | one-off or non-numbered box |
+| neither | `pseudoco-assistant-ec2-<instance-id>` from IMDS | unattended builds; guaranteed unique, ugly but collision-proof |
 
 The numbered convention is human-readable but relies on you remembering which
 numbers are taken. The IMDS default trades readability for a guarantee. Pick
@@ -197,18 +197,18 @@ in the final summary.
 
 ### Verifying the split
 
-`tests/observability/verify_observability.sh` **hard-codes `demobot-local`** as
+`tests/observability/verify_observability.sh` **hard-codes `pseudoco-assistant-local`** as
 the environment (line 76), so tier 3 queries the wrong replica and fails on any
 EC2 box even with a valid token. Run the checker directly instead — the
 bootstrap prints this line for you, filled in:
 
 ```bash
 python3 tests/observability/check_o11y_metadata.py \
-    us1 "$(grep '^O11Y_API=' .env | cut -d= -f2-)" demobot-v3 demobot-ec2-2
+    us1 "$(grep '^O11Y_API=' .env | cut -d= -f2-)" pseudoco-assistant pseudoco-assistant-ec2-2
 ```
 
 Then confirm in Splunk O11y that the new value appears as its own environment
-alongside `demobot-local`.
+alongside `pseudoco-assistant-local`.
 
 ---
 
@@ -279,14 +279,14 @@ byte-identical:
 
 | Key | Source | Why per-box |
 |---|---|---|
-| `deployment.environment` | `--replica N` → `demobot-ec2-N` | telemetry split in O11y/Agent Observability |
+| `deployment.environment` | `--replica N` → `pseudoco-assistant-ec2-N` | telemetry split in O11y/Agent Observability |
 | `ACCESS_KEY` | `deploy/ec2/access-keys.env` via `gen-access-keys.sh` | per-group credential, rotatable alone |
 | `OLLAMA_MODEL` (optional) | `--set OLLAMA_MODEL=…` | clean-vs-poisoned box splits |
 
 `gen-access-keys.sh N` maintains the key file: four-word keys
 (`goose-duck-shovel-blob` style, `secrets.choice` over a curated noun list),
 mode 600, gitignored, idempotent — an existing replica's key is never silently
-regenerated; `--rotate N` replaces exactly one. DemoBot itself has no
+regenerated; `--rotate N` replaces exactly one. PseudoCo Assistant itself has no
 generator: `backend/config.py` just reads `ACCESS_KEY` from `.env` at startup,
 so rotation requires an app restart and logs out that box's browser sessions
 (cookie = sha256 of the key).
@@ -362,13 +362,13 @@ count and prints the exact increase request.
 
 `--with-nim` installs Docker + the NVIDIA Container Toolkit (the DL base AMI has
 both), logs into `nvcr.io` with `NGC_API_KEY` (from `.env` or the payload
-overrides), runs `demobot-nim.service` and sets `AI_PROVIDER=nvidia`,
+overrides), runs `pseudoco-assistant-nim.service` and sets `AI_PROVIDER=nvidia`,
 `NVIDIA_BASE_URL`, `NVIDIA_MODEL` (an explicit `--set` still wins). First start
 pulls the image + weights (minutes). `--with-nemoclaw` runs `run-nemoclaw.sh`
 once (needs `NVIDIA_INFERENCE_API_KEY` in `.env` for the sandbox's provider) and
-installs `demobot-nemoclaw` + `demobot-nemoclaw-forwarder` units — NemoClaw
-restarts nothing after a reboot by itself. Units: `demobot-nim`,
-`demobot-nemoclaw`, `demobot-nemoclaw-forwarder`. Details: `docs/nvidia-integration.md`.
+installs `pseudoco-assistant-nemoclaw` + `pseudoco-assistant-nemoclaw-forwarder` units — NemoClaw
+restarts nothing after a reboot by itself. Units: `pseudoco-assistant-nim`,
+`pseudoco-assistant-nemoclaw`, `pseudoco-assistant-nemoclaw-forwarder`. Details: `docs/nvidia-integration.md`.
 
 ### Fleet path (the normal way)
 
@@ -395,16 +395,16 @@ wants a 150 GB volume.
   23 GB, and the standard fleet drop-in keeps ~11 GB of Ollama models resident.
   A NIM box gets `OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_KEEP_ALIVE=0`; the GPU
   warm-up check still runs (with its own 5-minute `keep_alive`), then the model
-  is unloaded and `ollama ps` must be empty before `demobot-nim` starts. Ollama
+  is unloaded and `ollama ps` must be empty before `pseudoco-assistant-nim` starts. Ollama
   stays installed with every model pulled, so the box can switch back — **stop
-  `demobot-nim` first**, or the Ollama model lands split CPU/GPU.
+  `pseudoco-assistant-nim` first**, or the Ollama model lands split CPU/GPU.
 - **The NIM starts before the app** and is waited for (up to 40 minutes, progress
   every 30 s), so the app's startup catalog probe sees NIM READY. The final
   health gate includes `/v1/health/ready` and `/v1/models`: `BOOTSTRAP_OK` on a
   NIM box means the NIM is serving.
 - **The NIM runs with 8 concurrent sequences, 0.95 GPU-memory utilization
   and 8192 tokens** (`NIM_MAX_NUM_SEQS`, `NIM_KVCACHE_PERCENT`, `NIM_MAX_MODEL_LEN`
-  in `/etc/demobot-nim.env`, passed to the container; set any of them in the
+  in `/etc/pseudoco-assistant-nim.env`, passed to the container; set any of them in the
   bootstrap's environment to change it).
   Nemotron Nano is a hybrid Mamba model: vLLM pre-allocates its SSM state cache
   for `max_num_seqs` (default 256), a flat 33.75 GiB that cannot sit next to

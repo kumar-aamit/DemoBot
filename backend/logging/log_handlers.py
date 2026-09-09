@@ -159,13 +159,13 @@ def setup_logging():
         # StreamHandler to the same logger object — which is why every governance
         # event appeared TWICE in launchd-app.log with the same event_id and the
         # same millisecond, doubling the file's growth and any line-based count.
-        if not any(getattr(h, "_demobot_governance_console", False)
+        if not any(getattr(h, "_pseudoco_assistant_governance_console", False)
                    for h in governance_logger.handlers):
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             ))
-            console_handler._demobot_governance_console = True
+            console_handler._pseudoco_assistant_governance_console = True
             governance_logger.addHandler(console_handler)
 
     return governance_logger

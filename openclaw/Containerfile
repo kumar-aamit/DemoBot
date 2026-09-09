@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenClaw gateway container — DemoBot agentic-risk demo surface
+# OpenClaw gateway container — PseudoCo Assistant agentic-risk demo surface
 # =============================================================================
 # The gateway runs in podman rather than on the host: Cisco Secure Endpoint
 # quarantines the npm-installed OpenClaw entrypoint on this machine (observed
@@ -12,7 +12,7 @@
 # there is nothing on disk for AMP to delete. Read or change it with
 # `scripts/openclaw-edit.sh`; do NOT check it out to edit it.
 #
-# Build:  git archive HEAD:openclaw | podman build -t demobot-openclaw -f Containerfile -
+# Build:  git archive HEAD:openclaw | podman build -t pseudoco-assistant-openclaw -f Containerfile -
 #         (run-openclaw.sh does this automatically when HEAD:openclaw changes;
 #          the git stream IS the build context, so nothing is written to disk)
 # Run:    ./run-openclaw.sh   (mounts config/state/workspace, publishes the
@@ -37,13 +37,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm install -g "openclaw@${OPENCLAW_VERSION}" && npm cache clean --force
 
-# The demobot-toolguard plugin (the before_tool_call governance seat) is baked
+# The pseudoco-assistant-toolguard plugin (the before_tool_call governance seat) is baked
 # in rather than bind-mounted: a mount would need a copy staged somewhere under
 # $HOME on the host, which is exactly the disk AMP watches. Copied as root, so
 # it lands read-only for the `node` user — same posture as the old :ro mount.
 # run-openclaw.sh rebuilds whenever the openclaw/ tree hash changes, so a
 # committed plugin edit still takes effect on the next start.
-COPY plugins/demobot-toolguard/ /opt/demobot-plugins/demobot-toolguard/
+COPY plugins/pseudoco-assistant-toolguard/ /opt/pseudoco-assistant-plugins/pseudoco-assistant-toolguard/
 
 # Non-root, mirroring the app Containerfile. The node base image ships a
 # `node` user (uid 1000); reuse it rather than minting another.
@@ -53,7 +53,7 @@ USER node
 # run-openclaw.sh:
 #   /home/node/.openclaw            gateway config + state (persisted)
 #   /home/node/.openclaw/workspace  the decoy workspace (~/DemoBotDecoy)
-# The plugin at /opt/demobot-plugins is baked in above, not mounted.
+# The plugin at /opt/pseudoco-assistant-plugins is baked in above, not mounted.
 ENV OPENCLAW_STATE_DIR=/home/node/.openclaw
 
 # Gateway control plane. Bind to all interfaces inside the container so the

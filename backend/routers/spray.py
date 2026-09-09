@@ -1,6 +1,6 @@
 """Prompt-injection spray campaign control endpoints.
 
-Drives a sustained, varied prompt-injection campaign through DemoBot's existing
+Drives a sustained, varied prompt-injection campaign through PseudoCo Assistant's existing
 live Cisco AI Defense path so the governance events are dense and varied enough
 to fire the ES ``AI Governance - Prompt Injection Attack Correlation - Rule``,
 accrue RBA risk against one actor, and give the ES Triage agent real evidence.

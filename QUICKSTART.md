@@ -1,4 +1,4 @@
-# DemoBot v3 - Quick Start Guide
+# PseudoCo Assistant v3 - Quick Start Guide
 
 ## Prerequisites
 - Python 3.11 or higher
@@ -8,7 +8,7 @@
 
 ### Step 1: Navigate to Project
 ```bash
-cd DemoBot   # the directory you cloned the repo into
+cd PseudoCo Assistant   # the directory you cloned the repo into
 ```
 
 ### Step 2: Setup Environment
@@ -125,7 +125,7 @@ See [deploy/launchd/README.md](deploy/launchd/README.md) for status/restart/unin
 
 ## Agentic surface (optional) — govern what an agent *does*
 
-DemoBot's chat pipeline is tool-less; this optional surface adds an **OpenClaw**
+PseudoCo Assistant's chat pipeline is tool-less; this optional surface adds an **OpenClaw**
 agent with real tools (read/write/exec/web_fetch) so you can demo agentic tool
 abuse — indirect prompt injection, PHI exfiltration — being **governed at the
 tool boundary**. Every proposed tool call is inspected by
@@ -181,7 +181,7 @@ is what makes the before/after contrast the demo.
 **Verify + stop:**
 ```bash
 ./tests/observability/verify_openclaw_observability.sh   # Tier 0 runs even with the gateway down
-podman stop demobot-openclaw                              # fully removes the integration
+podman stop pseudoco-assistant-openclaw                              # fully removes the integration
 ```
 
 > ⚠️ The guard is **fail-closed**: with `TOOL_GUARD_ENABLED=True`, if the app
@@ -347,4 +347,4 @@ For detailed information, see:
 - NOT HIPAA compliant out-of-the-box
 - Always consult real healthcare professionals
 
-Enjoy exploring DemoBot v3! 🏥
+Enjoy exploring PseudoCo Assistant v3! 🏥

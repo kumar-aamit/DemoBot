@@ -1,7 +1,7 @@
 """Knowledge retrieval for the NVIDIA AI Virtual Assistant blueprint.
 
 The reference blueprint's unstructured retriever embeds product docs with a
-NeMo Retriever embedding NIM and searches Milvus. DemoBot keeps the feature
+NeMo Retriever embedding NIM and searches Milvus. PseudoCo Assistant keeps the feature
 without the infrastructure: an in-process index over the theme's synthetic
 knowledge articles (``blueprint_data/<theme>/docs``), embedded through a LOCAL
 embedding endpoint when one is configured (``blueprint_embed_url`` — e.g. a

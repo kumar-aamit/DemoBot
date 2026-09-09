@@ -4,7 +4,7 @@
 container running on THIS host: an OpenAI-compatible server on a loopback port.
 It is deliberately NOT the hosted API catalog (build.nvidia.com) — that is a
 cloud call, and this provider exists to demonstrate on-box GPU inference. A GPU
-replica runs its own DemoBot against its own NIM; nothing here tunnels to a
+replica runs its own PseudoCo Assistant against its own NIM; nothing here tunnels to a
 remote endpoint, and a non-loopback base URL is rejected wherever it is set.
 
 Shared by the chat-model factory (backend/agents/llm.py), the legacy client
@@ -65,7 +65,7 @@ def validate_nim_base_url(url: str) -> str:
         raise ValueError(
             f"NVIDIA NIM base URL {value!r} is not on this host. provider=nvidia is "
             "local inference only: a NIM container on loopback (e.g. "
-            f"{DEFAULT_BASE_URL}). A remote GPU box runs its own DemoBot replica."
+            f"{DEFAULT_BASE_URL}). A remote GPU box runs its own PseudoCo Assistant replica."
         )
     if not value.endswith("/v1"):
         value = value + "/v1"

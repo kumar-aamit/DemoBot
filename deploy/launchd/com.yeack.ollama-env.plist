@@ -9,7 +9,7 @@
          Ollama.app inherits it. OLLAMA_KEEP_ALIVE keeps the model resident
          between turns; OLLAMA_MAX_LOADED_MODELS=3 lets the clean 8B, the
          poisoned 8B, and the 3B internal-agent model coexist (~12GB total).
-         These are read by `ollama serve`, NOT by the DemoBot app. The agent
+         These are read by `ollama serve`, NOT by the PseudoCo Assistant app. The agent
          exits after setting them (KeepAlive=false) — "exited" is expected. -->
     <key>ProgramArguments</key>
     <array>
@@ -24,8 +24,8 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-ollama-env.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-ollama-env.log</string>
     <key>StandardErrorPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-ollama-env.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-ollama-env.log</string>
 </dict>
 </plist>

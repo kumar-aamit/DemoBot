@@ -1,4 +1,4 @@
-# DemoBot — project instructions
+# PseudoCo Assistant — project instructions
 
 ## Demo Controls drawer formatting
 
@@ -73,8 +73,8 @@ palette does — which is another reason not to.
 ## Blueprint feature parity
 
 `backend/agents/blueprints/` holds the selectable agentic architectures
-(`demobot_multi_agent`, `nvidia_virtual_assistant`). The UI has **no Blueprint
-picker** — chat turns run `ACTIVE_BLUEPRINT` (`demobot_multi_agent`) unless a
+(`pseudoco_multi_agent`, `nvidia_virtual_assistant`). The UI has **no Blueprint
+picker** — chat turns run `ACTIVE_BLUEPRINT` (`pseudoco_multi_agent`) unless a
 caller overrides it per request or via `PUT /api/settings/blueprint` (runtime
 only, never persisted). A blueprint contributes only its **generation core**;
 everything else is shared and must behave identically whichever blueprint is
@@ -98,7 +98,7 @@ Rules:
   guardrail/toggle; a key in `CORE_STATE_CONTRACT` for a new field the POST
   chain reads). It runs the scenario matrix through every registered blueprint
   and fails on any divergence; `tests/run_all.sh` runs it with the rest.
-- Keys a core writes to the state must be declared on `DemoBotState` — LangGraph
+- Keys a core writes to the state must be declared on `PseudoCoAssistantState` — LangGraph
   silently drops undeclared keys.
 - Blocked turns carry the same `workflow_name`/`blueprint` identity as the happy
   path (`governance_identity_overrides`); keep passing it from every block handler.
@@ -156,7 +156,7 @@ an oversight.
 
 Semver, with the version in **two** places that must move in the same commit:
 `app_version` in `backend/config.py` and `APP_VERSION` in `.env.example`. Leave
-`app_name` (`"DemoBot v4"`) alone unless the MAJOR changes — it names the 4.x
+`app_name` (`"PseudoCo Assistant v4"`) alone unless the MAJOR changes — it names the 4.x
 line, and also appears in `run.sh`, `Containerfile`, and `requirements.txt`.
 
 Releases are annotated `vX.Y.Z` tags cut from `main` **after** the PR merges,

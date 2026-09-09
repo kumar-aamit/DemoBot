@@ -720,7 +720,7 @@ async function onEmissionChange() {
 }
 
 // ---- Blueprint (agentic architecture) — there is no picker in the UI: chat
-// turns always run the server default (DemoBot Multi-Agent, ACTIVE_BLUEPRINT).
+// turns always run the server default (PseudoCo Assistant Multi-Agent, ACTIVE_BLUEPRINT).
 // GET /api/settings/blueprint is still read so the stage labels and the
 // Multi-Agent card copy match whichever core is active. ----
 let _blueprintState = { active: '', choices: [] };

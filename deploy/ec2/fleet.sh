@@ -1,5 +1,5 @@
 #!/bin/bash
-# Manage the DemoBot GPU fleet: provision, deploy, schedule, and tear down N
+# Manage the PseudoCo Assistant GPU fleet: provision, deploy, schedule, and tear down N
 # g5.xlarge replicas in your own AWS account.
 #
 #   ./deploy/ec2/fleet.sh preflight          # quota + credentials + AMI checks

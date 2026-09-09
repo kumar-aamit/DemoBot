@@ -3,7 +3,7 @@
 The "Agent Observability Controls" toggle in the settings drawer. Submits the
 finished answer to Galileo's Agent Control server as a post-stage ``llm`` step
 and short-circuits the turn when a control returns ``deny`` — e.g. the
-``DemoBot-block-hallucinated-output`` control, which fails a response whose
+``PseudoCoAssistant-block-hallucinated-output`` control, which fails a response whose
 Galileo Correctness score falls below threshold.
 
 Runs after ``compliance`` (so it sees the final, post-injection text) and before

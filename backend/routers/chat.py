@@ -89,7 +89,7 @@ def _dispatch_chat_turn(**kwargs: Any) -> Dict[str, Any]:
 
 async def _apply_incident_mode() -> None:
     """Demo-incident fault injection: inflate latency and/or fail with 5xx so the
-    demobot-v3 APM service breaches its latency / error-rate detectors, giving
+    pseudoco-assistant APM service breaches its latency / error-rate detectors, giving
     the AI Troubleshooting Agent an alert to analyze. See backend/incident_mode.py.
     """
     if incident_mode.is_active():
@@ -97,7 +97,7 @@ async def _apply_incident_mode() -> None:
         if delay:
             await asyncio.sleep(delay)
         if incident_mode.should_error():
-            raise HTTPException(status_code=500, detail="Simulated demo incident on demobot-v3")
+            raise HTTPException(status_code=500, detail="Simulated demo incident on pseudoco-assistant")
 
 
 def _prepare_session(chat_request: ChatRequest, client_host, db: Session) -> Dict[str, Any]:

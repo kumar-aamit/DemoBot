@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # is never the hosted API catalog (build.nvidia.com) — that is a cloud call,
     # and this provider exists to demonstrate on-box GPU inference. The base URL
     # must be loopback (enforced by backend/nvidia_nim.py wherever it is set); a
-    # remote GPU box runs its own DemoBot replica against its own NIM.
+    # remote GPU box runs its own PseudoCo Assistant replica against its own NIM.
     nvidia_base_url: str = "http://localhost:8000/v1"
     # Model id the local NIM serves. A NIM serves exactly one model, so switching
     # models means running a different NIM image (deploy/ec2/ec2-bootstrap.sh
@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     nvidia_api_key: str = ""
     # Nemotron 3 reasoning ("thinking") mode. The models default it ON, which
     # spends tokens and latency and can wrap the JSON answer contract in a
-    # trace, so DemoBot sends chat_template_kwargs.enable_thinking=False unless
+    # trace, so PseudoCo Assistant sends chat_template_kwargs.enable_thinking=False unless
     # this is turned on.
     nvidia_reasoning: bool = False
     # top_p NVIDIA recommends for Nemotron 3 across tasks (temperature stays the
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
     prewarm_llm: bool = True
 
     # Application
-    app_name: str = "DemoBot v4"
+    app_name: str = "PseudoCo Assistant v4"
     app_version: str = "4.9.0"
     environment: str = "development"  # "development" or "production"
     debug: bool = True
@@ -240,7 +240,7 @@ class Settings(BaseSettings):
         "PII,PHI,PCI,Harassment,Hate Speech,Profanity,"
         "Sexual Content & Exploitation,Violence & Public Safety Threats"
     )
-    # Custom AI Defense guardrail that flags DemoBot exceeding its authority —
+    # Custom AI Defense guardrail that flags PseudoCo Assistant exceeding its authority —
     # recommending a prescription-only (non-OTC) medication, dosage, or procedure.
     # This is NOT a Cisco standard rule: it must be created as a custom guardrail
     # on the AI Defense connection (SCC policy, enforced on the response/output
@@ -259,7 +259,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Agentic tool guard (OpenClaw surface -> /api/toolguard/inspect)
     # -------------------------------------------------------------------------
-    # The OpenClaw gateway's demobot-toolguard plugin submits every proposed
+    # The OpenClaw gateway's pseudoco-assistant-toolguard plugin submits every proposed
     # agent tool call here before execution. Evaluation always runs (policy +
     # optional AI Defense) so telemetry/governance stay honest either way;
     # tool_guard_enabled only controls whether a "block" verdict actually
@@ -294,7 +294,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # NVIDIA NemoClaw governs an OpenClaw agent with an OpenShell sandbox policy
     # (deny-by-default network egress, filesystem scopes, process rules, local-
-    # only inference routing). DemoBot evaluates its copy of that policy
+    # only inference routing). PseudoCo Assistant evaluates its copy of that policy
     # (guardrails/nemoclaw/policy.yaml) on every agent tool call the gateway
     # submits to /api/toolguard/inspect — the policy layer — and, on a host that
     # runs the real NemoClaw runtime (run-nemoclaw.sh), also ingests the
@@ -313,9 +313,9 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Galileo's Agent Control server evaluates each agent step against the
     # Controls defined centrally in the Galileo console (Controls dashboard) and
-    # returns deny / steer / observe. DemoBot submits the generated response as
+    # returns deny / steer / observe. PseudoCo Assistant submits the generated response as
     # a post-stage ``llm`` step, so a matching deny control (e.g.
-    # "DemoBot-block-hallucinated-output", which fails a response whose Galileo
+    # "PseudoCoAssistant-block-hallucinated-output", which fails a response whose Galileo
     # Correctness score is below threshold) withholds the answer.
     #
     # Master switch: when False the per-request toggle is ignored and no step is
@@ -335,8 +335,8 @@ class Settings(BaseSettings):
     # Controls are attached to this agent name; the server's effective control
     # set for an evaluation is resolved from it. Must be >=10 chars, lowercase
     # [a-z0-9:_-] per the Agent Control contract.
-    galileo_agent_control_agent_name: str = "demobot-agent"
-    galileo_agent_control_step_name: str = "demobot-llm"
+    galileo_agent_control_agent_name: str = "pseudoco-assistant-agent"
+    galileo_agent_control_step_name: str = "pseudoco-assistant-llm"
     # Evaluation request timeout in seconds. Server-side controls that call a
     # Luna scorer (correctness, PII, …) are an LLM-judge round-trip, so this is
     # deliberately looser than the AI Defense inspection timeout.
@@ -347,7 +347,7 @@ class Settings(BaseSettings):
     #   server = server only (an unavailable runtime token means no verdict)
     #   client = always evaluate in-process
     # Client-side execution mirrors an Agent Control ``execution: "sdk"`` control:
-    # DemoBot reads the agent's control definitions from the management API and
+    # PseudoCo Assistant reads the agent's control definitions from the management API and
     # runs their Luna conditions itself via the console API's /scorers/invoke, so
     # enforcement does not depend on the org's runtime-token grant.
     galileo_agent_control_execution: str = "auto"
@@ -370,7 +370,7 @@ class Settings(BaseSettings):
     # which drags starlette past the fastapi 0.109 pin). Input rails run after
     # Cisco AI Defense's prompt inspection; output rails run after
     # Agent Control and BEFORE AI Defense's response inspection, so Cisco stays
-    # the last word on output. The judge is DemoBot's ACTIVE chat model
+    # the last word on output. The judge is PseudoCo Assistant's ACTIVE chat model
     # (self-check rails), so this works on every provider with no cloud call;
     # NemoGuard content-safety is an optional SECOND local NIM.
     #
@@ -379,7 +379,7 @@ class Settings(BaseSettings):
     nemo_guardrails_enabled: bool = False
     # Which rails to activate, comma-separated. self_check_input /
     # self_check_output are NeMo's built-in LLM self-checks (prompts in
-    # guardrails/nemo/prompts.yml); overreach is DemoBot's prescriptive-
+    # guardrails/nemo/prompts.yml); overreach is PseudoCo Assistant's prescriptive-
     # overreach output rail, the NeMo counterpart of the AI Defense custom
     # guardrail (a prescription-only drug / dosage / binding position).
     nemo_guardrails_rails: str = "self_check_input,self_check_output,overreach"
@@ -408,15 +408,15 @@ class Settings(BaseSettings):
     # traces by this workflow name in Splunk Observability Cloud). Since the
     # blueprints, each blueprint carries its own workflow_name; this remains
     # the fallback for callers that predate them.
-    agentic_workflow_name: str = "demobot_multi_agent"
+    agentic_workflow_name: str = "pseudoco_multi_agent"
     # Which agentic architecture serves chat turns by default. There is no
     # picker in the UI, so this (or a per-request override) is the only way to
-    # leave it. Keys: demobot_multi_agent (the shipped architecture) |
+    # leave it. Keys: pseudoco_multi_agent (the shipped architecture) |
     # nvidia_virtual_assistant (the NVIDIA AI Virtual Assistant blueprint). A
     # request may override it with ChatRequest.blueprint. Every guardrail /
     # toggle / governance field is shared by all blueprints (CLAUDE.md
     # "Blueprint feature parity").
-    active_blueprint: str = "demobot_multi_agent"
+    active_blueprint: str = "pseudoco_multi_agent"
     # NVIDIA AI Virtual Assistant blueprint knobs.
     # How the primary assistant routes to sub-assistants: auto = native tool
     # calling when the provider supports it (anthropic/openai/bedrock/nvidia),
@@ -437,7 +437,7 @@ class Settings(BaseSettings):
     # (e.g. OTEL_EXPORTER_OTLP_ENDPOINT). When no endpoint is configured and
     # debug is on, spans are printed to the console.
     otel_enabled: bool = False
-    otel_service_name: str = "demobot-v3"
+    otel_service_name: str = "pseudoco-assistant"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,7 +1,7 @@
 {
-  "id": "demobot-toolguard",
-  "name": "DemoBot Tool Guard",
-  "description": "Governed before_tool_call: DemoBot tool policy + NemoClaw policy layer + Cisco AI Defense inspect every agent tool call before execution; after_tool_call reports sandbox policy denials",
+  "id": "pseudoco-assistant-toolguard",
+  "name": "PseudoCo Assistant Tool Guard",
+  "description": "Governed before_tool_call: PseudoCo Assistant tool policy + NemoClaw policy layer + Cisco AI Defense inspect every agent tool call before execution; after_tool_call reports sandbox policy denials",
   "version": "1.1.0",
   "activation": {
     "onStartup": true
@@ -15,11 +15,11 @@
     "properties": {
       "guardUrl": {
         "type": "string",
-        "description": "Base URL of the DemoBot app as seen from the gateway/sandbox, e.g. http://host.containers.internal:8001 (podman) or http://<host ip>:8001 (NemoClaw)"
+        "description": "Base URL of the PseudoCo Assistant app as seen from the gateway/sandbox, e.g. http://host.containers.internal:8001 (podman) or http://<host ip>:8001 (NemoClaw)"
       },
       "accessKey": {
         "type": "string",
-        "description": "DemoBot ACCESS_KEY (sent as HTTP Basic password)"
+        "description": "PseudoCo Assistant ACCESS_KEY (sent as HTTP Basic password)"
       },
       "failOpen": {
         "type": "boolean",

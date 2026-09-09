@@ -17,7 +17,7 @@
 #   openclaw-edit.sh         <path>               edit and stage it ($EDITOR)
 #   openclaw-edit.sh --apply-sparse               (re)apply the sparse config
 #
-# <path> is repo-relative, e.g. openclaw/plugins/demobot-toolguard/index.js.
+# <path> is repo-relative, e.g. openclaw/plugins/pseudoco-assistant-toolguard/index.js.
 # Edits land STAGED; commit them. run-openclaw.sh builds the image from
 # HEAD:openclaw, so a change reaches the gateway once committed, not once staged.
 # =============================================================================

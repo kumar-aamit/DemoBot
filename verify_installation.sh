@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# DemoBot v3 - Installation Verification Script
+# PseudoCo Assistant v3 - Installation Verification Script
 
 echo "╔════════════════════════════════════════════════╗"
-echo "║   DemoBot v3 - Installation Verification    ║"
+echo "║   PseudoCo Assistant v3 - Installation Verification    ║"
 echo "╚════════════════════════════════════════════════╝"
 echo ""
 

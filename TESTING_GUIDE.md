@@ -1,8 +1,8 @@
-# DemoBot v3 - Testing Guide
+# PseudoCo Assistant v3 - Testing Guide
 
 ## Overview
 
-This guide provides comprehensive testing scenarios to validate all features of DemoBot v3, including AI governance logging, escalation triggers, and safety mechanisms.
+This guide provides comprehensive testing scenarios to validate all features of PseudoCo Assistant v3, including AI governance logging, escalation triggers, and safety mechanisms.
 
 ## Test Environment Setup
 
@@ -20,7 +20,7 @@ curl http://localhost:8001/health
 # Expected response:
 {
   "status": "healthy",
-  "app": "DemoBot v3",
+  "app": "PseudoCo Assistant v3",
   "version": "3.0.0",
   "environment": "development"
 }

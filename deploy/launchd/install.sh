@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install DemoBot's launchd user agents, with every path auto-filled for THIS
+# Install PseudoCo Assistant's launchd user agents, with every path auto-filled for THIS
 # checkout — so it works no matter where you cloned the repo. Idempotent:
 # safe to re-run, and you MUST re-run it after moving/renaming the repo (a venv
 # and these agents both bake in absolute paths that a move invalidates).
@@ -9,7 +9,7 @@
 #   ./deploy/launchd/install.sh --with-openclaw   # also install the OpenClaw
 #                                          # agentic-surface gateway (opt-in)
 #
-# The plists in this directory are TEMPLATES containing __DEMOBOT_DIR__ /
+# The plists in this directory are TEMPLATES containing __PSEUDOCO_ASSISTANT_DIR__ /
 # __HOME__ / __CLOUDFLARED__ placeholders; this script substitutes real values
 # and writes the result to ~/Library/LaunchAgents/.
 set -euo pipefail
@@ -52,7 +52,7 @@ fi
 for svc in "${services[@]}"; do
   src="$REPO/deploy/launchd/com.yeack.medadvice-$svc.plist"
   dst="$DEST/com.yeack.medadvice-$svc.plist"
-  sed -e "s|__DEMOBOT_DIR__|$REPO|g" \
+  sed -e "s|__PSEUDOCO_ASSISTANT_DIR__|$REPO|g" \
       -e "s|__HOME__|$HOME|g" \
       -e "s|__CLOUDFLARED__|${CLOUDFLARED:-/opt/homebrew/bin/cloudflared}|g" \
       "$src" > "$dst"

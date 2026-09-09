@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Galileo A/B experiment: clean vs model-POISONED Mistral NeMo on DemoBot.
+"""Galileo A/B experiment: clean vs model-POISONED Mistral NeMo on PseudoCo Assistant.
 
 Runs one curated golden set of *benign* patient prompts through the live
-DemoBot pipeline twice — once on the clean ``mistral-nemo:12b`` and once on the
+PseudoCo Assistant pipeline twice — once on the clean ``mistral-nemo:12b`` and once on the
 tampered ``mistral-nemo:12b-poisoned`` artifact (build it first with
 scripts/demo/build_poisoned_model.sh) — and scores both as first-class Galileo
 experiments with a shared metric set (built-in scorers + 3 custom LLM-as-judge
@@ -300,7 +300,7 @@ def main() -> int:
         if h.status_code != 200:
             print(f"FATAL: {base}/health -> {h.status_code}. Is the app running?")
             return 2
-        print(f"DemoBot reachable at {base} (auth={'yes' if auth else 'none'})")
+        print(f"PseudoCo Assistant reachable at {base} (auth={'yes' if auth else 'none'})")
 
         # Make sure the freshly-built poisoned model is in the catalog dropdown.
         client.post(f"{base}/api/settings/ai-provider/refresh", auth=auth)

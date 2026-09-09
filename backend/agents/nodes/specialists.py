@@ -6,7 +6,7 @@ emits its own AgentInvocation span -> the multi-agent trace shows one span per
 specialist in Splunk AI Agent Monitoring / Agent Observability.
 
 Design notes:
-- Sequential (not LangGraph parallel ``Send``) because ``DemoBotState`` has no
+- Sequential (not LangGraph parallel ``Send``) because ``PseudoCoAssistantState`` has no
   merge reducers; parallel writes to ``agent_trace`` / token sums would clobber.
 - Continue-on-partial-failure: a specialist that raises is recorded with
   ``status="error"`` and the turn proceeds; the stage only short-circuits if

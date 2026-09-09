@@ -13,11 +13,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__DEMOBOT_DIR__/run-openclaw.sh</string>
+        <string>__PSEUDOCO_ASSISTANT_DIR__/run-openclaw.sh</string>
         <string>--foreground</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>__DEMOBOT_DIR__</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -34,8 +34,8 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-openclaw.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-openclaw.log</string>
     <key>StandardErrorPath</key>
-    <string>__DEMOBOT_DIR__/logs/launchd-openclaw.log</string>
+    <string>__PSEUDOCO_ASSISTANT_DIR__/logs/launchd-openclaw.log</string>
 </dict>
 </plist>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add a second logs fan-out from DemoBot into the TA-gen_ai_cim index on a
+"""Add a second logs fan-out from PseudoCo Assistant into the TA-gen_ai_cim index on a
 Splunk ES demo box, alongside the existing O11y Cloud workshop path.
 
 Needs its own pipeline, not just another exporter: resource/workshop_logs
@@ -29,7 +29,7 @@ PROCESSOR = """  # Second log destination: the TA-gen_ai_cim index on the Splunk
         value: "${env:WORKSHOP_ENVIRONMENT}"
         action: upsert
       - key: service.name
-        value: demobot
+        value: pseudoco-assistant
         action: upsert
       - key: host.name
         value: "${env:WORKSHOP_ENVIRONMENT}.yeackbot.com"
@@ -50,16 +50,16 @@ EXPORTER = """  # Direct HEC into the ES demo box's gen_ai_log index (TA-gen_ai_
     endpoint: "${env:GENAI_HEC_URL}"
     index: "${env:GENAI_HEC_INDEX}"
     source: "${env:WORKSHOP_ENVIRONMENT}"
-    sourcetype: "demobot:governance"
+    sourcetype: "pseudoco-assistant:governance"
     retry_on_failure:
       enabled: true
 
 """
 
-PIPELINE = """    # DemoBot logs -> ES demo box HEC -> gen_ai_log (TA-gen_ai_cim).
+PIPELINE = """    # PseudoCo Assistant logs -> ES demo box HEC -> gen_ai_log (TA-gen_ai_cim).
     # Shares the filelog receiver instance with the workshop pipeline.
     logs/gen_ai_cim:
-      receivers: [filelog/demobot, otlp]
+      receivers: [filelog/pseudoco-assistant, otlp]
       processors: [resource/gen_ai_cim, batch]
       exporters: [splunk_hec/gen_ai_cim]
 """

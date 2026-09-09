@@ -1,11 +1,11 @@
 ---
 name: fan-tunnel-to-agent-observability
-description: Fan a DemoBot public tunnel's (medadviceN.yeackbot.com) LLM telemetry into a Splunk Agent Observability project so chat turns land as traces with governance metadata. Use when asked to "send this box's traces to Agent Observability" (or "to Galileo"), to point a replica at a specific project / agent stream, or to verify why a box shows no traces in Agent Observability.
+description: Fan a PseudoCo Assistant public tunnel's (medadviceN.yeackbot.com) LLM telemetry into a Splunk Agent Observability project so chat turns land as traces with governance metadata. Use when asked to "send this box's traces to Agent Observability" (or "to Galileo"), to point a replica at a specific project / agent stream, or to verify why a box shows no traces in Agent Observability.
 ---
 
-# Fan a DemoBot tunnel's LLM telemetry into Splunk Agent Observability
+# Fan a PseudoCo Assistant tunnel's LLM telemetry into Splunk Agent Observability
 
-Takes a running DemoBot replica behind `medadviceN.yeackbot.com` and makes its
+Takes a running PseudoCo Assistant replica behind `medadviceN.yeackbot.com` and makes its
 chat turns appear in a named Splunk Agent Observability project + agent stream.
 Agent Observability is hosted in Splunk Observability Cloud (realm `us1`); the
 console is `https://app.us1.signalfx.com/#/agent-obs`. Sibling of
@@ -56,8 +56,8 @@ Consequences worth knowing before you debug anything:
 | Input | Example | Where it comes from |
 |---|---|---|
 | Tunnel | `https://medadvice1.yeackbot.com/app` | the assignment row |
-| Project | `DemoBot` | `SPLUNK_AO_PROJECT` — created on first ingest, nothing to pre-create |
-| Agent stream | `DemoBot` | `SPLUNK_AO_AGENT_STREAM` — created on first ingest (the API still calls it a `log_stream`) |
+| Project | `PseudoCo Assistant` | `SPLUNK_AO_PROJECT` — created on first ingest, nothing to pre-create |
+| Agent stream | `PseudoCo Assistant` | `SPLUNK_AO_AGENT_STREAM` — created on first ingest (the API still calls it a `log_stream`) |
 | Realm | `us1` | `SPLUNK_AO_REALM` — the Observability Cloud realm |
 | Token | (in the Mac's `.env`, gitignored) | `SPLUNK_AO_O11Y_TOKEN` — an Observability Cloud **INGEST** token, usually the same value as `O11Y_INGEST` |
 | Console | `https://app.us1.signalfx.com/#/agent-obs` | browser address bar |
@@ -69,8 +69,8 @@ Box `demobot-N` serves `medadviceN.yeackbot.com`. Find its IP — never hand-der
 ```
 
 SSH is `ubuntu@<ip>` port 22 with `~/.ssh/demobot_ec2`. (The *shared lab* box
-from `[[demobot-ec2-deployment]]` is `splunk`@2222 — different machine, different
-convention. See `[[demobot-gpu-fleet]]`.)
+from `[[pseudoco-assistant-ec2-deployment]]` is `splunk`@2222 — different machine, different
+convention. See `[[pseudoco-assistant-gpu-fleet]]`.)
 
 ## Step 0 — is it already wired?
 
@@ -92,8 +92,8 @@ Want:
 ```
 SPLUNK_AO_REALM=us1
 SPLUNK_AO_O11Y_TOKEN=<redacted>
-SPLUNK_AO_PROJECT=DemoBot
-SPLUNK_AO_AGENT_STREAM=DemoBot
+SPLUNK_AO_PROJECT=PseudoCo Assistant
+SPLUNK_AO_AGENT_STREAM=PseudoCo Assistant
 ```
 
 If those four are present and correct, skip to **Step 3 (verify)**. If
@@ -127,7 +127,7 @@ cd /Applications/DemoBot
 export T=$(grep '^O11Y_API=' .env | cut -d= -f2-)
 
 # project id by name
-curl -s "https://app.us1.observability.splunkcloud.com/ao/api/projects?project_name=DemoBot&type=gen_ai" -H "X-SF-Token: $T"
+curl -s "https://app.us1.observability.splunkcloud.com/ao/api/projects?project_name=PseudoCo Assistant&type=gen_ai" -H "X-SF-Token: $T"
 
 # its agent streams (the API calls them log_streams)
 curl -s "https://app.us1.observability.splunkcloud.com/ao/api/v2/projects/<id>/log_streams" -H "X-SF-Token: $T"
@@ -148,8 +148,8 @@ next `push-replica.sh`.
 ```
 SPLUNK_AO_REALM=us1
 SPLUNK_AO_O11Y_TOKEN=<Observability Cloud INGEST token — usually the O11Y_INGEST value>
-SPLUNK_AO_PROJECT=DemoBot
-SPLUNK_AO_AGENT_STREAM=DemoBot
+SPLUNK_AO_PROJECT=PseudoCo Assistant
+SPLUNK_AO_AGENT_STREAM=PseudoCo Assistant
 ```
 
 The token is explicit: there is **no fallback to `O11Y_INGEST`**. Both paths key
@@ -163,7 +163,7 @@ this is the checklist for a box built from an older bootstrap:
    (`SPLUNK_AO_REALM`, `SPLUNK_AO_O11Y_TOKEN`, `SPLUNK_AO_PROJECT`,
    `SPLUNK_AO_AGENT_STREAM`), layers `otel-collector-agent-obs.yaml` with a
    second `--config` only when the token is set, prints
-   `Agent Observability trace fan-out: on -> ingest.us1.observability.splunkcloud.com (project=DemoBot, agent stream=DemoBot)`,
+   `Agent Observability trace fan-out: on -> ingest.us1.observability.splunkcloud.com (project=PseudoCo Assistant, agent stream=PseudoCo Assistant)`,
    *and* passes the keys on the container-fallback `run` line with exactly:
    ```
      -e SPLUNK_AO_REALM -e SPLUNK_AO_O11Y_TOKEN -e SPLUNK_AO_PROJECT -e SPLUNK_AO_AGENT_STREAM \
@@ -182,10 +182,10 @@ Ship and restart:
 cd /Applications/DemoBot
 ./deploy/ec2/push-replica.sh --host <ip> --replica N     # or edit .env on the box
 ssh -i ~/.ssh/demobot_ec2 ubuntu@<ip> \
-  'sudo systemctl restart demobot-collector demobot-app'
+  'sudo systemctl restart pseudoco-assistant-collector pseudoco-assistant-app'
 ```
 
-Restarting `demobot-app` drops in-memory chat sessions. Don't do it mid-demo.
+Restarting `pseudoco-assistant-app` drops in-memory chat sessions. Don't do it mid-demo.
 
 ## Step 3 — verify
 
@@ -208,11 +208,11 @@ ssh -i ~/.ssh/demobot_ec2 ubuntu@<ip> 'sleep 15
   curl -s http://localhost:8888/metrics \
     | grep -E "otelcol_(exporter_(sent|send_failed)_spans|processor_filter_spans_filtered)"
 
-  # Path A — SDK. Want "logged turn (... project=DemoBot, agent_stream=DemoBot, export=healthy)".
-  sudo journalctl -u demobot-app --since "5 minutes ago" --no-pager | grep -i "agent observability" | tail -4
+  # Path A — SDK. Want "logged turn (... project=PseudoCo Assistant, agent_stream=PseudoCo Assistant, export=healthy)".
+  sudo journalctl -u pseudoco-assistant-app --since "5 minutes ago" --no-pager | grep -i "agent observability" | tail -4
 
   # collector-side rejections, if any
-  sudo journalctl -u demobot-collector --since "5 minutes ago" --no-pager | grep -iE "agent_obs|error"'
+  sudo journalctl -u pseudoco-assistant-collector --since "5 minutes ago" --no-pager | grep -iE "agent_obs|error"'
 ```
 
 A healthy result looks like:
@@ -220,8 +220,8 @@ A healthy result looks like:
 ```
 otelcol_exporter_sent_spans{exporter="otlphttp/agent_obs",server_address="ingest.us1.observability.splunkcloud.com",url_path="/v2/trace/otlp"} 20
 otelcol_processor_filter_spans_filtered{filter="filter/genai_only"} 199
-... backend.agent_observability - INFO - agent observability: logger ready (realm=us1, project=DemoBot, agent_stream=DemoBot)
-... backend.agent_observability - INFO - agent observability: logged turn (model=..., agents=1, project=DemoBot, agent_stream=DemoBot, export=healthy)
+... backend.agent_observability - INFO - agent observability: logger ready (realm=us1, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant)
+... backend.agent_observability - INFO - agent observability: logged turn (model=..., agents=1, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant, export=healthy)
 ```
 
 `logger ready` is printed once, at first use after a start; `logged turn` once
@@ -240,7 +240,7 @@ curl -s -X POST "https://app.us1.observability.splunkcloud.com/ao/api/v2/project
 
 The newest trace should be within seconds of the turn you just sent. In the
 console (`https://app.us1.signalfx.com/#/agent-obs`):
-**Agent Observability > DemoBot > Agent Stream: DemoBot**.
+**Agent Observability > PseudoCo Assistant > Agent Stream: PseudoCo Assistant**.
 
 ## Gotchas
 
@@ -261,11 +261,11 @@ console (`https://app.us1.signalfx.com/#/agent-obs`):
   line is.
 - `otlphttp` warns as a deprecated alias (`otlp_http`) on otelcol-contrib 0.157.0.
   Harmless; don't "fix" it and break the config on older binaries.
-- Restarting `demobot-collector` resets the `:8888` counters to zero. A zero after
+- Restarting `pseudoco-assistant-collector` resets the `:8888` counters to zero. A zero after
   a restart proves nothing until you send a turn.
 
 ## Applied instances
 
 | Tunnel | EC2 | Project | Agent stream | Verified |
 |---|---|---|---|---|
-| medadvice1.yeackbot.com | (same instance) | `DemoBot` | `DemoBot` | re-verify after migration |
+| medadvice1.yeackbot.com | (same instance) | `PseudoCo Assistant` | `PseudoCo Assistant` | re-verify after migration |

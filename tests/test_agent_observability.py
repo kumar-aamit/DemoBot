@@ -7,7 +7,7 @@ SPLUNK_AO_REALM (or with the SDK kill switch set) emission is a silent no-op and
 never raises into a chat turn; (2) the shape of the emitted trace (one chat_turn
 workflow root, one agent + llm span per agent_trace record, governance metadata on
 every span, back-dated timestamps); (3) the worker lifecycle (one logger per
-process, sessions cached per DemoBot session, dangling-parent recovery, build and
+process, sessions cached per PseudoCo Assistant session, dangling-parent recovery, build and
 session failures backed off, reconfigure retires the logger, bounded queue drops
 instead of blocking, shutdown terminates); (4) the collector + app wiring, so the
 integration can't regress into breaking requests or losing its export path.
@@ -251,8 +251,8 @@ check("start_trace carries name, external_id and the back-dated created_at",
 _spans = [c for c in fake.calls if c[0] in ("add_workflow_span", "add_agent_span", "add_llm_span")]
 check("governance metadata (pii_detected) rides on every span",
       all(c[1].get("metadata", {}).get("pii_detected") is True for c in _spans))
-check("demobot_trace_id rides on every span (joins the trace to APM / governance logs)",
-      all(c[1].get("metadata", {}).get("demobot_trace_id") == "tid-1" for c in _spans))
+check("pseudoco_assistant_trace_id rides on every span (joins the trace to APM / governance logs)",
+      all(c[1].get("metadata", {}).get("pseudoco_assistant_trace_id") == "tid-1" for c in _spans))
 _agents = [c for c in fake.calls if c[0] == "add_agent_span"]
 check("coordinator agent span tagged with the supervisor AgentType",
       getattr(_agents[0][1].get("agent_type"), "value", None) == "supervisor")
@@ -304,10 +304,10 @@ ao.maybe_log_turn(_turn(request_id="rid2"))
 check("worker drains both turns", ao._drain_for_tests(5.0))
 check("exactly one SplunkAOLogger per process", len(_FakeLogger.instances) == 1)
 lg = _FakeLogger.instances[0]
-check("project / agent stream default to DemoBot when env unset",
-      lg.project_name == "DemoBot" and lg.agent_stream_name == "DemoBot")
+check("project / agent stream default to PseudoCo Assistant when env unset",
+      lg.project_name == "PseudoCo Assistant" and lg.agent_stream_name == "PseudoCo Assistant")
 _sessions = [c for c in lg.calls if c[0] == "start_session"]
-check("start_session called once per DemoBot session (cache reuse) with the external id",
+check("start_session called once per PseudoCo Assistant session (cache reuse) with the external id",
       len(_sessions) == 1 and _sessions[0][1].get("external_id") == "sess-abc"
       and _sessions[0][1].get("name") == "chat session sess-abc")
 _n = _names(lg.calls)
@@ -318,7 +318,7 @@ check("each turn ends with conclude, flush", _n[-2:] == ["conclude", "flush"])
 _info = _cap.messages(logging.INFO, "logged turn")
 check("INFO log line per turn with model / agents / project / stream / export",
       len(_info) == 2 and _info[-1].getMessage()
-      == "agent observability: logged turn (model=m, agents=3, project=DemoBot, agent_stream=DemoBot, export=healthy)")
+      == "agent observability: logged turn (model=m, agents=3, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant, export=healthy)")
 check("logger-ready line logged once", len(_cap.messages(logging.INFO, "logger ready")) == 1)
 check("status() counts logged turns", ao.status()["turns_logged"] == 2 and ao.status()["logger_ready"] is True)
 

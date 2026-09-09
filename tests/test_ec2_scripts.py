@@ -82,16 +82,16 @@ def test_bootstrap_vram_handling() -> None:
     check('"keep_alive":"5m"' in text.replace("\\", ""), "warm-up request pins its own keep_alive (daemon default may be 0)")
     flat = text.replace("\\", "")          # the JSON is inside a double-quoted bash string
     unload = flat.find('"keep_alive":0')
-    nim_start = flat.find("sudo systemctl enable --now demobot-nim")
-    check(unload > 0 and nim_start > 0 and unload < nim_start, "the warm-up model is unloaded before demobot-nim starts")
+    nim_start = flat.find("sudo systemctl enable --now pseudoco-assistant-nim")
+    check(unload > 0 and nim_start > 0 and unload < nim_start, "the warm-up model is unloaded before pseudoco-assistant-nim starts")
 
 
 def test_bootstrap_start_order_and_gate() -> None:
     print("== bootstrap: NIM before the app, and in the health gate ==")
     text = BOOTSTRAP.read_text()
-    nim_start = text.find("sudo systemctl enable --now demobot-nim")
-    app_start = text.find("sudo systemctl enable --now demobot-collector demobot-app demobot-tunnel")
-    check(0 < nim_start < app_start, "demobot-nim is started (and waited for) before the app stack")
+    nim_start = text.find("sudo systemctl enable --now pseudoco-assistant-nim")
+    app_start = text.find("sudo systemctl enable --now pseudoco-assistant-collector pseudoco-assistant-app pseudoco-assistant-tunnel")
+    check(0 < nim_start < app_start, "pseudoco-assistant-nim is started (and waited for) before the app stack")
     check('check "nim      /v1/health/ready"' in text, "final verify gates on /v1/health/ready when WITH_NIM")
     check('check "nim      /v1/models"' in text, "final verify gates on /v1/models when WITH_NIM")
     # Credentials are checked in the payload preflight (step 0), not 20 min later.
@@ -114,14 +114,14 @@ def test_bootstrap_start_order_and_gate() -> None:
     vn = (ROOT / "tests/observability/verify_nemoclaw_observability.sh").read_text()
     bare = [l for l in (rn + vn).splitlines() if "openshell sandbox exec" in l and "timeout " not in l and not l.lstrip().startswith("#")]
     check(not bare, f"every openshell sandbox exec is bounded by timeout ({len(bare)} unbounded)")
-    pr = "\n".join(l for l in (ROOT / "nemoclaw/policies/demobot-guard.yaml").read_text().splitlines()
+    pr = "\n".join(l for l in (ROOT / "nemoclaw/policies/pseudoco-assistant-guard.yaml").read_text().splitlines()
                    if not l.lstrip().startswith("#"))     # YAML keys only, not the commentary
-    check("preset:" in pr and "network_policies:" in pr and "allowed_ips" not in pr and "__DEMOBOT_HOST__" in pr,
-          "demobot-guard preset uses NemoClaw's preset schema (preset header, network_policies) without allowed_ips")
+    check("preset:" in pr and "network_policies:" in pr and "allowed_ips" not in pr and "__PSEUDOCO_ASSISTANT_HOST__" in pr,
+          "pseudoco-assistant-guard preset uses NemoClaw's preset schema (preset header, network_policies) without allowed_ips")
     # NemoClaw onboarding needs the app up and the inference key in its env.
-    onb = text[text.find('onboarding the NemoClaw sandbox'):text.find('sudo systemctl enable demobot-nemoclaw')]
-    check("localhost:8001/health" in onb and "/etc/demobot-nemoclaw.env" in onb and "set -a" in onb,
-          "NemoClaw onboarding waits for /health and exports /etc/demobot-nemoclaw.env first")
+    onb = text[text.find('onboarding the NemoClaw sandbox'):text.find('sudo systemctl enable pseudoco-assistant-nemoclaw')]
+    check("localhost:8001/health" in onb and "/etc/pseudoco-assistant-nemoclaw.env" in onb and "set -a" in onb,
+          "NemoClaw onboarding waits for /health and exports /etc/pseudoco-assistant-nemoclaw.env first")
     # The NIM must not start at its 131072-token default on a 24 GB card (CUDA
     # OOM in vLLM's profiling pass, restart loop, never ready — 2026-09-02).
     check("NIM_ALREADY_UP" in text and "skipping the Ollama placement check" in text,

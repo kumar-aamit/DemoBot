@@ -252,7 +252,7 @@ def run(check, sched, THEMES, slots, NOW, TZ):
         # --- shared-chain touches -----------------------------------------------
         from backend.agents.nodes.safety import safety_node
         from backend.agents.nodes.clarify import intake_node
-        from backend.agents.blueprints.demobot_multi_agent import _route_after_intake
+        from backend.agents.blueprints.pseudoco_multi_agent import _route_after_intake
         from backend.agents.blueprints.nvidia_virtual_assistant import make_primary_assistant
         intent_state = base_state(user_message="I want to see a doctor, please cancel my appointment",
                                   scheduling_context={"enabled": True, "action": {"action": "cancel"}})

@@ -1,4 +1,4 @@
-# Judge prompts for the NeMo rails DemoBot activates (see config.yml).
+# Judge prompts for the NeMo rails PseudoCo Assistant activates (see config.yml).
 #
 # self_check_input / self_check_output follow NeMo's built-in contract: the
 # judge answers "Yes" to BLOCK and "No" to allow. They are tuned for a governed
@@ -7,7 +7,7 @@
 # not be blocked — the rails catch jailbreaks, prompt injection, exfiltration
 # attempts and harmful content, not the domain itself.
 #
-# The overreach variant is DemoBot's prescriptive-overreach rail: the NeMo
+# The overreach variant is PseudoCo Assistant's prescriptive-overreach rail: the NeMo
 # counterpart of the Cisco AI Defense custom guardrail. It fires when the bot
 # exceeds its authority (prescription-only drug or dosage, a definitive
 # diagnosis, a binding legal/tax position, a buy/sell call on a security).

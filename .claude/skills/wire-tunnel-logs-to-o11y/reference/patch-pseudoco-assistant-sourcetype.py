@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Map ai_governance.json to the sourcetype TA-gen_ai_cim actually extracts.
 
-The filelog `add` operator stamps com.splunk.sourcetype = "demobot:<file>" at
+The filelog `add` operator stamps com.splunk.sourcetype = "pseudoco-assistant:<file>" at
 the RECEIVER level, so it is shared by every pipeline reading that receiver.
 Rewriting it there would change the O11y workshop path too. Instead, remap it
 inside the gen_ai_cim pipeline only, with a transform processor.
 
 Why medadvice3:json: TA-gen_ai_cim's [index::gen_ai_log] stanza is inert --
 props.conf cannot be scoped by index -- so its gen_ai.* FIELDALIASes never
-fire. [medadvice3:json] carries the identical alias set and matches DemoBot's
+fire. [medadvice3:json] carries the identical alias set and matches PseudoCo Assistant's
 flat ai_governance.json shape exactly.
 """
 import re
@@ -23,13 +23,13 @@ PROCESSOR = """  # TA-gen_ai_cim only extracts gen_ai.* for sourcetypes it defin
   # [index::gen_ai_log] stanza is a no-op (props.conf has no index:: scope), so
   # ai_governance.json must arrive as medadvice3:json -- the stanza whose
   # FIELDALIASes match its flat field names -- or every dashboard reads empty.
-  # Scoped to this pipeline so the workshop path keeps demobot:<file> types.
+  # Scoped to this pipeline so the workshop path keeps pseudoco-assistant:<file> types.
   transform/gen_ai_cim_sourcetype:
     error_mode: ignore
     log_statements:
       - context: resource
         statements:
-          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "demobot:ai_governance.json"
+          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "pseudoco-assistant:ai_governance.json"
 
 """
 

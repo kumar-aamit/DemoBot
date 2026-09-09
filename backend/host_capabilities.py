@@ -146,7 +146,7 @@ def gated_rules(caps: Dict[str, Any], settings) -> Dict[str, Dict[str, Any]]:
         nim_local = _gate(
             nim["ready"],
             f"GPU present but no NIM answering {nim['base_url']}/health/ready — "
-            "start it (systemctl start demobot-nim, or docker run … nvcr.io/nim/…).",
+            "start it (systemctl start pseudoco-assistant-nim, or docker run … nvcr.io/nim/…).",
         )
     if not runtime["available"]:
         nemoclaw = _gate(False, "NemoClaw needs Docker Engine, Docker Desktop or Colima "

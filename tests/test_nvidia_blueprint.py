@@ -2,7 +2,7 @@
 """Regression: the NVIDIA AI Virtual Assistant blueprint
 (backend/agents/blueprints/nvidia_virtual_assistant.py + data / retrieval + /api/analytics).
 
-Parity with the DemoBot blueprint is asserted by tests/test_blueprint_parity.py;
+Parity with the PseudoCo Assistant blueprint is asserted by tests/test_blueprint_parity.py;
 this suite guards what is SPECIFIC to the port:
   - tool-call routing: To<Sub>Assistant / HandleOtherTalk parsing, the 1-vs-2
     limit under Multi-Agent Mode, the primary-specialist default, and the
@@ -179,7 +179,7 @@ def test_full_turn() -> None:
     roles = [t.get("role") for t in (last.get("agent_trace") or [])]
     check("agent_trace roles in order", roles == ["primary_assistant", "sub_assistant", "synthesizer"], str(roles))
     check("attributed to the NVIDIA workflow + blueprint",
-          last.get("workflow_name") == "demobot_nvidia_virtual_assistant" and last.get("blueprint") == "nvidia_virtual_assistant")
+          last.get("workflow_name") == "pseudoco_nvidia_virtual_assistant" and last.get("blueprint") == "nvidia_virtual_assistant")
     check("token usage is summed across the three agents", last.get("usage_data", {}).get("usage_total_tokens", 0) == 45
           or last.get("usage_total_tokens") == 45, str({k: v for k, v in last.items() if "usage" in k}))
 

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Releasing DemoBot</title>
+<title>Releasing PseudoCo Assistant</title>
 <style>
 :root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--border:#d7dbe0;--accent:#0b6bcb;--code-bg:#f5f7f9;--th:#eef2f6;--warn:#8a5a00}
 @media (prefers-color-scheme: dark){:root{--bg:#14171a;--fg:#e6e8ea;--muted:#9aa3ad;--border:#2c3238;--accent:#63a9f0;--code-bg:#1c2126;--th:#1f252b;--warn:#e0b050}}
@@ -34,8 +34,8 @@ ul,ol{padding-left:1.4rem}
 @media print{body{padding:0}pre,table{page-break-inside:avoid}}
 </style></head>
 <body><main>
-<h1 id="releasing-demobot">Releasing DemoBot</h1>
-<p>How DemoBot is versioned, tagged, and published. Adopted 2026-08-31, starting at
+<h1 id="releasing-pseudoco-assistant">Releasing PseudoCo Assistant</h1>
+<p>How PseudoCo Assistant is versioned, tagged, and published. Adopted 2026-08-31, starting at
 <strong>v4.1.0</strong> — the repo had no tags before that, so there is no earlier history to
 reconcile.</p>
 <h2 id="versioning">Versioning</h2>
@@ -56,7 +56,7 @@ reconcile.</p>
 <li><code>backend/config.py</code> → <code>app_version</code> (the default)</li>
 <li><code>.env.example</code> → <code>APP_VERSION</code> (the documented value)</li>
 </ul>
-<p><code>app_name</code> (<code>"DemoBot v4"</code>) tracks the <strong>MAJOR line only</strong>. Leave it alone on a
+<p><code>app_name</code> (<code>"PseudoCo Assistant v4"</code>) tracks the <strong>MAJOR line only</strong>. Leave it alone on a
 minor or patch bump — it also appears in <code>run.sh</code> banners, <code>Containerfile</code>, and
 <code>requirements.txt</code>, and those say "v4" for the whole 4.x series.</p>
 <blockquote>
@@ -72,7 +72,7 @@ says.</p>
 <ul>
 <li><strong>Annotated</strong> tags, named <code>vX.Y.Z</code> — <code>git tag -a</code>, never a lightweight tag, so
 the tagger and date are recorded.</li>
-<li>Tag message: <code>DemoBot X.Y.Z</code>.</li>
+<li>Tag message: <code>PseudoCo Assistant X.Y.Z</code>.</li>
 <li><strong>Tag <code>main</code>, and only after the PR has merged.</strong> Never tag a feature branch:
 the merge commit is what ships, and a branch tip can be rebased or deleted out
 from under the tag.</li>
@@ -86,12 +86,12 @@ do not move a published tag.</li>
 catches tagging the wrong commit:</p>
 <pre><code>grep app_version backend/config.py</code></pre>
 <p>Then tag and push:</p>
-<pre><code>git tag -a v4.1.0 -m "DemoBot 4.1.0"
+<pre><code>git tag -a v4.1.0 -m "PseudoCo Assistant 4.1.0"
 git push origin v4.1.0</code></pre>
 <p>Then publish the GitHub release. <code>--generate-notes</code> builds the changelog from the
 merged PRs since the previous tag, which is why the tag has to exist first:</p>
 <pre><code>GH_TOKEN=$(gh auth token --user mayeack) \
-  gh release create v4.1.0 --title "DemoBot 4.1.0" --generate-notes</code></pre>
+  gh release create v4.1.0 --title "PseudoCo Assistant 4.1.0" --generate-notes</code></pre>
 <p>For the first release, or any time you want the notes to lead with something
 other than a PR list, write them by hand with <code>--notes "..."</code> instead and keep
 the summary to what an operator would notice: new surface, changed defaults, and
@@ -102,8 +102,8 @@ anything that needs a restart or a config edit on their box.</p>
 <li>Bump <code>app_version</code> and <code>APP_VERSION</code> in one commit on that branch.</li>
 <li>Merge the PR (merge commit — this repo does not squash; see #49–#52).</li>
 <li><code>git checkout main &amp;&amp; git pull</code>, and verify the bump is present.</li>
-<li><code>git tag -a vX.Y.Z -m "DemoBot X.Y.Z"</code> and <code>git push origin vX.Y.Z</code>.</li>
-<li><code>gh release create vX.Y.Z --title "DemoBot X.Y.Z" --generate-notes</code>.</li>
+<li><code>git tag -a vX.Y.Z -m "PseudoCo Assistant X.Y.Z"</code> and <code>git push origin vX.Y.Z</code>.</li>
+<li><code>gh release create vX.Y.Z --title "PseudoCo Assistant X.Y.Z" --generate-notes</code>.</li>
 <li>If a deployed box should report the new version, update <code>APP_VERSION</code> in its
 <code>.env</code> and restart it — the tag alone does not change a running replica.</li>
 </ol>

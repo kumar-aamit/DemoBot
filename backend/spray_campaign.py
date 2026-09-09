@@ -30,7 +30,7 @@ def app_for_theme(theme_key: Optional[str]) -> Dict[str, str]:
 
     The theme *is* the app: the governance event's ``app_name`` is its
     ``service_name`` (backend/logging/executive_fields.py), so a spray started
-    from the medadvice UI has to land as ``demobot-medadvice`` on every turn.
+    from the medadvice UI has to land as ``pseudoco-assistant-medadvice`` on every turn.
     The campaign used to rotate a fixed roster to populate ``apps_targeted``,
     which attributed turns to apps the operator never touched.
 
@@ -40,8 +40,8 @@ def app_for_theme(theme_key: Optional[str]) -> Dict[str, str]:
     key = get_theme(theme_key).key
     return {
         "theme": key,
-        "service_name": f"demobot-{key}",
-        "deployment_id": f"demobot-{key}-prod",
+        "service_name": f"pseudoco-assistant-{key}",
+        "deployment_id": f"pseudoco-assistant-{key}-prod",
     }
 
 

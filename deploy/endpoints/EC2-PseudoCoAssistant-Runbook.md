@@ -1,4 +1,4 @@
-# DemoBot EC2 — Configuration Reference & Rebuild Runbook
+# PseudoCo Assistant EC2 — Configuration Reference & Rebuild Runbook
 
 **Captured:** 2026-07-27 from `i-0883a0ddedf54e4e8` (35.175.173.5)
 **Revised:** 2026-08-11 — the instance was resized `c6i.2xlarge` → `g5.xlarge`
@@ -17,11 +17,11 @@ workshop deliverable.
 
 | Layer | Origin | Reproducible on a raw EC2? |
 |---|---|---|
-| **A. Corporate base image** — CrowdStrike Falcon, Nessus agent, PBIS/AD join, fail2ban, ansible, SSM, CloudWatch agent, collectd, `AllowGroups` SSH policy | Cisco-managed AMI `ami-09860bb56ed1a5925` + Ansible | **No.** Comes from launching the same managed AMI in the same account. Not required for DemoBot. |
-| **B. Splunk Enterprise 10.4.1** (`/opt/splunk`, ports 8443/8089/8088) + Universal Forwarder | Pre-installed on the lab AMI | Optional. Independent of DemoBot; DemoBot exports to Splunk **Observability Cloud** (SaaS), not to this local Splunkd. |
-| **C. DemoBot workload** — Ollama, DemoBot app, OTel collector, Cloudflare tunnel | Built 2026-07-27 by `~/ec2-bootstrap.sh` | **Yes, fully.** Section 6 rebuilds it end to end. |
+| **A. Corporate base image** — CrowdStrike Falcon, Nessus agent, PBIS/AD join, fail2ban, ansible, SSM, CloudWatch agent, collectd, `AllowGroups` SSH policy | Cisco-managed AMI `ami-09860bb56ed1a5925` + Ansible | **No.** Comes from launching the same managed AMI in the same account. Not required for PseudoCo Assistant. |
+| **B. Splunk Enterprise 10.4.1** (`/opt/splunk`, ports 8443/8089/8088) + Universal Forwarder | Pre-installed on the lab AMI | Optional. Independent of PseudoCo Assistant; PseudoCo Assistant exports to Splunk **Observability Cloud** (SaaS), not to this local Splunkd. |
+| **C. PseudoCo Assistant workload** — Ollama, PseudoCo Assistant app, OTel collector, Cloudflare tunnel | Built 2026-07-27 by `~/ec2-bootstrap.sh` | **Yes, fully.** Section 6 rebuilds it end to end. |
 
-If the goal is "another DemoBot replica," you only need **§6**. Sections 2–5 are
+If the goal is "another PseudoCo Assistant replica," you only need **§6**. Sections 2–5 are
 the as-built record of this box.
 
 ---
@@ -71,7 +71,7 @@ is slower still. Treat the GPU as required, not optional — see §8.
 | Port | Bind | Purpose | Exposure needed |
 |---|---|---|---|
 | 2222 | `0.0.0.0` | SSH (non-standard port) | inbound from admin IPs |
-| 8001 | `0.0.0.0` | DemoBot / uvicorn | **not** publicly required — Cloudflare tunnel is outbound-only |
+| 8001 | `0.0.0.0` | PseudoCo Assistant / uvicorn | **not** publicly required — Cloudflare tunnel is outbound-only |
 | 11434 | `127.0.0.1` | Ollama | local only |
 | 4317 / 4318 | `0.0.0.0` | OTel collector OTLP gRPC / HTTP | local only |
 | 8888 | `127.0.0.1` | Collector self-metrics | local only |
@@ -99,7 +99,7 @@ ansible:x:1001:100  (config management)
 ssm-user:x:1002:1003 (SSM Session Manager)
 ```
 
-DemoBot runs entirely as **`splunk`**. That user needs:
+PseudoCo Assistant runs entirely as **`splunk`**. That user needs:
 - membership in `wheel` (passwordless sudo via `/etc/sudoers.d/wheel`) — also
   granted directly by `/etc/sudoers.d/splunk` and `/etc/sudoers.d/newuser`
 - membership in `ollama` (created by the Ollama installer)
@@ -125,9 +125,9 @@ AllowGroups sg-it-scip-dvo sg-it-scip-dvo-awf ssg-its-nspire-platform-services-a
 | Comment | Type | Fingerprint |
 |---|---|---|
 | `demo-migrate` | RSA 2048 | `SHA256:Fz9ftTJOHH4T0Asq7Z+bclNsIvWIGScqAKQqwjnvqUU` |
-| `demobot-deploy` | ED25519 | `SHA256:lACYZxASafU0zNuZCY145FOUHf9wSqv31G4MC/gejms` |
+| `pseudoco-assistant-deploy` | ED25519 | `SHA256:lACYZxASafU0zNuZCY145FOUHf9wSqv31G4MC/gejms` |
 
-The workstation-side private key for `demobot-deploy` is `~/.ssh/demobot_ec2`.
+The workstation-side private key for `pseudoco-assistant-deploy` is `~/.ssh/demobot_ec2`.
 
 ```bash
 ssh -i ~/.ssh/demobot_ec2 -p 2222 splunk@54.196.13.169
@@ -161,7 +161,7 @@ deb https://splunk.jfrog.io/splunk/otel-collector-deb release main
 ```
 
 The apt-installed `splunk-otel-collector` service is **masked and inactive** —
-DemoBot uses its own `otelcol-contrib` binary instead. Leave it masked; two
+PseudoCo Assistant uses its own `otelcol-contrib` binary instead. Leave it masked; two
 collectors fighting over :4317 is a common failure mode here.
 
 ### Ollama models
@@ -224,7 +224,7 @@ SQLAlchemy 2.0.25
 
 ---
 
-## 5. DemoBot application configuration
+## 5. PseudoCo Assistant application configuration
 
 ### Layout
 
@@ -270,7 +270,7 @@ AI_DEFENSE_TIMEOUT=10.0
 AI_DEFENSE_FAIL_OPEN=False
 
 # --- App / server ------------------------------------------------------
-APP_NAME=DemoBot v3
+APP_NAME=PseudoCo Assistant v3
 APP_VERSION=3.0.0
 ENVIRONMENT=development
 DEBUG=False
@@ -298,7 +298,7 @@ MAX_CLARIFYING_QUESTIONS=3
 # --- Splunk Observability Cloud ----------------------------------------
 SPLUNK_REALM=us1
 OTEL_ENABLED=True
-OTEL_SERVICE_NAME=demobot-v3
+OTEL_SERVICE_NAME=pseudoco-assistant
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=DELTA
@@ -306,12 +306,12 @@ OTEL_PYTHON_EXCLUDED_URLS=^(https?://)?[^/]+/health$
 OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=SPAN_ONLY
 OTEL_INSTRUMENTATION_GENAI_EMITTERS=span_metric,splunk
 OTEL_LOGS_EXPORTER=none
-OTEL_RESOURCE_ATTRIBUTES=deployment.environment=demobot-ec2-1   # <-- PER-REPLICA
+OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pseudoco-assistant-ec2-1   # <-- PER-REPLICA
 
 # --- Splunk Agent Observability ---------------------------------------
 SPLUNK_AO_REALM=us1
-SPLUNK_AO_PROJECT=DemoBot
-SPLUNK_AO_AGENT_STREAM=DemoBot
+SPLUNK_AO_PROJECT=PseudoCo Assistant
+SPLUNK_AO_AGENT_STREAM=PseudoCo Assistant
 # --- Agent Control ------------------------------------------------------
 AGENT_CONTROL_CONSOLE_URL=https://console.multitenant.galileocloud.io
 ```
@@ -338,7 +338,7 @@ a persisted override in SQLite is applied at startup and overrides them:
 | `.env` | `OLLAMA_MODEL`, `OLLAMA_MODEL_INTERNAL` | defaults only |
 | `medadvice.db` | table `app_settings`, row `id=1`, JSON column `data` → key `ai_provider` = `{"provider": …, "model": …}` | **applied at startup, overrides `.env`** |
 
-Editing `.env` and restarting `demobot-app` therefore *looks* like it worked —
+Editing `.env` and restarting `pseudoco-assistant-app` therefore *looks* like it worked —
 the unit goes active, `.env` reads correctly — while the app keeps loading the
 old model. Set it through `settings_store.set_ai_provider("ollama", "<model>")`,
 which persists the row, re-applies it, and clears the LLM client cache (whose
@@ -348,7 +348,7 @@ keys omit the model name, so a stale client is served otherwise). Then restart.
 applied:
 
 ```bash
-sudo journalctl -u demobot-app.service | grep "Pre-warmed Ollama model"
+sudo journalctl -u pseudoco-assistant-app.service | grep "Pre-warmed Ollama model"
 ```
 
 Expect one line per distinct model, alphabetically: `llama3.2:3b` then
@@ -361,9 +361,9 @@ not the persisted row.
 Each replica sets a distinct `deployment.environment` so Splunk O11y and Agent Observability
 can separate them:
 
-- Mac (`/Applications/DemoBot`) → `demobot-local`
-- this EC2 → `demobot-ec2-1`
-- next replica → `demobot-ec2-2`, and so on
+- Mac (`/Applications/DemoBot`) → `pseudoco-assistant-local`
+- this EC2 → `pseudoco-assistant-ec2-1`
+- next replica → `pseudoco-assistant-ec2-2`, and so on
 
 Everything else in `.env` is copied verbatim between replicas.
 
@@ -427,13 +427,13 @@ Three units, all `User=splunk`, `Restart=always`, `RestartSec=5`, enabled:
 
 | Unit | ExecStart | After |
 |---|---|---|
-| `demobot-collector` | `~/DemoBot/run-collector.sh` | `network-online.target` |
-| `demobot-app` | `/bin/bash ~/DemoBot/run.sh` | `network-online`, `ollama`, `demobot-collector` |
-| `demobot-tunnel` | `/usr/bin/cloudflared --config ~/.cloudflared/config.yml tunnel run medadvice` | `network-online`, `demobot-app` |
+| `pseudoco-assistant-collector` | `~/DemoBot/run-collector.sh` | `network-online.target` |
+| `pseudoco-assistant-app` | `/bin/bash ~/DemoBot/run.sh` | `network-online`, `ollama`, `pseudoco-assistant-collector` |
+| `pseudoco-assistant-tunnel` | `/usr/bin/cloudflared --config ~/.cloudflared/config.yml tunnel run medadvice` | `network-online`, `pseudoco-assistant-app` |
 
 Plus `ollama.service` (installed by Ollama, `User=ollama`, `WantedBy=default.target`).
 
-`demobot-app` sets `Environment=PATH=/home/splunk/DemoBot/venv/bin:/usr/local/bin:/usr/bin:/bin`
+`pseudoco-assistant-app` sets `Environment=PATH=/home/splunk/DemoBot/venv/bin:/usr/local/bin:/usr/bin:/bin`
 so `run.sh` finds `opentelemetry-instrument` in the venv.
 
 ---
@@ -495,7 +495,7 @@ payload afterwards. **`cert.pem` is never staged.**
 1. base packages; `ppa:deadsnakes`; `python3.11` + venv + dev headers
 2. `cloudflared` from the GitHub `.deb`
 3. Ollama + the `OLLAMA_MAX_LOADED_MODELS=2` / `KEEP_ALIVE=30m` drop-in
-4. clone DemoBot, build the venv on 3.11, install requirements
+4. clone PseudoCo Assistant, build the venv on 3.11, install requirements
 5. `otelcol-contrib` binary; mask any apt `splunk-otel-collector` (:4317 clash)
 6. install `.env` (0600) and tunnel credentials; rewrite `credentials-file:` in
    `config.yml` to the target's `$HOME`; warn if `cert.pem` is present
@@ -526,9 +526,9 @@ Full rationale for each in [`deploy/ec2/README.md`](../DemoBot/deploy/ec2/README
 > one demo, because each was built by hand at a different time.
 
 **`deployment.environment` is still the one value that differs per replica**
-(`demobot-local`, `demobot-ec2-1`, `demobot-ec2-2`, …). It is the only thing
+(`pseudoco-assistant-local`, `pseudoco-assistant-ec2-1`, `pseudoco-assistant-ec2-2`, …). It is the only thing
 separating replicas in Splunk O11y and Agent Observability — everything else, including
-`service.name=demobot-v3`, is identical by design. Two replicas sharing a value
+`service.name=pseudoco-assistant`, is identical by design. Two replicas sharing a value
 merge into one apparent service, so a sick box hides behind a healthy one. The
 bootstrap rewrites only that key inside `OTEL_RESOURCE_ATTRIBUTES`, preserving
 sibling attributes.
@@ -536,8 +536,8 @@ sibling attributes.
 ### 6.4 Manual start (only with `--no-start`)
 
 ```bash
-sudo systemctl enable --now demobot-collector demobot-app demobot-tunnel
-systemctl --no-pager status demobot-collector demobot-app demobot-tunnel
+sudo systemctl enable --now pseudoco-assistant-collector pseudoco-assistant-app pseudoco-assistant-tunnel
+systemctl --no-pager status pseudoco-assistant-collector pseudoco-assistant-app pseudoco-assistant-tunnel
 ```
 
 Order matters on a cold box: the collector must own :4317 before the app starts,
@@ -560,8 +560,8 @@ All four returned `200` on this instance at capture time, and both models were
 confirmed at 100% GPU on 2026-08-11.
 
 Then confirm telemetry actually lands: in Splunk O11y (realm us1) filter on
-`deployment.environment = demobot-ec2-N` and confirm the new replica appears
-separately from `demobot-local`. Repo-side, `tests/observability/verify_observability.sh`
+`deployment.environment = pseudoco-assistant-ec2-N` and confirm the new replica appears
+separately from `pseudoco-assistant-local`. Repo-side, `tests/observability/verify_observability.sh`
 runs the same checks in tiers.
 
 ---
@@ -645,7 +645,7 @@ Choose **`power`** so both work.
 In Splunk Observability Cloud — realm **us1**, `https://app.us1.signalfx.com`:
 
 1. **Settings → Access Tokens → New Token**
-2. Name it (e.g. `demobot-api`); **Authorization scope = API token**; select role
+2. Name it (e.g. `pseudoco-assistant-api`); **Authorization scope = API token**; select role
    **`power`**
 3. Set visibility, then **set a long expiration date**. The default is 30 days —
    that is why the previous token expired. Max is 18 years.
@@ -707,13 +707,13 @@ cd ~/DemoBot && ./tests/observability/verify_observability.sh
 
 ### Two script-side gotchas
 
-- **`verify_observability.sh` hard-codes `demobot-local`** as the
+- **`verify_observability.sh` hard-codes `pseudoco-assistant-local`** as the
   `deployment.environment` argument (line 76). On a replica whose environment is
-  `demobot-ec2-N`, tier 3 queries the wrong replica and fails even with a good
+  `pseudoco-assistant-ec2-N`, tier 3 queries the wrong replica and fails even with a good
   token. Run the checker directly instead:
 
   ```bash
-  python3 tests/observability/check_o11y_metadata.py us1 "$NEWTOK" demobot-v3 demobot-ec2-1
+  python3 tests/observability/check_o11y_metadata.py us1 "$NEWTOK" pseudoco-assistant pseudoco-assistant-ec2-1
   ```
 
 - **A token containing `=` breaks tier 3.** Line 71 parses `.env` with

@@ -51,7 +51,7 @@ class ChatRequest(BaseModel):
     multi_agent_mode: Optional[bool] = None  # True = coordinator/specialists/synthesizer pipeline; None/False (default) = the domain agent answers directly
     agent_control_review: Optional[bool] = None  # Submit the response to Agent Control for evaluation against the console's Controls
     nemo_guardrails_review: Optional[bool] = None  # Run NVIDIA NeMo Guardrails input rails on the prompt and output rails on the answer
-    blueprint: Optional[str] = None  # Agentic architecture for this turn (demobot_multi_agent | nvidia_virtual_assistant); None = the server default
+    blueprint: Optional[str] = None  # Agentic architecture for this turn (pseudoco_multi_agent | nvidia_virtual_assistant); None = the server default
     # Appointment scheduling (docs/scheduling.md): the browser's stable id (the
     # owner of its bookings — a partition key, never authorization), its IANA
     # zone for slot labels, and a structured action when a scheduling chip was
@@ -80,7 +80,7 @@ class GenAILogEntry(BaseModel):
     response_model: Optional[str] = None
     response_id: Optional[str] = None
     conversation_id: str
-    deployment_id: str = "demobot-v3-prod"
+    deployment_id: str = "pseudoco-assistant-prod"
     request_id: str
     session_id: str
     trace_id: str
@@ -139,7 +139,7 @@ class GenAILogEntry(BaseModel):
 
     # Actor / application context
     enduser_id: Optional[str] = None
-    service_name: str = "demobot-v3"
+    service_name: str = "pseudoco-assistant"
     client_address: Optional[str] = None
 
     # Timestamp

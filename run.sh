@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# DemoBot v4 - Quick Start Script
+# PseudoCo Assistant v4 - Quick Start Script
 # Supports dual-environment deployment: Anthropic API (local) or AWS Bedrock (production)
 
 echo "╔════════════════════════════════════════════════╗"
-echo "║         DemoBot v4 - Starting...            ║"
+echo "║         PseudoCo Assistant v4 - Starting...            ║"
 echo "╚════════════════════════════════════════════════╝"
 echo ""
 
@@ -120,7 +120,7 @@ mkdir -p logs
 python -m backend.host_capabilities 2>/dev/null || true
 
 echo ""
-echo "Starting DemoBot v4..."
+echo "Starting PseudoCo Assistant v4..."
 echo ""
 echo "Access the application at:"
 echo "  📱 Chat Interface:    http://localhost:8001/app"

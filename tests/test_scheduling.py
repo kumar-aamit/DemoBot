@@ -26,7 +26,7 @@ os.environ["SPLUNK_AO_LOGGING_DISABLED"] = "1"
 import backend.config  # noqa: F401,E402  (sets SSL_CERT_FILE / loads .env)
 from backend.config import settings  # noqa: E402
 
-_tmpdir = tempfile.mkdtemp(prefix="demobot-schedtest-")
+_tmpdir = tempfile.mkdtemp(prefix="pseudoco-assistant-schedtest-")
 settings.database_url = f"sqlite:///{os.path.join(_tmpdir, 'sched.db')}"
 settings.prewarm_llm = False
 settings.scheduling_default_timezone = "America/New_York"

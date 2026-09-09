@@ -1,5 +1,5 @@
 {
-  "name": "@demobot/openclaw-toolguard",
+  "name": "@pseudoco-assistant/openclaw-toolguard",
   "version": "1.0.0",
   "type": "module",
   "peerDependencies": {

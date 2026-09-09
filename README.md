@@ -1,4 +1,4 @@
-# DemoBot v3
+# PseudoCo Assistant v3
 
 A macOS-compatible advice web application built with Python, FastAPI, and configurable AI providers. It serves six configurable **Application Themes** (medical, tax, benefits, legal, finance, and a telecom support bot) through a **LangChain + LangGraph multi-agent architecture**, with strict safety guardrails, comprehensive AI governance logging, and code-based **OpenTelemetry GenAI** instrumentation for agentic observability in Splunk.
 
@@ -60,7 +60,7 @@ Off by default; see [Agentic Surface](#agentic-surface-openclaw-optional) below.
 - **LangChain + LangGraph**: multi-agent orchestration (supervisor + per-theme decomposed subgraphs)
 - **OpenTelemetry GenAI**: code-based Workflow / Agent / LLM span instrumentation exported over OTLP
 - **Configurable AI Providers**: Ollama (local, the workshop default), Anthropic, AWS Bedrock, a **local NVIDIA NIM** (`provider=nvidia` — Nemotron 3 on this host's GPU, never a cloud API), or any OpenAI-compatible API
-- **NVIDIA governance stack** (all opt-in): NeMo Guardrails and NemoClaw Guardrails drawer toggles, a selectable **Blueprint** (DemoBot Multi-Agent or NVIDIA AI Virtual Assistant) with a feature-parity rule — see [docs/nvidia-integration.md](docs/nvidia-integration.md)
+- **NVIDIA governance stack** (all opt-in): NeMo Guardrails and NemoClaw Guardrails drawer toggles, a selectable **Blueprint** (PseudoCo Assistant Multi-Agent or NVIDIA AI Virtual Assistant) with a feature-parity rule — see [docs/nvidia-integration.md](docs/nvidia-integration.md)
 - **SQLAlchemy**: ORM for database management
 - **SQLite**: Embedded database
 
@@ -84,7 +84,7 @@ policy -> prompt_defense -> nemo_input_rails -> <blueprint core> -> safety
 Blueprints (`ACTIVE_BLUEPRINT`, `PUT /api/settings/blueprint`, or per request —
 the UI has no picker and always runs the default):
 
-- **DemoBot Multi-Agent** (default): `intake -> synthesizer` — the theme's domain
+- **PseudoCo Assistant Multi-Agent** (default): `intake -> synthesizer` — the theme's domain
   agent answers directly (one LLM call). Toggling **Multi-Agent Mode** ON expands
   it to `intake -> coordinator -> specialists -> synthesizer`.
 - **NVIDIA AI Virtual Assistant**: `fetch_record -> ask_clarification ->
@@ -108,7 +108,7 @@ Adding a theme is a new module plus a registry entry.
 
 The chat pipeline above is deliberately **tool-less**. The optional agentic
 surface runs an **OpenClaw** gateway (in podman) whose agent *does* have tools,
-and routes every tool call through DemoBot's governance before it executes:
+and routes every tool call through PseudoCo Assistant's governance before it executes:
 
 ```
 OpenClaw gateway (:18789)  --before_tool_call-->  POST /api/toolguard/inspect
@@ -121,7 +121,7 @@ OpenClaw gateway (:18789)  --before_tool_call-->  POST /api/toolguard/inspect
 ```
 
 Key modules: `backend/routers/toolguard.py`, `backend/services/tool_policy.py`,
-`openclaw/plugins/demobot-toolguard/` (the `before_tool_call` plugin),
+`openclaw/plugins/pseudoco-assistant-toolguard/` (the `before_tool_call` plugin),
 `run-openclaw.sh`. `TOOL_GUARD_ENABLED` gates *enforcement* only, so the same
 setup runs both the guarded and unguarded-control demos. See
 [Agentic Surface](#agentic-surface-openclaw-optional-1) under Running.
@@ -232,7 +232,7 @@ in the app depends on it, so this is fully separable from the chat demo.
 with a tool-capable model:
 ```bash
 podman machine start
-ollama pull llama3.2:3b        # the gateway needs a tool-capable model; this is the one DemoBot already runs
+ollama pull llama3.2:3b        # the gateway needs a tool-capable model; this is the one PseudoCo Assistant already runs
 ```
 
 **Run it:**
@@ -255,7 +255,7 @@ governance row reads `policy_action=allow` on a call that shipped PHI — the
 unguarded control. With `TOOL_GUARD_ENABLED=True` the call is **blocked** (live
 AI Defense fires PII/PHI). Telemetry flows either way; the contrast is the point.
 
-**Toggle off:** `podman stop demobot-openclaw` removes the integration entirely.
+**Toggle off:** `podman stop pseudoco-assistant-openclaw` removes the integration entirely.
 `TOOL_GUARD_ENABLED` is a separate switch that gates *enforcement*, not whether
 the gateway runs.
 
@@ -346,11 +346,11 @@ SESSION_TIMEOUT_MINUTES=30
 
 # Agentic orchestration (LangChain + LangGraph)
 USE_AGENTIC_ENGINE=True              # False = legacy RecommendationEngine path
-AGENTIC_WORKFLOW_NAME=demobot_multi_agent
+AGENTIC_WORKFLOW_NAME=pseudoco_multi_agent
 
 # Agentic observability (OpenTelemetry GenAI)
 OTEL_ENABLED=False                   # master switch for code-based GenAI tracing
-OTEL_SERVICE_NAME=demobot-v3
+OTEL_SERVICE_NAME=pseudoco-assistant
 # Export endpoint/headers/protocol use the standard OTEL_* env vars, e.g.:
 # OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
@@ -430,7 +430,7 @@ medadvice_v3/
 │   ├── agents/              # LangGraph multi-agent orchestration
 │   │   ├── graph.py         # Supervisor + per-theme subgraph assembly
 │   │   ├── supervisor.py    # Router node + theme routing
-│   │   ├── state.py         # DemoBotState shared-state model
+│   │   ├── state.py         # PseudoCoAssistantState shared-state model
 │   │   ├── llm.py           # LangChain chat-model factory + normalization
 │   │   ├── themes/          # Per-theme configs (medadvice, taxadvice, ...)
 │   │   └── nodes/           # Specialist nodes (policy, defense, intake,

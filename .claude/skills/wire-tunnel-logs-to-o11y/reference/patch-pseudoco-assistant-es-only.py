@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Wire DemoBot's logs straight into a Splunk ES demo box's gen_ai_log index.
+"""Wire PseudoCo Assistant's logs straight into a Splunk ES demo box's gen_ai_log index.
 
-WHY THIS EXISTS (separate from patch-demobot-gen-ai-cim.py):
+WHY THIS EXISTS (separate from patch-pseudoco-assistant-gen-ai-cim.py):
 that script adds a SECOND destination alongside an already-installed O11y
 workshop log path -- it assumes the filelog receiver, the file_storage
 extension, and the WORKSHOP_* export loop are all present, and fails with
@@ -17,7 +17,7 @@ Idempotent, and it resets the two tracked files to pristine first, because
 `git pull --ff-only` in the bootstrap cannot overwrite locally-modified tracked
 files -- a re-deployed box silently keeps a previous session's collector config.
 
-Usage:  patch-demobot-es-only.py <hec_url> <hec_token> <index> <environment>
+Usage:  patch-pseudoco-assistant-es-only.py <hec_url> <hec_token> <index> <environment>
 """
 import re
 import shutil
@@ -41,8 +41,8 @@ EXTENSIONS = """extensions:
 
 """
 
-RECEIVER = """  # DemoBot writes newline-delimited JSON governance/audit logs to logs/*.json.
-  filelog/demobot:
+RECEIVER = """  # PseudoCo Assistant writes newline-delimited JSON governance/audit logs to logs/*.json.
+  filelog/pseudoco-assistant:
     include: [/home/ubuntu/DemoBot/logs/*.json]
     start_at: beginning
     include_file_name: true
@@ -55,7 +55,7 @@ RECEIVER = """  # DemoBot writes newline-delimited JSON governance/audit logs to
         on_error: send_quiet
       - type: add
         field: resource["com.splunk.sourcetype"]
-        value: EXPR("demobot:" + attributes["log.file.name"])
+        value: EXPR("pseudoco-assistant:" + attributes["log.file.name"])
 
 """
 
@@ -67,7 +67,7 @@ PROCESSORS = """  # Stamps identity onto every log record. com.splunk.* become H
         value: "${env:WORKSHOP_ENVIRONMENT}"
         action: upsert
       - key: service.name
-        value: demobot
+        value: pseudoco-assistant
         action: upsert
       - key: host.name
         value: "${env:WORKSHOP_ENVIRONMENT}.yeackbot.com"
@@ -87,7 +87,7 @@ PROCESSORS = """  # Stamps identity onto every log record. com.splunk.* become H
     log_statements:
       - context: resource
         statements:
-          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "demobot:ai_governance.json"
+          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "pseudoco-assistant:ai_governance.json"
 
 """
 
@@ -98,7 +98,7 @@ EXPORTER = """  # Logs -> the ES demo box's own HEC, feeding the gen_ai_log inde
     endpoint: "${env:GENAI_HEC_URL}"
     index: "${env:GENAI_HEC_INDEX}"
     source: "${env:WORKSHOP_ENVIRONMENT}"
-    sourcetype: "demobot:json"
+    sourcetype: "pseudoco-assistant:json"
     retry_on_failure:
       enabled: true
 
@@ -106,7 +106,7 @@ EXPORTER = """  # Logs -> the ES demo box's own HEC, feeding the gen_ai_log inde
 
 PIPELINE = """    # Governance/audit logs -> Splunk ES demo box (gen_ai_log).
     logs:
-      receivers: [filelog/demobot, otlp]
+      receivers: [filelog/pseudoco-assistant, otlp]
       processors: [resource/gen_ai_cim, transform/gen_ai_cim_sourcetype, batch]
       exporters: [splunk_hec/gen_ai_cim]
 """

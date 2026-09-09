@@ -14,9 +14,9 @@ trace::
 
 or, for a turn without an ``agent_trace`` (legacy engine, blocked turns), the
 workflow span wrapping a single LLM span. Every span carries the governance
-metadata plus ``demobot_trace_id`` — the uuid that also rides on the app's own
-OTel spans as ``demobot.trace_id`` — so an Agent Observability trace can be joined
-back to Splunk APM and the governance logs. DemoBot's ``session_id`` (one
+metadata plus ``pseudoco_assistant_trace_id`` — the uuid that also rides on the app's own
+OTel spans as ``pseudoco-assistant.trace_id`` — so an Agent Observability trace can be joined
+back to Splunk APM and the governance logs. PseudoCo Assistant's ``session_id`` (one
 conversation) is mapped to an Agent Observability session, best-effort.
 
 Why the SDK logger and not the LangChain callback: the governance flags are
@@ -62,8 +62,8 @@ _SESSION_CACHE_SIZE = 512
 _DRAIN_ON_SHUTDOWN_S = 5.0
 _FAILURE_TRACEBACK_EVERY_S = 60.0
 _SDK_LOGGER = "splunk_ao"
-_DEFAULT_PROJECT = "DemoBot"
-_DEFAULT_AGENT_STREAM = "DemoBot"
+_DEFAULT_PROJECT = "PseudoCo Assistant"
+_DEFAULT_AGENT_STREAM = "PseudoCo Assistant"
 _ROOT_SPAN_NAME = "chat_turn"
 _STOP = object()
 _WAKE = object()
@@ -412,7 +412,7 @@ def _recover_dangling(lg) -> None:
 
 
 def _session_for(lg, session_id) -> Optional[str]:
-    """DemoBot ``session_id`` -> Agent Observability session id, once per session
+    """PseudoCo Assistant ``session_id`` -> Agent Observability session id, once per session
     (LRU of 512). Best-effort: on failure warn once, back off five minutes and
     return None (the turn is still logged, just without a session)."""
     if not session_id:
@@ -474,7 +474,7 @@ def _build_turn(lg, log_data: Dict[str, Any]) -> None:
     model = log_data.get("response_model") or log_data.get("request_model") or "unknown"
     meta = {k: _coerce(log_data.get(k)) for k in _GOVERNANCE_KEYS if log_data.get(k) is not None}
     if log_data.get("trace_id"):
-        meta["demobot_trace_id"] = str(log_data["trace_id"])
+        meta["pseudoco_assistant_trace_id"] = str(log_data["trace_id"])
     agent_trace = log_data.get("agent_trace") or []
     request_id = log_data.get("request_id")
     turn_ns = _seconds_to_ns(log_data.get("client_operation_duration"))

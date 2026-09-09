@@ -1,11 +1,11 @@
 ---
 name: wire-tunnel-logs-to-o11y
-description: Wire a DemoBot public tunnel (medadviceN.yeackbot.com) to a Splunk Show workshop instance so its governance/audit logs land in Splunk Observability Cloud under an environment named after the tunnel. Use when handed a workshop assignment row (DemoBot Tunnel + sshUrl + o11yCloudID + url/admin creds) and asked to "create the environment" and/or "fan logs to o11y cloud". ALWAYS ask the user which DemoBot endpoint fans to which workshop instance — never infer the pairing from sheet row order, from a previous run, or from the Applied instances table.
+description: Wire a PseudoCo Assistant public tunnel (medadviceN.yeackbot.com) to a Splunk Show workshop instance so its governance/audit logs land in Splunk Observability Cloud under an environment named after the tunnel. Use when handed a workshop assignment row (PseudoCo Assistant Tunnel + sshUrl + o11yCloudID + url/admin creds) and asked to "create the environment" and/or "fan logs to o11y cloud". ALWAYS ask the user which PseudoCo Assistant endpoint fans to which workshop instance — never infer the pairing from sheet row order, from a previous run, or from the Applied instances table.
 ---
 
-# Wire a DemoBot tunnel's logs into Splunk Observability Cloud
+# Wire a PseudoCo Assistant tunnel's logs into Splunk Observability Cloud
 
-Takes one row of a Splunk Show workshop assignment sheet plus the DemoBot tunnel
+Takes one row of a Splunk Show workshop assignment sheet plus the PseudoCo Assistant tunnel
 it belongs to, and makes that tunnel's logs searchable in Splunk Observability
 Cloud under an environment named after the tunnel.
 
@@ -20,7 +20,7 @@ Logs reach O11y Cloud through **Log Observer Connect**, which reads them out of
 the Splunk Cloud stack the org is bound to. So the real path is:
 
 ```
-DemoBot logs/*.json  ->  otelcol filelog receiver  ->  splunk_hec exporter
+PseudoCo Assistant logs/*.json  ->  otelcol filelog receiver  ->  splunk_hec exporter
    -> https://http-inputs-<stack>.splunkcloud.com/services/collector/event
    -> index splunk4rookies-workshop  (on the workshop Splunk Cloud stack)
    -> Log Observer Connect integration  ->  Splunk O11y Cloud > Log Observer
@@ -31,7 +31,7 @@ environment materialises the moment records carrying
 `deployment.environment=<name>` arrive. Seed it with one HEC event, then keep it
 alive with the collector.
 
-## ALWAYS ask which DemoBot endpoint fans to this instance
+## ALWAYS ask which PseudoCo Assistant endpoint fans to this instance
 
 **Never infer the tunnel ↔ workshop-instance pairing. Ask, every single time,
 before writing any config.**
@@ -40,19 +40,19 @@ The pairing is a human decision and nothing in the environment encodes it:
 
 - An assignment sheet's **row order does not imply it**. Some revisions of
   `Workshop Dry Run N - Splunk.csv` carry only `splunkEs_url` / admin creds with
-  no DemoBot column at all — row 1 is not `medadvice1`. Later revisions add
-  `Assigned to` + `DemoBot Tunnel`; when that column is populated it is
+  no PseudoCo Assistant column at all — row 1 is not `medadvice1`. Later revisions add
+  `Assigned to` + `PseudoCo Assistant Tunnel`; when that column is populated it is
   authoritative, but read it, don't assume it, and note that it is typically
   filled in for only one or two rows while the rest are blank.
 - **A tunnel can be re-pointed.** The Applied instances table below is history,
   not a binding. The same `medadviceN` may be wired to a different workshop
   instance tomorrow, and re-pointing is a normal request.
-- **Tunnels and instances are not 1:1.** One DemoBot box can feed several
-  workshop instances, and a workshop instance may have no DemoBot at all.
+- **Tunnels and instances are not 1:1.** One PseudoCo Assistant box can feed several
+  workshop instances, and a workshop instance may have no PseudoCo Assistant at all.
 
 So ask explicitly, and get both halves back:
 
-> Which DemoBot endpoint should fan to which workshop instance?
+> Which PseudoCo Assistant endpoint should fan to which workshop instance?
 > e.g. `https://medadvice1.yeackbot.com/app` → `https://i-06bc6784b99dd863a.splunk.show/`
 
 Then, before touching the box:
@@ -77,14 +77,14 @@ The assignment sheet columns map like this (the CSV header the workshop's own
 
 | Column | Example | Use |
 |---|---|---|
-| DemoBot Tunnel | `https://medadvice1.yeackbot.com/app` | **Always user-supplied — ask, never infer.** Environment name = host's first label (`medadvice1`). Most sheets do not carry this column at all. |
+| PseudoCo Assistant Tunnel | `https://medadvice1.yeackbot.com/app` | **Always user-supplied — ask, never infer.** Environment name = host's first label (`medadvice1`). Most sheets do not carry this column at all. |
 | ssh | `ssh -p 2222 splunk@54.235.235.151` | workshop instance (Splunk Show), password auth |
 | sshPassword | `Sp1unkH00di3` | workshop instance password |
 | url | `http://i-<id>.splunk.show:81` | workshop instance web (Demo-in-a-Box, once deployed) |
 | adminUsername / adminPassword | `admin` / `$plunk@C1sc0` | **Demo-in-a-Box UI only.** These do *not* authenticate against the shared Splunk Cloud stack — confirmed 401. |
 | o11yCloudID | `[DNS Prefix]-[Last 4 of Instance ID]` | resolves to e.g. `shw-7f85`; don't hand-derive it, read it from the box (below) |
 
-The DemoBot EC2 box is a *different* machine from the workshop instance: it's in
+The PseudoCo Assistant EC2 box is a *different* machine from the workshop instance: it's in
 the personal AWS account (`177835492378`, us-east-1), user `ubuntu`, port 22,
 key `~/.ssh/demobot_ec2`. Find it with:
 
@@ -95,7 +95,7 @@ aws --region us-east-1 --profile default ec2 describe-instances \
   --output table
 ```
 
-Box `demobot-N` serves `medadviceN.yeackbot.com`. See `[[demobot-gpu-fleet]]`.
+Box `demobot-N` serves `medadviceN.yeackbot.com`. See `[[pseudoco-assistant-gpu-fleet]]`.
 
 ## Step 1 — harvest the workshop facts from the instance
 
@@ -166,25 +166,25 @@ curl -s "$HEC_URL" -H "Authorization: Splunk $HEC_TOKEN" -d '{
  "time": '"$(date +%s)"',
  "host": "'"$ENVNAME"'.yeackbot.com",
  "source": "'"$ENVNAME"'",
- "sourcetype": "demobot:bootstrap",
+ "sourcetype": "pseudoco-assistant:bootstrap",
  "index": "splunk4rookies-workshop",
- "fields": {"deployment.environment":"'"$ENVNAME"'","service.name":"demobot","o11y_cloud_id":"shw-7f85"},
+ "fields": {"deployment.environment":"'"$ENVNAME"'","service.name":"pseudoco-assistant","o11y_cloud_id":"shw-7f85"},
  "event": {"message":"'"$ENVNAME"' log environment bootstrap"}
 }'                                            # -> {"text":"Success","code":0}
 ```
 
 ## Step 2b — align the app's environment too (REQUIRED)
 
-**Naming the log environment is only half the job.** DemoBot's traces and
+**Naming the log environment is only half the job.** PseudoCo Assistant's traces and
 metrics carry their own `deployment.environment`, set by
 `OTEL_RESOURCE_ATTRIBUTES` in `.env` and applied by the app's OTel SDK — nothing
 to do with the collector's log pipeline. Boxes provisioned by the fleet scripts
-ship as `demobot-ec2-N` (see `[[demobot-ec2-deployment]]`), so if you only set
+ship as `pseudoco-assistant-ec2-N` (see `[[pseudoco-assistant-ec2-deployment]]`), so if you only set
 `WORKSHOP_ENVIRONMENT` you leave the box with a **split identity**:
 
 | Signal | Environment | Set by | Path |
 |---|---|---|---|
-| Traces + metrics | `demobot-ec2-1` | `OTEL_RESOURCE_ATTRIBUTES` | app SDK → signalfx / APM ingest |
+| Traces + metrics | `pseudoco-assistant-ec2-1` | `OTEL_RESOURCE_ATTRIBUTES` | app SDK → signalfx / APM ingest |
 | Logs | `medadvice1` | `resource/workshop_logs` processor | collector → Splunk Cloud HEC |
 
 That silently breaks the demo's best moment: a customer on **APM → AI
@@ -204,17 +204,17 @@ Set both to the tunnel name:
 ssh -i ~/.ssh/demobot_ec2 ubuntu@<ip> 'cd ~/DemoBot
   cp .env .env.bak.$(date +%Y%m%d%H%M%S)
   sed -i "s|^OTEL_RESOURCE_ATTRIBUTES=deployment.environment=.*|OTEL_RESOURCE_ATTRIBUTES=deployment.environment=medadvice1|" .env
-  sudo systemctl restart demobot-app'
+  sudo systemctl restart pseudoco-assistant-app'
 ```
 
 Then confirm the *running process* picked it up — editing `.env` alone proves
 nothing, the SDK reads it once at startup:
 
 ```bash
-sudo tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value demobot-app)/environ | grep OTEL_RESOURCE_ATTRIBUTES
+sudo tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value pseudoco-assistant-app)/environ | grep OTEL_RESOURCE_ATTRIBUTES
 ```
 
-Restarting `demobot-app` drops in-flight sessions, so do it before a workshop,
+Restarting `pseudoco-assistant-app` drops in-flight sessions, so do it before a workshop,
 not during one. Renaming also means the old environment's APM history does not
 carry forward — a fresh entry appears in the dropdown and needs a minute of
 traffic to populate. That is usually what you want (the tunnel URL is the
@@ -237,11 +237,11 @@ for n,p in c['processors'].items():
 
 ## Step 3 — fan the EC2 box's logs in
 
-DemoBot writes newline-delimited JSON to `~/DemoBot/logs/*.json`
+PseudoCo Assistant writes newline-delimited JSON to `~/DemoBot/logs/*.json`
 (`ai_governance.json`, `audit_trail.json`, `errors.json`, `escalations.json`) —
 exactly the material an AI-governance workshop wants in Log Observer.
 
-Its collector (`systemd` unit `demobot-collector`, config
+Its collector (`systemd` unit `pseudoco-assistant-collector`, config
 `~/DemoBot/otel-collector-config.yaml`, env injected by `run-collector.sh` from
 `.env`) ships traces to Splunk APM and Agent Observability and metrics to SignalFx, but has
 **no logs pipeline**. Add one; leave the existing pipelines untouched.
@@ -276,7 +276,7 @@ for the block verbatim):
 - `extensions.file_storage/checkpoints` — without it, `start_at: beginning`
   re-ships every file on each restart. Add `file_storage/checkpoints` to
   `service.extensions`.
-- `receivers.filelog/demobot` — globs `logs/*.json`, `json_parser` with
+- `receivers.filelog/pseudoco-assistant` — globs `logs/*.json`, `json_parser` with
   `parse_to: body` so the event arrives structured, and an `add` operator that
   derives a per-file sourcetype into `resource["com.splunk.sourcetype"]`.
 - `processors.resource/workshop_logs` — upserts `deployment.environment`,
@@ -284,8 +284,8 @@ for the block verbatim):
   `o11y.cloud.id`. The `com.splunk.*` resource attributes are what the exporter
   turns into HEC metadata, and they override the exporter-level defaults.
 - `exporters.splunk_hec/workshop`.
-- `service.pipelines.logs` — `[filelog/demobot, otlp] -> [resource/workshop_logs, batch] -> [splunk_hec/workshop]`.
-  Including `otlp` costs nothing and picks up app-emitted OTLP logs if DemoBot
+- `service.pipelines.logs` — `[filelog/pseudoco-assistant, otlp] -> [resource/workshop_logs, batch] -> [splunk_hec/workshop]`.
+  Including `otlp` costs nothing and picks up app-emitted OTLP logs if PseudoCo Assistant
   ever starts sending them.
 
 Do **not** parse timestamps out of the JSON: `audit_trail.json` has a
@@ -302,7 +302,7 @@ for v in SPLUNK_REALM O11Y_INGEST SPLUNK_AO_REALM SPLUNK_AO_O11Y_TOKEN SPLUNK_AO
   export "$v=$(grep "^$v=" .env | cut -d= -f2-)"
 done
 ./bin/otelcol-contrib validate --config otel-collector-config.yaml
-sudo systemctl restart demobot-collector
+sudo systemctl restart pseudoco-assistant-collector
 ```
 
 ## Step 4 — verify
@@ -334,7 +334,7 @@ integration as the source and filter `index = splunk4rookies-workshop` plus
 ```bash
 ssh -i ~/.ssh/demobot_ec2 ubuntu@<ip> \
   'cd ~/DemoBot && cp $(ls -t otel-collector-config.yaml.bak.* | head -1) otel-collector-config.yaml \
-   && sudo systemctl restart demobot-collector'
+   && sudo systemctl restart pseudoco-assistant-collector'
 ```
 
 The `.env` and `run-collector.sh` additions are inert once the config no longer
@@ -354,9 +354,9 @@ references them.
   Demo-in-a-Box not yet deployed, so `url:81` returns 404. That's expected and
   unrelated to log fan-out — the log path bypasses the workshop instance
   entirely and goes straight from the EC2 box to Splunk Cloud.
-- Both the DemoBot EC2 box and the workshop instance are named `i-...`, and both
+- Both the PseudoCo Assistant EC2 box and the workshop instance are named `i-...`, and both
   answer on port 2222 vs 22 differently. Workshop instance: `splunk`@2222,
-  password. DemoBot box: `ubuntu`@22, key.
+  password. PseudoCo Assistant box: `ubuntu`@22, key.
 
 ## Variant — fanning into a Splunk ES demo box (`gen_ai_log`)
 
@@ -379,8 +379,8 @@ yourself; no SSH to the workshop box is needed at all.
 # 1. Mint a HEC token scoped to gen_ai_log
 curl -sk -u admin:<pw> -X POST \
   "https://<host>:8089/servicesNS/nobody/splunk_httpinput/data/inputs/http?output_mode=json" \
-  -d name=demobot-medadviceN -d index=gen_ai_log -d indexes=gen_ai_log \
-  -d sourcetype=demobot:governance -d disabled=0
+  -d name=pseudoco-assistant-medadviceN -d index=gen_ai_log -d indexes=gen_ai_log \
+  -d sourcetype=pseudoco-assistant:governance -d disabled=0
 
 # 2. HEC listens on :8088 over TLS with a publicly valid cert -> no
 #    tls.insecure_skip_verify in the exporter.
@@ -406,7 +406,7 @@ search index=gen_ai_log earliest=-24h
 | table sourcetype provider_name gp request_model gm
 ```
 
-DemoBot's `ai_governance.json` is **flat** (`event_id`, `operation_name`,
+PseudoCo Assistant's `ai_governance.json` is **flat** (`event_id`, `operation_name`,
 `provider_name`, `request_model`, `session_id`, `input_messages[]`,
 `output_messages[]`), which matches **`[medadvice3:json]`** exactly — that
 stanza carries the same alias set the dead `index::` stanza was meant to apply.
@@ -414,10 +414,10 @@ Do **not** use `medadvice:json`: it expects nested `event.model_provider` /
 `event.model_id` and yields nothing for this shape.
 
 Remap in the **pipeline**, never in the receiver. The filelog `add` operator
-that stamps `com.splunk.sourcetype = "demobot:" + log.file.name` is shared by
+that stamps `com.splunk.sourcetype = "pseudoco-assistant:" + log.file.name` is shared by
 every pipeline reading that receiver — editing it also retypes the O11y
 workshop feed. Use a `transform` processor scoped to the gen_ai_cim pipeline
-(`reference/patch-demobot-sourcetype.py`):
+(`reference/patch-pseudoco-assistant-sourcetype.py`):
 
 ```yaml
   transform/gen_ai_cim_sourcetype:
@@ -425,7 +425,7 @@ workshop feed. Use a `transform` processor scoped to the gen_ai_cim pipeline
     log_statements:
       - context: resource
         statements:
-          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "demobot:ai_governance.json"
+          - set(attributes["com.splunk.sourcetype"], "medadvice3:json") where attributes["com.splunk.sourcetype"] == "pseudoco-assistant:ai_governance.json"
 ```
 
 Sharing one receiver across two pipelines is safe: the fanout consumer clones
@@ -433,8 +433,8 @@ data for mutating consumers, so the remap cannot leak into the workshop path.
 
 ### When EVERY assigned instance is an ES demo box — use the standalone patcher
 
-`patch-demobot-gen-ai-cim.py` adds a *second* destination alongside an
-already-installed O11y workshop log path. It assumes the `filelog/demobot`
+`patch-pseudoco-assistant-gen-ai-cim.py` adds a *second* destination alongside an
+already-installed O11y workshop log path. It assumes the `filelog/pseudoco-assistant`
 receiver, the `file_storage` extension, and the `WORKSHOP_*` export loop all
 exist, and on a stock box it fails with **"could not locate the WORKSHOP_*
 export loop."**
@@ -444,11 +444,11 @@ That is the normal case for a Dry Run sheet where every row's Splunk instance is
 `splunk_hec/workshop` at, so installing the workshop path first is pointless and
 leaves an exporter with an empty endpoint that fails validation.
 
-Use **`reference/patch-demobot-es-only.py`** instead — one self-contained logs
+Use **`reference/patch-pseudoco-assistant-es-only.py`** instead — one self-contained logs
 pipeline straight to the ES box's `gen_ai_log`:
 
 ```bash
-python3 /tmp/patch-demobot-es-only.py \
+python3 /tmp/patch-pseudoco-assistant-es-only.py \
   "https://<host>:8088/services/collector/event" "<hec-token>" gen_ai_log "medadviceN"
 ```
 
@@ -470,7 +470,7 @@ extracting.
 
 ### Backfilling history — timestamps are naive UTC
 
-DemoBot writes `"timestamp": "2026-07-29T11:55:47.515826"` with **no timezone**,
+PseudoCo Assistant writes `"timestamp": "2026-07-29T11:55:47.515826"` with **no timezone**,
 and the box runs UTC. `datetime.fromisoformat(ts).timestamp()` interprets a
 naive string as *your* local time, so backfilling from a US-Pacific laptop
 shifts every record ~7h into the future. Future-dated events are invisible to a
@@ -501,11 +501,11 @@ the `splunk_hec` exporter honours that resource attribute *over* its own
 `index:` setting. Bolt a second exporter onto the existing `logs` pipeline and
 every record goes out tagged `splunk4rookies-workshop`, which a
 `gen_ai_log`-scoped token rejects. So add a parallel `resource/gen_ai_cim`
-processor and a `logs/gen_ai_cim` pipeline. Referencing `filelog/demobot` from
+processor and a `logs/gen_ai_cim` pipeline. Referencing `filelog/pseudoco-assistant` from
 both pipelines is fine — the receiver is instantiated once and fans out, and the
 checkpoint extension still sees a single reader.
 
-`reference/patch-demobot-gen-ai-cim.py` applies the whole change (`.env`,
+`reference/patch-pseudoco-assistant-gen-ai-cim.py` applies the whole change (`.env`,
 `run-collector.sh`, config) idempotently, with timestamped backups of each file.
 
 Verify per Step 4, then confirm arrival on the box itself:
@@ -521,7 +521,7 @@ Expect `sourcetype=medadvice3:json` for ai_governance.json, `source=medadviceN`,
 
 ## Step 5 — turn on and verify the Prompt Injection detector (REQUIRED)
 
-Wiring the logs is only half the job. **Every time you wire a DemoBot tunnel to
+Wiring the logs is only half the job. **Every time you wire a PseudoCo Assistant tunnel to
 a Splunk instance, finish by making the Prompt Injection detector actually
 work** — it is the centrepiece of the AI-governance demo, and it ships broken.
 
@@ -658,7 +658,7 @@ nothing with it and tell the user to rotate it — a pasted key is a leaked key.
 Verify afterwards with the `| genaiscore pipeline=pipeline_5` call above;
 `genai_scoring_status=success` is the only proof that matters.
 
-Ollama looks tempting as a no-key option (the DemoBot box already serves
+Ollama looks tempting as a no-key option (the PseudoCo Assistant box already serves
 `mistral-nemo:12b`, `mistral-nemo:12b-poisoned`, `llama3.2:3b`), but it binds to
 `127.0.0.1:11434` and is not reachable from the Splunk instance. Wiring it up
 means binding `0.0.0.0` and opening the security group — an unauthenticated LLM
@@ -673,10 +673,10 @@ detector as live.
 ## Applied instances
 
 **Dry Run One fleet — 8 boxes, all ES demo destinations, 2026-07-29.** Every box
-uses `patch-demobot-es-only.py`; environment renamed `demobot-ec2-N` →
+uses `patch-pseudoco-assistant-es-only.py`; environment renamed `pseudoco-assistant-ec2-N` →
 `medadviceN` and verified in the running process.
 
-| Tunnel | Environment | DemoBot EC2 | ES demo destination (`gen_ai_log`) | Sheet row |
+| Tunnel | Environment | PseudoCo Assistant EC2 | ES demo destination (`gen_ai_log`) | Sheet row |
 |---|---|---|---|---|
 | medadvice1 | `medadvice1` | `i-00d04361a1a98a417` | `i-06bc6784b99dd863a.splunk.show` | 3 Michael Yeack |
 | medadvice2 | `medadvice2` | `i-0d2ec1ad2fab591c9` | `i-088bd3bddf596acd9.splunk.show` | 4 Mark Yorko |
@@ -694,9 +694,9 @@ receive nothing — see the workshop hand-off notes.
 Prompt-injection models trained on all 8; boxes 2-8 had zero models on arrival,
 exactly as this skill predicts.
 
-Both destinations run concurrently off the shared `filelog/demobot` receiver.
+Both destinations run concurrently off the shared `filelog/pseudoco-assistant` receiver.
 
-`medadvice1` was renamed from `demobot-ec2-1` on 2026-07-29 (step 2b) so traces,
-metrics and logs all report one environment. `demobot-ec2-1` still exists in the
+`medadvice1` was renamed from `pseudoco-assistant-ec2-1` on 2026-07-29 (step 2b) so traces,
+metrics and logs all report one environment. `pseudoco-assistant-ec2-1` still exists in the
 org as historical data — and possibly as the old shared-lab box
 `35.175.173.5`, which was never renamed. Check before reusing that name.

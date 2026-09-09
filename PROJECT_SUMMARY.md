@@ -1,8 +1,8 @@
-# DemoBot v3 - Project Summary
+# PseudoCo Assistant v3 - Project Summary
 
 ## Executive Overview
 
-DemoBot v3 is a comprehensive medical guidance web application demonstrating enterprise-grade AI governance, safety guardrails, and compliance logging. Built for macOS with Python and FastAPI, it showcases best practices in responsible AI deployment for healthcare applications.
+PseudoCo Assistant v3 is a comprehensive medical guidance web application demonstrating enterprise-grade AI governance, safety guardrails, and compliance logging. Built for macOS with Python and FastAPI, it showcases best practices in responsible AI deployment for healthcare applications.
 
 ## Key Achievements
 
@@ -476,7 +476,7 @@ cp .env.example .env
 
 ## Conclusion
 
-DemoBot v3 represents a **production-grade reference implementation** of responsible AI deployment in healthcare. It demonstrates:
+PseudoCo Assistant v3 represents a **production-grade reference implementation** of responsible AI deployment in healthcare. It demonstrates:
 
 ✅ **Comprehensive governance** following industry standards
 ✅ **Medical safety** with multiple protection layers

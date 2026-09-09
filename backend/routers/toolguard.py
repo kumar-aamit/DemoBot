@@ -1,8 +1,8 @@
 """Agentic tool-guard endpoints (the OpenClaw before_tool_call seat).
 
-The OpenClaw gateway's ``demobot-toolguard`` plugin POSTs every proposed agent
+The OpenClaw gateway's ``pseudoco-assistant-toolguard`` plugin POSTs every proposed agent
 tool call to ``/api/toolguard/inspect`` *before* the tool runs. This is where
-DemoBot extends its governance from "what the model says" to "what the agent
+PseudoCo Assistant extends its governance from "what the model says" to "what the agent
 does":
 
   1. ``tool_policy.evaluate`` — fast, local, deterministic verdict (workspace
@@ -98,7 +98,7 @@ async def _inspect_ai_defense(rendered: str, enduser_id: Optional[str]):
             ai_defense_client.inspect_prompt,
             rendered,
             enduser_id=enduser_id,
-            src_app="demobot-openclaw",
+            src_app="pseudoco-assistant-openclaw",
         )
     except Exception as exc:  # noqa: BLE001 - never let inspection break the guard
         logger.exception("tool-guard AI Defense inspection failed")

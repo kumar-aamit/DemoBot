@@ -26,7 +26,7 @@ command -v ollama >/dev/null 2>&1 || { echo "FATAL: ollama not found on PATH. In
 
 if [ "$FORCE" -ne 1 ]; then
   if curl -sf --max-time 2 http://localhost:8001/health >/dev/null 2>&1; then
-    echo "FATAL: DemoBot is serving on :8001 — rebuilding models against the live"
+    echo "FATAL: PseudoCo Assistant is serving on :8001 — rebuilding models against the live"
     echo "daemon can stall in-flight chat turns and evict the resident model."
     echo "Stop the app (launchctl bootout gui/\$(id -u)/com.yeack.medadvice-app)"
     echo "or re-run with --force."

@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import backend.config  # noqa: F401  (sets SSL_CERT_FILE / loads .env)
 
 # Point the engine at a throwaway database before it is constructed at import.
-_tmpdir = tempfile.mkdtemp(prefix="demobot-dbtest-")
+_tmpdir = tempfile.mkdtemp(prefix="pseudoco-assistant-dbtest-")
 _dbfile = os.path.join(_tmpdir, "integrity.db")
 from backend.config import settings  # noqa: E402
 
@@ -219,7 +219,7 @@ import json as _json  # noqa: E402
 
 from backend.logging.log_handlers import GovernanceFileHandler  # noqa: E402
 
-_logdir = tempfile.mkdtemp(prefix="demobot-logtest-")
+_logdir = tempfile.mkdtemp(prefix="pseudoco-assistant-logtest-")
 _handler = GovernanceFileHandler(logs_dir=_logdir)
 _big = "x" * 20000          # well past one atomic write
 

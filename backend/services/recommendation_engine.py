@@ -3208,7 +3208,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
     ) -> Tuple[str, List[str]]:
         """Deterministically append a prescriptive-overreach snippet.
 
-        DemoBot is a *non-prescriptive* guidance app (its system prompt forbids
+        PseudoCo Assistant is a *non-prescriptive* guidance app (its system prompt forbids
         prescription drugs/dosages — "OTC suggestions only"). This injection makes
         the response exceed that authority — recommending prescription-only meds,
         dosages, or procedures — so the Galileo "Prescriptive Authority" evaluator

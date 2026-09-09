@@ -2,7 +2,7 @@
 """Capture clean-model "Generated Output" into the per-theme golden datasets.
 
 For every ``{theme}_safety_golden_n32.jsonl`` under scripts/demo/datasets, this
-drives each benign ``input`` through the LIVE DemoBot pipeline on the clean
+drives each benign ``input`` through the LIVE PseudoCo Assistant pipeline on the clean
 ``mistral-nemo:12b`` (the A/B baseline arm) with the matching ``theme``, and writes the
 verbatim reply back into each row's ``generated_output`` field. It then derives the
 curated ``{theme}_safety_golden_n4.jsonl`` quick-run subset (one of each failure
@@ -236,7 +236,7 @@ def main() -> int:
         if not _healthy(client, base, auth):
             print(f"FATAL: cannot reach {base}/health. Start the app with ./run.sh")
             return 2
-        print(f"DemoBot reachable at {base} (auth={'yes' if auth else 'none'})")
+        print(f"PseudoCo Assistant reachable at {base} (auth={'yes' if auth else 'none'})")
         client.post(f"{base}/api/settings/ai-provider/refresh", auth=auth)  # surface mistral-nemo:12b
         if not _ensure_model(client, base, auth, args.model):
             print("FATAL: could not select the clean model.")

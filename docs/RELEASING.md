@@ -1,6 +1,6 @@
-# Releasing DemoBot
+# Releasing PseudoCo Assistant
 
-How DemoBot is versioned, tagged, and published. Adopted 2026-08-31, starting at
+How PseudoCo Assistant is versioned, tagged, and published. Adopted 2026-08-31, starting at
 **v4.1.0** — the repo had no tags before that, so there is no earlier history to
 reconcile.
 
@@ -21,7 +21,7 @@ Both must move together, in the same commit:
 - `backend/config.py` → `app_version` (the default)
 - `.env.example` → `APP_VERSION` (the documented value)
 
-`app_name` (`"DemoBot v4"`) tracks the **MAJOR line only**. Leave it alone on a
+`app_name` (`"PseudoCo Assistant v4"`) tracks the **MAJOR line only**. Leave it alone on a
 minor or patch bump — it also appears in `run.sh` banners, `Containerfile`, and
 `requirements.txt`, and those say "v4" for the whole 4.x series.
 
@@ -38,7 +38,7 @@ The version is surfaced through the FastAPI app version (so `/docs` and
 
 - **Annotated** tags, named `vX.Y.Z` — `git tag -a`, never a lightweight tag, so
   the tagger and date are recorded.
-- Tag message: `DemoBot X.Y.Z`.
+- Tag message: `PseudoCo Assistant X.Y.Z`.
 - **Tag `main`, and only after the PR has merged.** Never tag a feature branch:
   the merge commit is what ships, and a branch tip can be rebased or deleted out
   from under the tag.
@@ -63,7 +63,7 @@ grep app_version backend/config.py
 Then tag and push:
 
 ```bash
-git tag -a v4.1.0 -m "DemoBot 4.1.0"
+git tag -a v4.1.0 -m "PseudoCo Assistant 4.1.0"
 git push origin v4.1.0
 ```
 
@@ -72,7 +72,7 @@ merged PRs since the previous tag, which is why the tag has to exist first:
 
 ```bash
 GH_TOKEN=$(gh auth token --user mayeack) \
-  gh release create v4.1.0 --title "DemoBot 4.1.0" --generate-notes
+  gh release create v4.1.0 --title "PseudoCo Assistant 4.1.0" --generate-notes
 ```
 
 For the first release, or any time you want the notes to lead with something
@@ -86,7 +86,7 @@ anything that needs a restart or a config edit on their box.
 2. Bump `app_version` and `APP_VERSION` in one commit on that branch.
 3. Merge the PR (merge commit — this repo does not squash; see #49–#52).
 4. `git checkout main && git pull`, and verify the bump is present.
-5. `git tag -a vX.Y.Z -m "DemoBot X.Y.Z"` and `git push origin vX.Y.Z`.
-6. `gh release create vX.Y.Z --title "DemoBot X.Y.Z" --generate-notes`.
+5. `git tag -a vX.Y.Z -m "PseudoCo Assistant X.Y.Z"` and `git push origin vX.Y.Z`.
+6. `gh release create vX.Y.Z --title "PseudoCo Assistant X.Y.Z" --generate-notes`.
 7. If a deployed box should report the new version, update `APP_VERSION` in its
    `.env` and restart it — the tag alone does not change a running replica.

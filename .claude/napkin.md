@@ -107,9 +107,9 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   `./scripts/validate-collector-config.sh` (base, then base+overlay). (2) a per-turn
   SDK trace with governance metadata from `backend/agent_observability.py`, fanned
   out from `governance_logger._write_log`. Expected app log lines:
-  `agent observability: logger ready (realm=us1, project=DemoBot, agent_stream=DemoBot)`
-  once, then `agent observability: logged turn (model=…, agents=N, project=DemoBot,
-  agent_stream=DemoBot, export=healthy)` per turn (`export=unknown` = the receiver
+  `agent observability: logger ready (realm=us1, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant)`
+  once, then `agent observability: logged turn (model=…, agents=N, project=PseudoCo Assistant,
+  agent_stream=PseudoCo Assistant, export=healthy)` per turn (`export=unknown` = the receiver
   never acknowledged; the real transport error is logged by the OTel exporter).
 - Env contract: `SPLUNK_AO_REALM` / `SPLUNK_AO_O11Y_TOKEN` / `SPLUNK_AO_PROJECT` /
   `SPLUNK_AO_AGENT_STREAM` ("Agent stream" is the user-visible name; the wire header
@@ -134,8 +134,8 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   verified 2026-09-08). The app warns once, backs off 5 min and logs turns
   sessionless; set `SPLUNK_AO_O11Y_API_TOKEN` (an O11y API token with Agent
   Observability access) to get per-conversation sessions. Trace ingest is unaffected.
-- Console: https://app.us1.signalfx.com/#/agent-obs → project DemoBot → Agent Stream
-  DemoBot. API (`X-SF-Token`, needs an API token with AO access — not the ingest token):
+- Console: https://app.us1.signalfx.com/#/agent-obs → project PseudoCo Assistant → Agent Stream
+  PseudoCo Assistant. API (`X-SF-Token`, needs an API token with AO access — not the ingest token):
   `/ao/api/projects?project_name=…&type=gen_ai`, `/ao/api/v2/projects/<id>/log_streams`,
   `/ao/api/v2/projects/<id>/traces/search`.
 - Legacy: `scripts/demo/galileo_*.py`, `tests/test_galileo_experiment.py` and the
@@ -193,7 +193,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   for `correctness` works fine (that's the Logs-view column) — it is post-ingestion
   and cannot gate a live response.
 - Controls are per-AGENT: a console control does nothing until attached to the
-  registered agent (`demobot-agent`). Do instead:
+  registered agent (`pseudoco-assistant-agent`). Do instead:
   `venv/bin/python scripts/demo/register_agent_control.py --attach <id>`.
 - Hallucination control **259** = `galileo.luna` + preset scorer **`correctness`**
   (`89d579ce-…`, alias `factuality`), scope `stages:[post] step_types:[llm]`,
@@ -206,7 +206,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   `coerce_number()` returns None for bools, so a numeric operator (`lt 0.5`, the
   original config) raises `"score False is not numeric"` → evaluator error →
   fail-open → the control can never fire. `any` is inverted (fires on *correct*).
-- Output-PII control **263** = `DemoBot-block-output-pii`, the one that actually
+- Output-PII control **263** = `PseudoCoAssistant-block-output-pii`, the one that actually
   ENFORCES today (`Output PII (SLM)`, `88eada48-…`, is an SLM scorer so it invokes).
   Definition: `scripts/demo/controls/block-output-pii.json`. The scorer returns a
   **list** of categories and `contains` takes one category, so the condition is an
@@ -236,7 +236,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   Industries → app **YeackBot** → API connection). `push-replica.sh` installs the
   Mac's `.env` verbatim, so fleet replicas inherit the connection for free — a box
   deployed *before* the Mac was configured has a stale `.env` and must be
-  redeployed or patched + `systemctl restart demobot-app`.
+  redeployed or patched + `systemctl restart pseudoco-assistant-app`.
 - **`AI_DEFENSE_FAIL_OPEN=False` means an unreachable/401 Inspection API blocks
   EVERY prompt** — indistinguishable from working enforcement unless you also test
   a benign prompt. Never "fix" that by flipping it True (silently disables the
@@ -284,7 +284,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
 - **Rotate ACCESS_KEY:** edit `.env`, then `launchctl kickstart -k gui/501/com.yeack.medadvice-app`
   (key is read at startup — no hot reload). Rotation logs out every browser
   (cookie = sha256 of key). The OpenClaw gateway bakes the key in at container
-  start — rerun `./run-openclaw.sh` if `demobot-openclaw` is up. Verify old→401 /
+  start — rerun `./run-openclaw.sh` if `pseudoco-assistant-openclaw` is up. Verify old→401 /
   new→200 on both :8001 and medadvice.yeackbot.com.
 
 ## OpenClaw agentic surface (Mode C — opt-in demo)
@@ -294,7 +294,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   default. `verify_openclaw_observability.sh` after touching the guard/plugin.
 - **Runs in podman, NOT a host npm install.** Cisco Secure Endpoint (AMP)
   quarantines the npm `openclaw` entrypoint within ~2 min, repeatably. The
-  gateway is the `demobot-openclaw` image (pinned `openclaw@2026.7.1-2`) on
+  gateway is the `pseudoco-assistant-openclaw` image (pinned `openclaw@2026.7.1-2`) on
   :18789. See the [[openclaw-edr-podman]] memory.
 - **`openclaw/` is tracked but NOT checked out on this Mac.** AMP deletes
   OpenClaw files from the working tree, so the directory is excluded via
@@ -309,7 +309,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
     new worktrees (sparse state is per-worktree and is not inherited).
 - **The image is built from git, plugin baked in.** `run-openclaw.sh` pipes
   `git archive HEAD:openclaw` into `podman build` as the build context and
-  stamps the tree hash as the `demobot.openclaw.tree` label; a mismatch triggers
+  stamps the tree hash as the `pseudoco-assistant.openclaw.tree` label; a mismatch triggers
   a rebuild. So a plugin change takes effect once **committed**, not once staged,
   and the first build after a change costs a few minutes (npm install).
 - **podman VM only shares `$HOME`.** A bind mount from `/Applications/DemoBot`
@@ -330,7 +330,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   (:8001) denies EVERY agent tool call — looks like a broken agent, not a broken
   app. `TOOL_GUARD_ENABLED` gates *enforcement* only (default False = the
   unguarded control run); the app never calls the gateway, so `podman stop
-  demobot-openclaw` is the real off switch.
+  pseudoco-assistant-openclaw` is the real off switch.
 - Agent model is Ollama **`llama3.2:3b`** (tool-capable); `mistral-nemo:12b` has no
   tools template. Decoy workspace: `venv/bin/python scripts/demo/seed_agentic_decoy.py`.
 
@@ -355,7 +355,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
 - Secrets live only in `.env` + `medadvice.db` (both gitignored). Never commit them.
 
 ## NVIDIA stack (provider=nvidia, NeMo/NemoClaw toggles, blueprints) — 2026-09
-- **A local NIM on the A10G needs three knobs** (`/etc/demobot-nim.env`, all
+- **A local NIM on the A10G needs three knobs** (`/etc/pseudoco-assistant-nim.env`, all
   overridable when bootstrapping): `NIM_MAX_NUM_SEQS=8` (Nemotron Nano's hybrid-
   Mamba SSM cache is pre-allocated per sequence — 33.75 GiB at the default 256,
   and capping the context does NOT help), `NIM_KVCACHE_PERCENT=0.95`,
@@ -402,7 +402,7 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
 - **NeMo node order:** `prompt_defense → nemo_input_rails → …` and
   `agent_control → nemo_output_rails → response_defense` — Cisco stays last.
   `test_agent_control` asserts the COMPILED graph edges, not source strings.
-- **LangGraph drops state keys not declared on `DemoBotState`.** The NVIDIA
+- **LangGraph drops state keys not declared on `PseudoCoAssistantState`.** The NVIDIA
   blueprint's `blueprint_record` silently vanished until declared. Any new core
   key → `state.py` first. Guard: `tests/test_nvidia_blueprint.py`.
 - **Blueprint parity is structural**: cores only add generation nodes;

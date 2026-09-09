@@ -85,7 +85,7 @@ def init_telemetry(settings) -> None:
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
         service_name = os.getenv("OTEL_SERVICE_NAME") or getattr(
-            settings, "otel_service_name", "demobot-v3"
+            settings, "otel_service_name", "pseudoco-assistant"
         )
         resource = Resource.create({"service.name": service_name})
         provider = TracerProvider(resource=resource)
@@ -103,7 +103,7 @@ def init_telemetry(settings) -> None:
             provider.add_span_processor(BatchSpanProcessor(exporter))
 
         trace.set_tracer_provider(provider)
-        _STATE["tracer"] = trace.get_tracer("demobot.agents")
+        _STATE["tracer"] = trace.get_tracer("pseudoco-assistant.agents")
         _STATE["enabled"] = True
 
         # Optional: richer GenAI emission via opentelemetry-util-genai.
@@ -181,12 +181,12 @@ def workflow_span(
         {
             "gen_ai.workflow.name": workflow_name,
             "workflow_name": workflow_name,
-            "demobot.theme": theme,
+            "pseudoco-assistant.theme": theme,
             # Which agentic architecture served the turn (additive attribute).
-            "demobot.blueprint": blueprint,
+            "pseudoco-assistant.blueprint": blueprint,
             "session.id": session_id,
-            "demobot.request_id": request_id,
-            "demobot.trace_id": trace_id,
+            "pseudoco-assistant.request_id": request_id,
+            "pseudoco-assistant.trace_id": trace_id,
         },
     )
 
@@ -196,7 +196,7 @@ def agent_span(agent_name: str, *, theme: Optional[str] = None, attributes: Opti
     attrs = {
         "gen_ai.agent.name": agent_name,
         "agent_name": agent_name,
-        "demobot.theme": theme,
+        "pseudoco-assistant.theme": theme,
     }
     if attributes:
         attrs.update(attributes)
@@ -220,7 +220,7 @@ def tool_span(
         "gen_ai.tool.name": tool_name,
         "gen_ai.tool.call.id": tool_call_id,
         "tool_name": tool_name,
-        "demobot.agent_surface": agent_surface,
+        "pseudoco-assistant.agent_surface": agent_surface,
     }
     if attributes:
         attrs.update(attributes)
@@ -241,10 +241,10 @@ def record_tool_result(
     _set_attrs(
         span,
         {
-            "demobot.tool.decision": decision,
-            "demobot.tool.denied_reason": denied_reason,
-            "demobot.guardrail.rule_names": rule_names,
-            "demobot.ai_defense.event_id": event_id,
+            "pseudoco-assistant.tool.decision": decision,
+            "pseudoco-assistant.tool.denied_reason": denied_reason,
+            "pseudoco-assistant.guardrail.rule_names": rule_names,
+            "pseudoco-assistant.ai_defense.event_id": event_id,
         },
     )
 

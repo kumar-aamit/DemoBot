@@ -15,19 +15,19 @@ exporters:
     token: "${env:SPLUNK_HEC_TOKEN}"
     endpoint: "${env:SPLUNK_HEC_URL}/services/collector"
     index: "${env:SPLUNK_HEC_INDEX}"
-    source: "demobot"
-    sourcetype: "demobot:otel"
+    source: "pseudoco-assistant"
+    sourcetype: "pseudoco-assistant:otel"
     # The local Splunk Enterprise HEC listener uses a self-signed cert.
     tls:
       insecure_skip_verify: true
 
 processors:
   # Carry service.name / deployment.environment onto every event so a log can be
-  # pivoted back to the same APM environment the traces land in (demobot-local).
+  # pivoted back to the same APM environment the traces land in (pseudoco-assistant-local).
   resource/logs:
     attributes:
       - key: com.splunk.sourcetype
-        value: "demobot:otel"
+        value: "pseudoco-assistant:otel"
         action: upsert
 
 service:
