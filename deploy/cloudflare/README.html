@@ -43,10 +43,15 @@ scripted migration with a preflight and a rollback rather than a search and
 replace: the hostname is not a string in the codebase, it is the name of a record
 in Cloudflare that four other systems point at.</p>
 <h2>Status</h2>
-<p><code>pseudocoassistant.com</code> was registered through Cloudflare Registrar on
-2026-09-09 and is delegated to <code>julio</code>/<code>ziggy.ns.cloudflare.com</code>, the same
-nameservers as <code>yeackbot.com</code>.</p>
-<p>The cutover has <strong>not</strong> completed. It needs one manual step first: see below.</p>
+<p><strong>Done.</strong> <code>pseudocoassistant.com</code> was registered through Cloudflare Registrar on
+2026-09-09, delegated to <code>julio</code>/<code>ziggy.ns.cloudflare.com</code>, and the tunnel cut
+over the same day.</p>
+<p>Verified through the new hostname: <code>/health</code> 200, <code>/app</code> 401 without the access
+key and 200 with it, edge certificate issued by Let's Encrypt.
+<code>medadvice.yeackbot.com</code> now returns 404, its ingress rule having been removed by
+the cutover.</p>
+<p>The steps below are kept because the same script moves the EC2 fleet later, and
+because the follow-ups in step 3 are still outstanding.</p>
 <h2>The origin cert is scoped to one zone</h2>
 <p><code>~/.cloudflared/cert.pem</code> is a base64 JSON blob carrying exactly one <code>zoneID</code>
 and a token scoped to it. That zone is <code>yeackbot.com</code>. An account-wide cert is

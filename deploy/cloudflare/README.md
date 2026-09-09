@@ -11,11 +11,17 @@ in Cloudflare that four other systems point at.
 
 ## Status
 
-`pseudocoassistant.com` was registered through Cloudflare Registrar on
-2026-09-09 and is delegated to `julio`/`ziggy.ns.cloudflare.com`, the same
-nameservers as `yeackbot.com`.
+**Done.** `pseudocoassistant.com` was registered through Cloudflare Registrar on
+2026-09-09, delegated to `julio`/`ziggy.ns.cloudflare.com`, and the tunnel cut
+over the same day.
 
-The cutover has **not** completed. It needs one manual step first: see below.
+Verified through the new hostname: `/health` 200, `/app` 401 without the access
+key and 200 with it, edge certificate issued by Let's Encrypt.
+`medadvice.yeackbot.com` now returns 404, its ingress rule having been removed by
+the cutover.
+
+The steps below are kept because the same script moves the EC2 fleet later, and
+because the follow-ups in step 3 are still outstanding.
 
 ## The origin cert is scoped to one zone
 
