@@ -48,6 +48,31 @@ chat turn; never adds request latency. Never imports the legacy ``galileo``
 package (kept installed only for ``scripts/demo/galileo_*.py``). TLS uses the CA
 bundle that ``backend.config`` sets via ``SSL_CERT_FILE`` / ``REQUESTS_CA_BUNDLE``
 at import.
+
+Surviving a network change (added after the 2026-09-09 stall: the Mac moved
+networks, the worker blocked inside the SDK on sockets bound to the old
+interface, and the app kept answering chat turns for six days while nothing
+reached Agent Observability and the app log said nothing at all). The SDK has
+one wait with no deadline at all — ``start_session`` runs its coroutine on a
+galileo-core event-loop thread and blocks on ``future.result()`` with no
+timeout — and one budget it does not enforce: ``flush`` reaches
+``BatchProcessor.force_flush``, which discards its ``timeout_millis`` and
+drains the whole span queue synchronously. Three guards, in order:
+
+* **Bounded calls.** Every SDK call that can touch the network
+  (``start_session``, ``flush``, ``terminate``) runs through ``_bounded_call``:
+  on a daemon thread with a hard deadline. An overrun is an emit failure that
+  tears the logger down and rebuilds it — new exporter, new sockets on the new
+  interface. The wedged call is abandoned on its thread; nothing waits for it.
+* **A bounded export.** ``_bounded_sink`` builds the SDK's own O11y exporter
+  with an explicit per-POST ``timeout`` and a bounded span queue, so a healthy
+  ``flush`` against a black-holed socket costs a number we can state
+  (``_EXPORT_TIMEOUT_S`` x export rounds), well inside the call deadline.
+* **A stall signal.** ``_check_stall`` warns once per wedged turn and
+  ``status()`` reports it — the last resort for a hang outside the bounded
+  calls. It runs on the REQUEST path, not just the worker's idle tick: a worker
+  blocked inside the SDK never reaches its own idle tick, which is precisely why
+  the 9/09 stall was invisible.
 """
 from __future__ import annotations
 
@@ -70,6 +95,21 @@ _SESSION_BACKOFF_S = 300.0         # after start_session fails
 _SESSION_CACHE_SIZE = 512
 _DRAIN_ON_SHUTDOWN_S = 5.0
 _FAILURE_TRACEBACK_EVERY_S = 60.0
+# Export bounds (see _bounded_sink). One drain is at most
+# ceil(_EXPORT_QUEUE_SIZE / _EXPORT_BATCH_SIZE) export rounds of
+# _EXPORT_TIMEOUT_S each, so a flush against a black-holed socket costs ~16 s,
+# not an open-ended number of rounds at the ambient OTel default.
+_EXPORT_TIMEOUT_S = 8.0
+_EXPORT_QUEUE_SIZE = 1024
+_EXPORT_BATCH_SIZE = 512
+# Hard deadline on any one SDK call that can touch the network (see
+# _bounded_call). Generous next to a healthy call (< 1 s) and to the bounded
+# flush above; a session lookup slower than this is as good as failed.
+_CALL_TIMEOUT_S = 30.0
+# A turn still in flight this long means the worker is wedged OUTSIDE the
+# bounded calls: a fully failing turn is at most two call deadlines. Warned once
+# per wedged turn, reported by status().
+_STALL_WARN_AFTER_S = 120.0
 _SDK_LOGGER = "splunk_ao"
 _DEFAULT_PROJECT = "PseudoCo Assistant"
 _DEFAULT_AGENT_STREAM = "PseudoCo Assistant"
@@ -99,6 +139,10 @@ class TurnEmitError(RuntimeError):
     """start_trace failed (returned None or raised) — the turn cannot be built."""
 
 
+class SdkCallTimeout(RuntimeError):
+    """An SDK call overran ``_CALL_TIMEOUT_S`` and was abandoned on its thread."""
+
+
 # ---------------------------------------------------------------------------
 # Runtime state
 # ---------------------------------------------------------------------------
@@ -119,6 +163,7 @@ class _Runtime:
     logger_generation: int = -1
     build_backoff_until: float = 0.0
     last_build_error: str = ""
+    last_sink_error: str = ""
     consecutive_failures: int = 0
     last_failure_traceback_at: float = 0.0
     sessions: "OrderedDict[str, str]" = field(default_factory=OrderedDict)
@@ -126,10 +171,21 @@ class _Runtime:
     session_warned: bool = False
     # Surfaced by status(): a sessions 401 used to be invisible outside the log,
     # which is how an unset SPLUNK_AO_O11Y_API_TOKEN went unnoticed for weeks
-    # (turns kept logging, just ungrouped). None = not attempted yet.
+    # (turns kept logging, just ungrouped). None = not attempted yet. The last
+    # error is also the dedupe key: a NEW cause (a timeout after the known 401)
+    # warns again.
     sessions_ok: Optional[bool] = None
     sessions_last_error: str = ""
     turns_logged: int = 0
+    # ---- stall detection: written by the worker, READ off it ----
+    # Plain float reads/writes, no lock: the reader only ever sees the previous
+    # or the next value, and a stale read costs one extra elapsed computation.
+    turn_started_at: float = 0.0        # monotonic; 0.0 = the worker is idle
+    turn_started_desc: str = ""         # request_id of the in-flight turn
+    turn_completed_at: float = 0.0      # monotonic of the last turn that returned
+    stall_warned_for: float = 0.0       # the turn_started_at already warned about
+    stalls: int = 0
+    abandoned_calls: int = 0            # SDK calls left running past their deadline
 
 
 def _new_runtime(maxsize: int = QUEUE_MAXSIZE) -> _Runtime:
@@ -175,6 +231,10 @@ def maybe_log_turn(log_data: Dict[str, Any]) -> None:
             logger.debug("agent observability: dropped turn (%d total)", _rt.dropped)
     except Exception:  # noqa: BLE001 - must never break a chat turn
         logger.debug("agent observability: enqueue failed", exc_info=True)
+    try:
+        _check_stall()                    # after the enqueue: a wedged worker cannot report itself
+    except Exception:  # noqa: BLE001
+        logger.debug("agent observability: stall check failed", exc_info=True)
 
 
 def reconfigure() -> None:
@@ -210,9 +270,14 @@ def shutdown(timeout: float = 10.0) -> None:
 
 
 def status() -> Dict[str, Any]:
-    """Diagnostics snapshot (never raises)."""
+    """Diagnostics snapshot (never raises, never logs).
+
+    ``worker_alive`` is not enough to tell a healthy emitter from a wedged one:
+    a worker blocked inside the SDK is still a live thread. ``stalled`` /
+    ``turn_in_flight_s`` are what separate the two."""
     with _rt.lock:
         alive = _rt.thread is not None and _rt.thread.is_alive()
+    in_flight = _in_flight_s()
     return {
         "enabled": is_enabled(),
         "worker_alive": alive,
@@ -224,11 +289,91 @@ def status() -> Dict[str, Any]:
         "sessions_cached": len(_rt.sessions),
         "sessions_ok": _rt.sessions_ok,
         "sessions_last_error": _rt.sessions_last_error,
+        "stalled": in_flight >= _STALL_WARN_AFTER_S,
+        "turn_in_flight_s": round(in_flight, 1),
+        "stalls": _rt.stalls,
+        "abandoned_calls": _rt.abandoned_calls,
+        "last_turn_completed_s_ago": (
+            round(time.monotonic() - _rt.turn_completed_at, 1) if _rt.turn_completed_at else None
+        ),
         "project": os.getenv("SPLUNK_AO_PROJECT") or _DEFAULT_PROJECT,
         "agent_stream": _default_stream(),
         "agent_stream_per_theme": _per_theme_streams(),
         "agent_streams_live": sorted(_rt.loggers),
     }
+
+
+# ---------------------------------------------------------------------------
+# Bounded SDK calls (worker thread only)
+# ---------------------------------------------------------------------------
+def _bounded_call(what: str, fn, *args, timeout: Optional[float] = None, **kwargs):
+    """Run one SDK call that can touch the network under a hard deadline.
+
+    The call runs on a throwaway DAEMON thread and the worker joins it with a
+    timeout. A Python thread cannot be interrupted, so on overrun the call is
+    abandoned where it is — it keeps its thread until (if ever) the SDK returns
+    — and ``SdkCallTimeout`` is raised on the worker, which tears the logger
+    down and rebuilds it rather than reuse an instance whose I/O is wedged.
+
+    A daemon thread rather than a ``ThreadPoolExecutor``: since Python 3.9
+    executor workers are joined at interpreter exit, so one wedged call would
+    also hang shutdown. Thread creation costs ~0.1 ms per call, nothing next to
+    the request it wraps."""
+    if timeout is None:
+        timeout = _CALL_TIMEOUT_S
+    box: Dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            box["value"] = fn(*args, **kwargs)
+        except BaseException as exc:  # noqa: BLE001 - re-raised on the worker below
+            box["error"] = exc
+
+    t = threading.Thread(target=run, name=f"agent-observability-io:{what}", daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        _rt.abandoned_calls += 1
+        raise SdkCallTimeout(f"{what} exceeded {timeout:.0f}s; call abandoned on its thread")
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
+# ---------------------------------------------------------------------------
+# Stall detection
+# ---------------------------------------------------------------------------
+def _in_flight_s() -> float:
+    """Seconds the worker has been inside the current turn (0.0 when idle)."""
+    started = _rt.turn_started_at
+    return max(0.0, time.monotonic() - started) if started else 0.0
+
+
+def _check_stall() -> None:
+    """Emit ONE WARNING per wedged turn.
+
+    Called from ``maybe_log_turn`` — the request path — and deliberately NOT
+    from the worker: the failure mode is a worker blocked *inside* the SDK,
+    which never gets back to its loop, and its idle tick only ever runs between
+    turns, when there is nothing in flight to report. On 2026-09-09 that left
+    the app streaming nothing for six days while every static check passed —
+    ``is_enabled()`` True, the module imported, the queue below its 500-slot
+    warning threshold and chat turns answering normally."""
+    started = _rt.turn_started_at
+    if not started:
+        return
+    elapsed = time.monotonic() - started
+    if elapsed < _STALL_WARN_AFTER_S or _rt.stall_warned_for == started:
+        return
+    _rt.stall_warned_for = started
+    _rt.stalls += 1
+    logger.warning(
+        "agent observability: WORKER STALLED — turn %s has been in flight %.0fs "
+        "(>%.0fs) and %d turn(s) are queued behind it; nothing is reaching Agent "
+        "Observability. Check for dead sockets to the ingest endpoint "
+        "(lsof -nP -a -p <pid> -i) and restart the app to clear it.",
+        _rt.turn_started_desc or "?", elapsed, _STALL_WARN_AFTER_S, _rt.queue.qsize(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +398,7 @@ def _worker_loop() -> None:
             if _rt.stop_event.is_set():
                 break
             _maybe_retire_logger()        # idle tick: a Settings save retires the stale exporter within ~1 s
-            continue
+            continue                      # (no stall check here: idle means no turn in flight — see _check_stall)
         try:
             if item is _STOP:
                 break
@@ -335,9 +480,12 @@ def _maybe_retire_logger() -> None:
         _rt.sessions.clear()
         _rt.sessions_unavailable_until = 0.0
         _rt.session_warned = False
+        _rt.sessions_ok = None            # not attempted yet under the new configuration
+        _rt.sessions_last_error = ""
         _rt.consecutive_failures = 0
         _rt.build_backoff_until = 0.0
         _rt.last_build_error = ""
+        _rt.last_sink_error = ""
 
 
 def _terminate_logger() -> None:
@@ -345,8 +493,10 @@ def _terminate_logger() -> None:
     loggers, _rt.loggers = list(_rt.loggers.values()), {}
     for lg in loggers:
         try:
-            lg.terminate()                # idempotent; force_flush (<=30 s) + sink shutdown
-        except Exception:  # noqa: BLE001
+            # idempotent; force_flush + sink shutdown — both block on the same
+            # export lock a wedged flush holds, hence bounded
+            _bounded_call("terminate", lg.terminate)
+        except Exception:  # noqa: BLE001 - the reference is dropped either way
             logger.debug("agent observability: terminate failed", exc_info=True)
 
 
@@ -394,16 +544,81 @@ def _build_logger(stream: str):
     if sdk_log.level == logging.NOTSET or sdk_log.level > logging.WARNING:
         sdk_log.setLevel(logging.WARNING)
     from splunk_ao import SplunkAOLogger  # lazy: keeps the module importable without the package
-    return SplunkAOLogger(
-        project=os.getenv("SPLUNK_AO_PROJECT") or _DEFAULT_PROJECT,
-        agent_stream=stream,
-    )
+    project = os.getenv("SPLUNK_AO_PROJECT") or _DEFAULT_PROJECT
+    sink = _bounded_sink(project, stream)
+    if sink is None:                      # SDK shape drifted; unbounded but working
+        return SplunkAOLogger(project=project, agent_stream=stream)
+    return SplunkAOLogger(project=project, agent_stream=stream, _sink=sink)
+
+
+def _bounded_sink(project: str, stream: str):
+    """The SDK's own O11y span sink, built with an explicit export budget.
+
+    Why this is not left to the SDK's default: ``SplunkAOLogger`` builds its sink
+    as ``build_span_sink(build_o11y_exporter(...))`` with no timeout and no batch
+    config, so the per-POST timeout falls back to whatever ``OTEL_EXPORTER_OTLP_*``
+    happens to be in the environment and the span queue keeps the OTel default of
+    2048. That matters because the SDK's flush budget is NOT enforced anywhere:
+    ``lg.flush()`` -> ``SpanSink.force_flush(30000)`` -> ``TracerProvider.force_flush``
+    -> ``BatchProcessor.force_flush``, which discards ``timeout_millis`` outright
+    and drains the entire queue synchronously, one export round per
+    ``max_export_batch_size`` spans, under a lock it shares with the SDK's own
+    batch thread. Against a black-holed socket each round costs a full timeout, so
+    the only way to bound the worker's time in ``flush()`` is to bound both
+    numbers here.
+
+    ``_sink`` is the constructor's injection seam; the three builders below are
+    public module functions in splunk-ao 0.4.0. Returns None (and warns once) if
+    any of that drifts, so a future SDK loses the bound but never loses emission.
+
+    NOTE for reviewers: this is deliberately NOT a timeout on
+    ``splunk_ao/resources/client.py`` (whose ``_timeout`` field does default to
+    ``None``). That generated ``Client`` / ``AuthenticatedClient`` pair is never
+    instantiated on this path — the generated API functions are handed
+    ``config.api_client`` and call ``.request()`` on it, which is a galileo-core
+    ``ApiClient`` that already builds httpx with ``Timeout(60.0, connect=5.0)``.
+    And the ingest path is not httpx at all; it is the OTel ``OTLPSpanExporter``
+    over ``requests`` (traced against splunk-ao 0.4.0 and its galileo-core)."""
+    try:
+        from splunk_ao.deployment import DeploymentMode, O11yConfig, resolve_deployment
+        from splunk_ao.exporter.config import resolve_routing
+        from splunk_ao.exporter.o11y import build_o11y_exporter
+        from splunk_ao.exporter.sink import BatchConfig, build_span_sink
+
+        if resolve_deployment() != DeploymentMode.O11Y:
+            return None                   # standalone mode builds a different exporter
+        routing = resolve_routing(DeploymentMode.O11Y, project=project, agent_stream=stream)
+        exporter = build_o11y_exporter(O11yConfig.from_env(), routing, timeout=_EXPORT_TIMEOUT_S)
+        return build_span_sink(exporter, BatchConfig(max_queue_size=_EXPORT_QUEUE_SIZE,
+                                                    max_export_batch_size=_EXPORT_BATCH_SIZE))
+    except Exception as exc:  # noqa: BLE001 - never block the build over the bound
+        msg = f"{type(exc).__name__}: {exc}"
+        if msg != _rt.last_sink_error:    # one WARNING per distinct cause
+            logger.warning("agent observability: cannot bound the export timeout (%s); "
+                           "falling back to the SDK default sink", msg, exc_info=True)
+            _rt.last_sink_error = msg
+        return None
 
 
 # ---------------------------------------------------------------------------
 # Per-turn processing (worker thread only)
 # ---------------------------------------------------------------------------
 def _process_turn(log_data: Dict[str, Any]) -> None:
+    """Mark the turn in flight, emit it, mark it done.
+
+    The markers are the only trace a wedged worker leaves: everything inside
+    ``_emit_turn`` logs on success and on failure, but a thread blocked in the
+    SDK reaches neither."""
+    _rt.turn_started_desc = str(log_data.get("request_id") or "?")
+    _rt.turn_started_at = time.monotonic()
+    try:
+        _emit_turn(log_data)
+    finally:
+        _rt.turn_completed_at = time.monotonic()
+        _rt.turn_started_at = 0.0
+
+
+def _emit_turn(log_data: Dict[str, Any]) -> None:
     stream = _stream_for(log_data)
     lg = _ensure_logger(stream)
     if lg is None:
@@ -420,7 +635,7 @@ def _process_turn(log_data: Dict[str, Any]) -> None:
             lg.clear_session()            # never let the previous turn's session leak onto this one
         _build_turn(lg, log_data)
         flush_errors: List[BaseException] = []
-        lg.flush(on_error=flush_errors.append)
+        _bounded_call("flush", lg.flush, on_error=flush_errors.append)
         _rt.consecutive_failures = 0
         _rt.turns_logged += 1
         logger.info(
@@ -428,21 +643,31 @@ def _process_turn(log_data: Dict[str, Any]) -> None:
             model, agents, getattr(lg, "project_name", None), getattr(lg, "agent_stream_name", None),
             _export_label(lg, flush_errors),
         )
-    except Exception:  # noqa: BLE001 - emission must never escape the worker loop
+    except Exception as exc:  # noqa: BLE001 - emission must never escape the worker loop
         _rt.consecutive_failures += 1
-        _log_turn_failure(model)
+        _log_turn_failure(model, exc)
         try:
             lg.reset_parent_tracking()
         except Exception:  # noqa: BLE001
             pass
-        if _rt.consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+        if isinstance(exc, SdkCallTimeout):
+            # Its I/O is wedged (dead sockets after a network move, a stuck
+            # event-loop future): rebuild now, on fresh sockets, rather than
+            # pay the deadline N more times on the same instance.
+            logger.warning(
+                "agent observability: %s; terminating and rebuilding the logger in %.0fs",
+                exc, _BUILD_BACKOFF_S,
+            )
+        elif _rt.consecutive_failures < _MAX_CONSECUTIVE_FAILURES:
+            return
+        else:
             logger.warning(
                 "agent observability: %d consecutive failures; terminating and rebuilding the logger in %.0fs",
                 _rt.consecutive_failures, _BUILD_BACKOFF_S,
             )
-            _terminate_logger()
-            _rt.consecutive_failures = 0
-            _rt.build_backoff_until = time.monotonic() + _BUILD_BACKOFF_S
+        _terminate_logger()
+        _rt.consecutive_failures = 0
+        _rt.build_backoff_until = time.monotonic() + _BUILD_BACKOFF_S
 
 
 def _export_label(lg, flush_errors) -> str:
@@ -493,10 +718,14 @@ def _session_for(lg, stream: str, session_id) -> Optional[str]:
     if now < _rt.sessions_unavailable_until:
         return None
     try:
-        ao = lg.start_session(name=f"chat session {sid[:8]}", external_id=sid)
+        # Bounded: the SDK runs this on a galileo-core event-loop thread and
+        # waits on future.result() with NO timeout — the one truly open-ended
+        # wait on the turn, and it comes before flush.
+        ao = _bounded_call("start_session", lg.start_session,
+                           name=f"chat session {sid[:8]}", external_id=sid)
         if not ao:
             raise RuntimeError("start_session returned None")
-    except Exception as exc:  # noqa: BLE001 - CRUD 401/403, project lookup, ...
+    except Exception as exc:  # noqa: BLE001 - CRUD 401/403, project lookup, SdkCallTimeout, ...
         # The SDK's own message tells you to set SPLUNK_AO_API_KEY. Do not: that
         # is the standalone-mode variable, and resolve_deployment() raises
         # AmbiguousConfigurationError when it is set alongside an O11y one. The
@@ -509,9 +738,12 @@ def _session_for(lg, stream: str, session_id) -> Optional[str]:
                       "ingest token, which the sessions API rejects. Set an Observability "
                       "Cloud API token with Agent Observability access and restart the app "
                       f"(underlying error: {detail})")
+        # Once per cause: the standing missing-token 401 warns exactly once, and
+        # a later, different failure (a start_session timeout) still gets a line.
+        is_new_cause = not _rt.session_warned or detail != _rt.sessions_last_error
         _rt.sessions_ok = False
         _rt.sessions_last_error = detail
-        if not _rt.session_warned:
+        if is_new_cause:
             logger.warning(
                 "agent observability: sessions unavailable (%s); logging turns without a session, retry in %d min",
                 detail, int(_SESSION_BACKOFF_S // 60),
@@ -531,16 +763,16 @@ def _session_for(lg, stream: str, session_id) -> Optional[str]:
     return str(ao)
 
 
-def _log_turn_failure(model: str) -> None:
+def _log_turn_failure(model: str, exc: BaseException) -> None:
     """WARNING (not debug): an outage leaves the Agent Observability pillar silently
     empty during a workshop, and debug is below the default console threshold. A
-    traceback at most once a minute, a one-liner otherwise."""
+    traceback at most once a minute, a one-liner (still naming the cause) otherwise."""
     now = time.monotonic()
     with_tb = now - _rt.last_failure_traceback_at >= _FAILURE_TRACEBACK_EVERY_S
     if with_tb:
         _rt.last_failure_traceback_at = now
-    logger.warning("agent observability: emit failed (model=%s, consecutive=%d)",
-                   model, _rt.consecutive_failures, exc_info=with_tb)
+    logger.warning("agent observability: emit failed (model=%s, consecutive=%d, cause=%s: %s)",
+                   model, _rt.consecutive_failures, type(exc).__name__, exc, exc_info=with_tb)
 
 
 # ---------------------------------------------------------------------------
