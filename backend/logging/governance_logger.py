@@ -14,6 +14,10 @@ from backend.hec.runtime import hec_runtime
 
 logger = logging.getLogger("governance")
 
+# Last Agent Observability submit failure already warned about, so a permanent
+# fault warns once instead of once per chat turn (see _write_log).
+_ao_submit_warned = ""
+
 
 def _emit_model(model: str) -> str:
     """Apply the demo model-name override (backend/model_emitter.py). Defensive:
@@ -368,11 +372,23 @@ class GovernanceLogger:
         # governance metadata (no-op unless SPLUNK_AO_O11Y_TOKEN + SPLUNK_AO_REALM
         # are set; self-gates to chat response events; non-blocking enqueue to a
         # single worker thread, so it never adds request latency).
+        # A WARNING, not debug: maybe_log_turn is written never to raise, so
+        # anything landing here is a real defect (a bad import, a broken queue)
+        # that silently costs every turn its Agent Observability trace. At debug
+        # it was undiagnosable. Deduped by cause so one permanent fault does not
+        # print per turn.
         try:
             from backend import agent_observability
             agent_observability.maybe_log_turn(log_data)
-        except Exception:
-            logger.debug("agent observability submit failed", exc_info=True)
+        except Exception as exc:
+            global _ao_submit_warned
+            cause = f"{type(exc).__name__}: {exc}"
+            if cause != _ao_submit_warned:
+                logger.warning("agent observability submit failed (%s); turns are not "
+                               "reaching Agent Observability", cause, exc_info=True)
+                _ao_submit_warned = cause
+            else:
+                logger.debug("agent observability submit failed", exc_info=True)
 
     def _write_to_database(self, log_data: Dict[str, Any]):
         """Write governance log to database"""

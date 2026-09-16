@@ -21,6 +21,7 @@ import logging
 import os
 import sys
 import threading
+import time
 import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -86,17 +87,19 @@ class _FakeLogger:
     instances = []
     ctor_error = None
 
-    def __init__(self, project=None, agent_stream=None, **kw):
+    def __init__(self, project=None, agent_stream=None, _sink=None, **kw):
         if _FakeLogger.ctor_error is not None:
             raise _FakeLogger.ctor_error
         self.project_name = project
         self.agent_stream_name = agent_stream
+        self.sink = _sink                      # the bounded sink the emitter injects
         self.calls = []
         self.fail_start = False
         self.raise_start = None
         self.session_error = False
         self.dangling = False
-        self.block_event = None
+        self.block_event = None                # blocks start_trace (NOT a bounded call)
+        self.flush_block_event = None          # blocks flush (a bounded call)
         self.flush_error = None
         self.healthy = True
         _FakeLogger.instances.append(self)
@@ -119,13 +122,16 @@ class _FakeLogger:
 
     def flush(self, on_error=None):
         self._rec("flush", {})
+        if self.flush_block_event is not None:
+            self.flush_block_event.wait(30)
         if self.flush_error is not None and on_error is not None:
             on_error(self.flush_error)
 
     def start_session(self, **k):
         self._rec("start_session", k)
-        if self.session_error:
-            raise RuntimeError("401 unauthorized")
+        if self.session_error:                 # True -> the known 401; an exception -> raised as-is
+            raise self.session_error if isinstance(self.session_error, BaseException) \
+                else RuntimeError("401 unauthorized")
         return "ao-sess-1"
 
     def set_session(self, session_id): self._rec("set_session", {"session_id": session_id})
@@ -148,6 +154,38 @@ _fake_sdk = types.ModuleType("splunk_ao")
 _fake_sdk.SplunkAOLogger = _FakeLogger
 _fake_sdk.__version__ = "0.4.0-fake"
 sys.modules["splunk_ao"] = _fake_sdk
+
+
+# ---- fake SDK exporter plumbing, so _bounded_sink takes its real path -------
+class _FakeSink:
+    def __init__(self, exporter, batch):
+        self.exporter, self.batch = exporter, batch
+
+
+class _DeploymentMode:
+    O11Y, STANDALONE = "o11y", "standalone"
+
+
+_sdk_deployment = types.ModuleType("splunk_ao.deployment")
+_sdk_deployment.DeploymentMode = _DeploymentMode
+_sdk_deployment.resolve_deployment = lambda: _DeploymentMode.O11Y
+_sdk_deployment.O11yConfig = SimpleNamespace(from_env=lambda: SimpleNamespace(realm="us1"))
+_sdk_expcfg = types.ModuleType("splunk_ao.exporter.config")
+_sdk_expcfg.resolve_routing = lambda mode, project=None, agent_stream=None: SimpleNamespace(
+    project_name=project, agent_stream_name=agent_stream)
+_sdk_o11y = types.ModuleType("splunk_ao.exporter.o11y")
+_sdk_o11y.exporter_error = None
+_sdk_o11y.build_o11y_exporter = lambda cfg, routing, timeout=None: (
+    (_ for _ in ()).throw(_sdk_o11y.exporter_error) if _sdk_o11y.exporter_error is not None
+    else SimpleNamespace(routing=routing, timeout=timeout))
+_sdk_sink = types.ModuleType("splunk_ao.exporter.sink")
+_sdk_sink.BatchConfig = lambda max_queue_size=None, max_export_batch_size=None: SimpleNamespace(
+    max_queue_size=max_queue_size, max_export_batch_size=max_export_batch_size)
+_sdk_sink.build_span_sink = lambda exporter, batch=None: _FakeSink(exporter, batch)
+for _name, _mod in (("splunk_ao.deployment", _sdk_deployment), ("splunk_ao.exporter", types.ModuleType("splunk_ao.exporter")),
+                    ("splunk_ao.exporter.config", _sdk_expcfg), ("splunk_ao.exporter.o11y", _sdk_o11y),
+                    ("splunk_ao.exporter.sink", _sdk_sink)):
+    sys.modules[_name] = _mod
 
 _TRACE = [
     {"name": "medadvice_coordinator", "role": "coordinator", "model": "m",
@@ -327,6 +365,17 @@ check("INFO log line per turn with model / agents / project / stream / export",
       == "agent observability: logged turn (model=m, agents=3, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant, export=healthy)")
 check("logger-ready line logged once", len(_cap.messages(logging.INFO, "logger ready")) == 1)
 check("status() counts logged turns", ao.status()["turns_logged"] == 2 and ao.status()["logger_ready"] is True)
+check("the logger is built with the bounded sink: explicit OTLP timeout + capped span queue",
+      isinstance(lg.sink, _FakeSink) and lg.sink.exporter.timeout == ao._EXPORT_TIMEOUT_S
+      and lg.sink.exporter.routing.agent_stream_name == "PseudoCo Assistant"
+      and lg.sink.batch.max_queue_size == ao._EXPORT_QUEUE_SIZE
+      and lg.sink.batch.max_export_batch_size == ao._EXPORT_BATCH_SIZE)
+check("no bound-fallback warning on the happy path", not _cap.messages(logging.WARNING, "cannot bound"))
+_st = ao.status()
+check("status() exposes the stall / session signals, idle after a healthy drain",
+      _st["stalled"] is False and _st["turn_in_flight_s"] == 0.0 and _st["stalls"] == 0
+      and _st["abandoned_calls"] == 0 and _st["sessions_ok"] is True
+      and _st["last_turn_completed_s_ago"] is not None)
 
 print("\n[5] worker: dangling parent recovery")
 lg.calls.clear()
@@ -361,6 +410,25 @@ check("turns are logged without a session when start_session fails",
 check("start_session is not retried inside the backoff window",
       _n.count("start_session") == 1 and ao._rt.sessions_unavailable_until > 0)
 check("exactly one WARNING about sessions", len(_cap.messages(logging.WARNING, "sessions unavailable")) == 1)
+check("status() surfaces the sessions failure and names the missing token",
+      ao.status()["sessions_ok"] is False
+      and "SPLUNK_AO_O11Y_API_TOKEN is not set" in ao.status()["sessions_last_error"]
+      and "401 unauthorized" in ao.status()["sessions_last_error"])
+# dedupe is by CAUSE, not once-ever: a start_session timeout after the standing
+# 401 must still get its own line, or a wedged session lookup is silent on a box
+# where the 401 has already warned (every box without the API token).
+ao._rt.sessions_unavailable_until = 0.0
+lg.session_error = ao.SdkCallTimeout("start_session exceeded 30s; call abandoned on its thread")
+ao.maybe_log_turn(_turn(request_id="rid3"))
+ao._drain_for_tests(5.0)
+_sw = _cap.messages(logging.WARNING, "sessions unavailable")
+check("a NEW sessions cause after the known 401 warns again, and the turn still logs",
+      len(_sw) == 2 and "start_session exceeded 30s" in _sw[-1].getMessage()
+      and "exceeded 30s" in ao.status()["sessions_last_error"] and ao.status()["turns_logged"] == 3)
+ao._rt.sessions_unavailable_until = 0.0
+ao.maybe_log_turn(_turn(request_id="rid4"))
+ao._drain_for_tests(5.0)
+check("the SAME cause again stays quiet", len(_cap.messages(logging.WARNING, "sessions unavailable")) == 2)
 _fake_sdk.SplunkAOLogger = _FakeLogger
 
 print("\n[7] worker: build failure is contained")
@@ -378,6 +446,29 @@ check("turns are dropped while the build backs off",
       ao.status()["dropped"] == 2 and ao.status()["logger_ready"] is False and ao.status()["last_build_error"])
 check("one WARNING per distinct build failure", len(_cap.messages(logging.WARNING, "cannot build SplunkAOLogger")) == 1)
 _FakeLogger.ctor_error = None
+
+print("\n[7b] the export bound degrades, never blocks emission")
+_fresh()
+_enable()
+_sdk_o11y.exporter_error = TypeError("build_o11y_exporter() got an unexpected keyword argument 'timeout'")
+ao.maybe_log_turn(_turn())
+ao.maybe_log_turn(_turn(request_id="rid2"))
+ao._drain_for_tests(5.0)
+check("an SDK shape drift falls back to the default sink and still logs the turn",
+      len(_FakeLogger.instances) == 1 and _FakeLogger.instances[0].sink is None
+      and ao.status()["turns_logged"] == 2)
+check("the lost bound is ONE WARNING per distinct cause",
+      len(_cap.messages(logging.WARNING, "cannot bound the export timeout")) == 1)
+_sdk_o11y.exporter_error = None
+_fresh()
+_enable()
+_sdk_deployment.resolve_deployment = lambda: _DeploymentMode.STANDALONE
+ao.maybe_log_turn(_turn())
+ao._drain_for_tests(5.0)
+check("a standalone deployment keeps the SDK's own exporter, silently",
+      _FakeLogger.instances[0].sink is None and ao.status()["turns_logged"] == 1
+      and not _cap.messages(logging.WARNING))
+_sdk_deployment.resolve_deployment = lambda: _DeploymentMode.O11Y
 
 print("\n[8] reconfigure retires the logger")
 _fresh()
@@ -497,6 +588,97 @@ _gate.set()
 ao._drain_for_tests(5.0)
 _fake_sdk.SplunkAOLogger = _FakeLogger
 
+# ---- 10b. the 2026-09-09 wedge: a flush that never returns ----------------
+print("\n[10b] a blocked flush is bounded: warned, logger rebuilt, next turn streams")
+_fresh()
+_enable()
+_flush_gate = threading.Event()
+
+
+class _FlushHangs(_FakeLogger):
+    """Only the FIRST logger hangs in flush (dead sockets); its replacement is healthy."""
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        if len(_FakeLogger.instances) == 1:
+            self.flush_block_event = _flush_gate
+
+
+_fake_sdk.SplunkAOLogger = _FlushHangs
+_orig_call, _orig_backoff = ao._CALL_TIMEOUT_S, ao._BUILD_BACKOFF_S
+ao._CALL_TIMEOUT_S, ao._BUILD_BACKOFF_S = 0.3, 0.0
+try:
+    _t0 = time.monotonic()
+    ao.maybe_log_turn(_turn(request_id="hangs"))
+    ao._drain_for_tests(5.0)
+    _took = time.monotonic() - _t0
+    check("the worker is back within the call deadline instead of blocking on flush",
+          0.3 <= _took < 3.0 and ao._rt.turn_started_at == 0.0)
+    _w = _cap.messages(logging.WARNING, "emit failed")
+    check("the overrun is a WARNING naming the call and the deadline",
+          len(_w) == 1 and "SdkCallTimeout: flush exceeded 0s" in _w[0].getMessage())
+    check("an abandoned call rebuilds the logger at once, not after N failures",
+          len(_cap.messages(logging.WARNING, "call abandoned on its thread; terminating and rebuilding")) == 1
+          and "terminate" in _names(_FakeLogger.instances[0].calls) and not ao._rt.loggers)
+    check("status() counts the abandoned call and no turn as logged",
+          ao.status()["abandoned_calls"] == 1 and ao.status()["turns_logged"] == 0
+          and ao.status()["stalled"] is False)
+    ao.maybe_log_turn(_turn(request_id="after"))
+    ao._drain_for_tests(5.0)
+    check("the next turn streams through a fresh logger (new exporter, new sockets)",
+          len(_FakeLogger.instances) == 2 and _names(_FakeLogger.instances[1].calls)[-2:] == ["conclude", "flush"]
+          and ao.status()["turns_logged"] == 1 and ao.status()["logger_ready"] is True)
+    check("the abandoned flush is still parked on its own daemon thread, harmless",
+          any(t.name == "agent-observability-io:flush" and t.daemon for t in threading.enumerate()))
+finally:
+    _flush_gate.set()
+    ao._CALL_TIMEOUT_S, ao._BUILD_BACKOFF_S = _orig_call, _orig_backoff
+_fake_sdk.SplunkAOLogger = _FakeLogger
+
+# ---- 10c. a wedge OUTSIDE the bounded calls: the last-resort stall signal --
+print("\n[10c] a wedge outside the bounded calls is loud: request path warns once, status() reports it")
+_fresh()
+_enable()
+_gate2 = threading.Event()
+
+
+class _StartHangs(_FakeLogger):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.block_event = _gate2          # start_trace is local, deliberately not bounded
+
+
+_fake_sdk.SplunkAOLogger = _StartHangs
+_orig_stall = ao._STALL_WARN_AFTER_S
+ao._STALL_WARN_AFTER_S = 0.2
+try:
+    ao.maybe_log_turn(_turn(request_id="wedged"))
+    _deadline = time.monotonic() + 5
+    while time.monotonic() < _deadline and not ao._rt.turn_started_at:
+        time.sleep(0.02)
+    time.sleep(0.35)                       # past the (lowered) stall threshold
+    _st = ao.status()
+    check("status() reports the stall while worker_alive is still True (the trap)",
+          _st["stalled"] is True and _st["worker_alive"] is True and _st["turn_in_flight_s"] >= 0.2
+          and _st["turns_logged"] == 0)
+    check("nothing has been warned yet: the wedged worker cannot report itself",
+          not _cap.messages(logging.WARNING, "WORKER STALLED"))
+    ao.maybe_log_turn(_turn(request_id="behind-1"))   # the request path is what notices
+    ao.maybe_log_turn(_turn(request_id="behind-2"))
+    _w = _cap.messages(logging.WARNING, "WORKER STALLED")
+    check("exactly ONE WARNING per wedged turn, naming it and what is queued behind it",
+          len(_w) == 1 and "turn wedged has been in flight" in _w[0].getMessage()
+          and "1 turn(s) are queued behind it" in _w[0].getMessage())
+    check("the stall is counted", ao.status()["stalls"] == 1 and ao.status()["queued"] == 2)
+finally:
+    ao._STALL_WARN_AFTER_S = _orig_stall
+    _gate2.set()
+    ao._drain_for_tests(5.0)
+_st = ao.status()
+check("the stall clears once the worker returns and the backlog streams",
+      _st["stalled"] is False and _st["turn_in_flight_s"] == 0.0 and _st["turns_logged"] == 3
+      and _st["queued"] == 0 and len(_cap.messages(logging.WARNING, "WORKER STALLED")) == 1)
+_fake_sdk.SplunkAOLogger = _FakeLogger
+
 print("\n[11] shutdown")
 _fresh()
 _enable()
@@ -552,6 +734,17 @@ check("governance logger fans completed turns out to agent_observability",
 src = (ROOT / "backend/agent_observability.py").read_text()
 check("the emitter never imports the legacy galileo SDK",
       "from galileo import" not in src and "GalileoLogger" not in src)
+import re as _re
+check("every network-touching SDK call is bounded (start_session, flush, terminate)",
+      '_bounded_call("start_session", lg.start_session' in src
+      and '_bounded_call("flush", lg.flush' in src
+      and '_bounded_call("terminate", lg.terminate' in src
+      # no direct call left as a code line (docstrings may still mention them)
+      and _re.search(r"^\s*(\w+\s*=\s*)?lg\.(flush|terminate|start_session)\(", src, _re.M) is None)
+check("the emitter bounds its export and injects the sink through the SDK's own seam",
+      "_EXPORT_TIMEOUT_S" in src and "_sink=sink" in src and "timeout=_EXPORT_TIMEOUT_S" in src)
+check("governance logger WARNS (deduped) when the AO submit fails, instead of debug-swallowing it",
+      'logger.warning("agent observability submit failed' in gov and "_ao_submit_warned" in gov)
 check("legacy files are gone",
       not (ROOT / "otel-collector-galileo.yaml").exists() and not (ROOT / "backend/galileo_integration.py").exists()
       and not (ROOT / "tests/test_galileo_integration.py").exists())
