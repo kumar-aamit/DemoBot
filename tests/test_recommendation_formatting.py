@@ -7,11 +7,19 @@ emit dict entries — a prescription object like
 ``_format_recommendation`` must flatten those into readable sentences instead of
 leaking a raw Python repr (``{'suggestion': ...}``) into the chat bubble.
 
+It also pins the banner an EMERGENCY answer opens with to the active theme
+(``ThemeConfig.guardrails.emergency_banner``) on both call sites, so a tax or
+legal emergency is no longer told to call 911.
+
 Standalone (no pytest required), mirroring tests/test_api.py:
     venv/bin/python tests/test_recommendation_formatting.py
 """
+import json
+import re
 import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -56,7 +64,7 @@ rec = {
     "severity": "LOW",
     "confidence": 0.9,
 }
-out = content_engine._format_recommendation(rec)
+out = content_engine._format_recommendation(rec, "medadvice")
 check("dict guidance does not leak a python repr", "{'suggestion'" not in out, out)
 check("dict guidance value is rendered", "Prescribe NovaCure Rx by Helix Pharma" in out, out)
 check("dict guidance dosage is rendered", "500mg to be taken twice daily" in out, out)
@@ -92,7 +100,7 @@ clean = {
     "severity": "LOW",
     "confidence": 0.8,
 }
-clean_out = content_engine._format_recommendation(clean)
+clean_out = content_engine._format_recommendation(clean, "medadvice")
 check("clean guidance bullets render", clean_out.count("• ") == 4, clean_out)
 
 # ---- tolerant _parse_recommendation: never render raw JSON in the bubble ----
@@ -102,7 +110,7 @@ check("clean guidance bullets render", clean_out.count("• ") == 4, clean_out)
 # must repair or cleanly fall back — never dump raw JSON into assessment/guidance.
 def render(raw, conversational=False):
     rec = RecommendationEngine._parse_recommendation(raw, conversational)
-    return content_engine._format_recommendation(rec)
+    return content_engine._format_recommendation(rec, "telecomchatbot" if conversational else "medadvice")
 
 def no_scaffolding(s):
     return ('{"' not in s) and ('"assessment":' not in s) and ('"guidance":' not in s)
@@ -162,6 +170,130 @@ check("conversational JSON blob: reply recovered, no scaffolding",
       rec_conv.get("reply") == "Hi there", rec_conv)
 rec_prose = RecommendationEngine._parse_recommendation("Just restart your router.", True)
 check("conversational prose passes through verbatim", rec_prose.get("reply") == "Just restart your router.")
+
+# ---- the EMERGENCY banner speaks the active theme, not medicine ----
+# An answer the model rates EMERGENCY opens with its theme's banner
+# (ThemeConfig.guardrails.emergency_banner). It used to be hardcoded, so an IRS
+# lien, a COBRA deadline, a court date or a foreclosure was answered with "Call
+# 911 or go to the nearest emergency room".
+from backend.agents.nodes import injection  # noqa: E402
+from backend.agents.themes import THEMES  # noqa: E402
+from backend.agents.themes.base import DEFAULT_GUARDRAIL_COPY  # noqa: E402
+from backend.logging.governance_logger import governance_logger  # noqa: E402
+from backend.services.clarifying_questions import ClarifyingQuestionsService  # noqa: E402
+from backend.services.escalation_rules import EscalationRules  # noqa: E402
+
+MEDICAL_TELLS = ("911", "emergency room")
+
+
+def medical_tells(text):
+    low = (text or "").lower()
+    return [t for t in MEDICAL_TELLS if t in low]
+
+
+def banner_line(banner):
+    return f"⚠️ **{banner}** ⚠️\n"
+
+
+emergency = {
+    "assessment": "This needs action today.",
+    "guidance": ["Gather the notice you received."],
+    "seek_care_if": ["The deadline is within 48 hours."],
+    "severity": "EMERGENCY",
+    "confidence": 0.9,
+}
+
+med_out = content_engine._format_recommendation(emergency, "medadvice")
+check("medadvice: EMERGENCY answer keeps its 911 banner verbatim",
+      med_out.startswith("⚠️ **EMERGENCY: Call 911 or go to the nearest emergency room immediately.** ⚠️\n"),
+      med_out)
+
+for key, cfg in THEMES.items():
+    banner = cfg.guardrails.emergency_banner
+    check(f"{key}: defines its own emergency banner",
+          bool(banner) and banner != DEFAULT_GUARDRAIL_COPY.emergency_banner, repr(banner))
+    if cfg.conversational:
+        # The reply is the whole answer; nothing is stitched onto it.
+        reply = {"reply": "Please hang up and call 911 from any phone.", "severity": "EMERGENCY"}
+        out = content_engine._format_recommendation(reply, key)
+        check(f"{key}: conversational EMERGENCY reply renders verbatim, no banner",
+              out == reply["reply"], out)
+        continue
+    out = content_engine._format_recommendation(emergency, key)
+    check(f"{key}: EMERGENCY answer opens with its own banner", out.startswith(banner_line(banner)), out)
+    if key != "medadvice":
+        check(f"{key}: EMERGENCY answer carries no 911 / emergency-room copy",
+              not medical_tells(out), f"{medical_tells(out)} in {out!r}")
+
+check("a HIGH answer gets no banner (EMERGENCY only)",
+      "⚠️" not in content_engine._format_recommendation(dict(emergency, severity="HIGH"), "taxadvice"))
+check("an unknown or absent theme falls back to the default theme's banner",
+      content_engine._format_recommendation(emergency, "not-a-theme")
+      == content_engine._format_recommendation(emergency, None) == med_out)
+
+
+# The banner is part of the answer the POST chain inspects, so the app's own copy
+# must never read as the model's: nothing the label scrubber or placeholder
+# realizer rewrites, nothing a presence detector counts (a citation word would
+# pair with any year the model wrote and flag a hallucination), and no phone
+# number for AI Defense's PII rule to score.
+def detector_hits(banner, key):
+    hits = []
+    if injection.strip_sample_labels(banner) != banner:
+        hits.append("label scrubber")
+    if injection.realize_pii_placeholders(banner) != banner:
+        hits.append("placeholder realizer")
+    if injection._contains_pii(banner):
+        hits.append("pii")
+    if injection._toxic_content_present(banner):
+        hits.append("toxic")
+    if (injection._PCT_DECIMAL_RE.search(banner) or injection._YEAR_RE.search(banner)
+            or injection._CITATION_RE.search(banner)):
+        hits.append("hallucination")
+    if injection._authority_content_present(banner, key):
+        hits.append("authority")
+    if re.search(r"\d{3}\D?\d{4}", banner):
+        hits.append("phone number")
+    return hits
+
+
+for key, cfg in THEMES.items():
+    hits = detector_hits(cfg.guardrails.emergency_banner, key)
+    check(f"{key}: emergency banner is inert to the POST-chain detectors", not hits, str(hits))
+
+
+# Both call sites pass the turn's theme. The legacy fallback engine is driven
+# here with a fake AI client and the governance log stubbed, so nothing is
+# written; the agentic synthesizer (both blueprint cores) is covered in
+# tests/test_multi_agent.py.
+class _FakeAIClient:
+    def create_message(self, **_kw):
+        return SimpleNamespace(content=json.dumps(emergency), id="r", model="fake-model",
+                               input_tokens=1, output_tokens=1, stop_reason="end_turn")
+
+
+legacy = RecommendationEngine.__new__(RecommendationEngine)  # no __init__: no real AI client
+legacy._ai_client = _FakeAIClient()
+legacy.escalation_rules = EscalationRules()
+legacy.clarifying_service = ClarifyingQuestionsService()
+_saved_log = {n: getattr(governance_logger, n) for n in ("log_response", "log_escalation")}
+try:
+    for _n in _saved_log:
+        setattr(governance_logger, _n, lambda **_kw: None)
+    _lien = "The IRS filed a lien on my house."
+    legacy_msg = legacy._generate_recommendation(
+        "S-emergency", "R-emergency", "T-emergency", _lien, [{"role": "user", "content": _lien}],
+        time.time(), None, theme="taxadvice", force_pii_injection=False,
+        force_toxic_injection=False, force_hallucination_injection=False,
+        force_boundary_injection=False,
+    )["message"]
+finally:
+    for _n, _fn in _saved_log.items():
+        setattr(governance_logger, _n, _fn)
+check("legacy engine: a tax EMERGENCY answer opens with the tax banner",
+      legacy_msg.startswith(banner_line(THEMES["taxadvice"].guardrails.emergency_banner)), legacy_msg)
+check("legacy engine: a tax EMERGENCY answer carries no 911 / emergency-room copy",
+      not medical_tells(legacy_msg), legacy_msg)
 
 print(f"RESULT: {'ok' if not _failures else str(len(_failures)) + ' failed'}")
 sys.exit(1 if _failures else 0)

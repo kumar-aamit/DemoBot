@@ -74,6 +74,10 @@ GUARDRAILS = GuardrailCopy(
         "local legal aid service."
     ),
     advice_noun="legal advice",
+    emergency_banner=(
+        "LEGAL EMERGENCY: Contact a licensed attorney or your local legal aid "
+        "service immediately."
+    ),
 )
 
 THEME = ThemeConfig(

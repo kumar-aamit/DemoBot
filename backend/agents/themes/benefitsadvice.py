@@ -74,6 +74,10 @@ GUARDRAILS = GuardrailCopy(
         "department or plan administrator directly."
     ),
     advice_noun="benefits guidance",
+    emergency_banner=(
+        "URGENT BENEFITS ISSUE: Contact your HR department or plan "
+        "administrator immediately."
+    ),
 )
 
 THEME = ThemeConfig(

@@ -74,6 +74,10 @@ GUARDRAILS = GuardrailCopy(
         "licensed tax professional or the IRS at 1-800-829-1040."
     ),
     advice_noun="tax advice",
+    emergency_banner=(
+        "URGENT TAX MATTER: Contact a licensed tax professional or the IRS "
+        "immediately."
+    ),
 )
 
 THEME = ThemeConfig(

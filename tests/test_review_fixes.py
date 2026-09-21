@@ -61,7 +61,7 @@ check("F8-2: _as_bullet_items passes a list through", _as_bullet_items(["a", "b"
 check("F8-2: _as_bullet_items maps None to empty", _as_bullet_items(None) == [])
 
 eng = RecommendationEngine.__new__(RecommendationEngine)  # no __init__ (no AI client needed)
-rendered = RecommendationEngine._format_recommendation(eng, {"guidance": "stay hydrated"})
+rendered = RecommendationEngine._format_recommendation(eng, {"guidance": "stay hydrated"}, "medadvice")
 check("F8-2: string guidance renders as a single bullet",
       rendered.count("•") == 1, rendered.replace("\n", "\\n"))
 
