@@ -12,11 +12,17 @@ AI Defense is stubbed, so nothing here contacts Cisco.
 Standalone (no pytest required):
     venv/bin/python tests/test_guardrail_nodes.py
 """
+import os
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# A direct run loads the box's .env, which enables Agent Observability, and the
+# blocked turns below go through the real governance logger: without this they
+# would be exported into the live theme Agent streams (run_all.sh sets it too).
+os.environ.setdefault("SPLUNK_AO_LOGGING_DISABLED", "1")
 
 import backend.config  # noqa: F401  (sets SSL_CERT_FILE / loads .env)
 from backend.config import settings  # noqa: E402
@@ -326,6 +332,82 @@ check("policy: the telecom block does not claim it withheld medical advice",
 check("block_banner: an unknown theme falls back instead of raising",
       block_banner("Withheld.", "not-a-theme").startswith("Withheld. "),
       block_banner("Withheld.", "not-a-theme"))
+
+# --- blocked turns keep their theme, so they land in its Agent stream --------
+# Agent Observability files a turn under its theme's Agent stream by the
+# governance event's ``theme`` (agent_observability._stream_for). The AI Defense
+# and Agent Control block handlers used the theme only for the banner and left it
+# off the event, so every blocked telecom turn landed in the default stream
+# instead of TelecomChatbot. Each guardrail's block is captured at _write_log --
+# the dict Agent Observability receives -- so nothing is written or sent.
+from backend import agent_observability  # noqa: E402
+from backend.agents.nodes import agent_control as agent_control_node_mod  # noqa: E402
+from backend.logging.governance_logger import governance_logger  # noqa: E402
+
+
+class _DenyingControlClient:
+    is_configured = True
+
+    def evaluate_response(self, *a, **k):
+        return ControlVerdict(is_safe=False, matched_controls=["x"], decisions=["deny"])
+
+
+def blocked_turn_events(run):
+    """Run ``run`` with governance writes captured instead of written, and return
+    the chat turns Agent Observability would receive (its own gate: a ``chat``
+    event with ``token_type`` ``output``)."""
+    captured = []
+    saved_db = governance_logger.db_logging
+    governance_logger._write_log = lambda log_data, log_type: captured.append(log_data)
+    governance_logger.db_logging = False
+    try:
+        run()
+    finally:
+        del governance_logger._write_log          # back to the class method
+        governance_logger.db_logging = saved_db
+    return [e for e in captured
+            if e.get("operation_name") == "chat" and e.get("token_type") == "output"]
+
+
+_tele_stream = THEMES["telecomchatbot"].label
+_saved_per_theme = os.environ.pop("SPLUNK_AO_AGENT_STREAM_PER_THEME", None)
+_saved_control_client = agent_control_node_mod.agent_control_client
+settings.ai_defense_enabled = True
+try:
+    check("agent stream: a theme-less turn would not land in the telecom stream",
+          agent_observability._stream_for({}) != _tele_stream,
+          agent_observability._stream_for({}))
+    defense_node_mod.ai_defense_client = _StubClient(_Insp(is_safe=False, rules=["PII"]))
+    agent_control_node_mod.agent_control_client = _DenyingControlClient()
+    _blocks = {
+        "ai_defense prompt": lambda: defense_node_mod.prompt_defense_node(
+            base_state(ai_defense_review=True, **_tele)),
+        "ai_defense response": lambda: defense_node_mod.response_defense_node(
+            base_state(ai_defense_review=True, **_tele)),
+        "agent_control": lambda: agent_control_node_mod.agent_control_node(
+            base_state(agent_control_review=True, **_tele)),
+        "nemo input rails": lambda: nemo_rails._blocked_result(
+            base_state(**_tele), RailVerdict(is_safe=False, stage="input", rule_names=["self check"]),
+            stage="input", input_messages=[]),
+        "policy": lambda: policy_block_node(
+            base_state(**{**_tele, "user_message": "i want to kill myself"})),
+    }
+    for _label, _run in _blocks.items():
+        _events = blocked_turn_events(_run)
+        _ev = _events[0] if len(_events) == 1 else {}
+        check(f"{_label}: the block logs one policy-blocked chat turn",
+              _ev.get("policy_blocked") is True, f"{len(_events)} chat turn event(s)")
+        check(f"{_label}: the blocked turn keeps its theme",
+              _ev.get("theme") == "telecomchatbot", repr(_ev.get("theme")))
+        check(f"{_label}: the blocked turn lands in the theme's Agent stream",
+              agent_observability._stream_for(_ev) == _tele_stream,
+              agent_observability._stream_for(_ev))
+finally:
+    defense_node_mod.ai_defense_client = _saved_client
+    agent_control_node_mod.agent_control_client = _saved_control_client
+    settings.ai_defense_enabled = _saved_enabled
+    if _saved_per_theme is not None:
+        os.environ["SPLUNK_AO_AGENT_STREAM_PER_THEME"] = _saved_per_theme
 
 
 print()
