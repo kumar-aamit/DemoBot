@@ -55,15 +55,25 @@ class EscalationRules:
         "overdose", "poison myself",
     ]
 
-    POLICY_BLOCK_RESPONSE = (
+    # The crisis resources are deliberately NOT themed: 988 and 911 are the right
+    # answer whether the person was asking a clinician bot or a telecom bot. Only
+    # the closing line -- what the assistant withheld -- takes the theme's noun
+    # (ThemeConfig.guardrails.advice_noun), so a telecom turn stops claiming it
+    # declined to give medical advice.
+    POLICY_BLOCK_TEMPLATE = (
         "If you or someone you know is in crisis, please reach out for immediate help:\n\n"
         "- **988 Suicide & Crisis Lifeline**: Call or text **988** (available 24/7)\n"
         "- **Emergency Services**: Call **911**\n"
         "- **Crisis Text Line**: Text **HELLO** to **741741**\n\n"
         "You are not alone, and trained counselors are ready to help right now.\n\n"
         "*This message was generated automatically because your input matched "
-        "our safety policy. No AI medical advice was provided for this request.*"
+        "our safety policy. No AI {advice_noun} was provided for this request.*"
     )
+
+    @classmethod
+    def policy_block_response(cls, advice_noun: str = "assistance") -> str:
+        """The self-harm block's user-facing text for one theme."""
+        return cls.POLICY_BLOCK_TEMPLATE.format(advice_noun=advice_noun)
 
     def __init__(self):
         # Retained for backward compatibility only. should_escalate builds and

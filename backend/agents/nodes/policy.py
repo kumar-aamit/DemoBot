@@ -17,6 +17,7 @@ from backend.agents.token_usage import governance_usage_data
 from backend.logging.governance_logger import active_response_model, governance_logger
 from backend.models.schemas import MessageType, SeverityLevel
 from backend.services.escalation_rules import EscalationRules
+from backend.services.recommendation_engine import guardrail_copy
 from backend.telemetry import otel
 
 
@@ -39,7 +40,9 @@ def policy_block_node(state: Dict[str, Any]) -> Dict[str, Any]:
     enduser_id = state.get("enduser_id")
     client_address = state.get("client_address")
     duration = time.time() - state["start_time"]
-    blocked_message = EscalationRules.POLICY_BLOCK_RESPONSE
+    blocked_message = EscalationRules.policy_block_response(
+        guardrail_copy(state.get("theme")).advice_noun
+    )
 
     with otel.agent_span("internal_policy_agent", theme=state.get("theme")):
         governance_logger.log_response(
