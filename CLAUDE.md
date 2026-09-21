@@ -225,7 +225,12 @@ process, including why a deployed box can still report a stale version:
 The four **Synthetic Content** controls (Include Synthetic PII/PHI, Include
 Toxic Content, Include Hallucinated Content, Prescriptive Overreach) work by
 asking the user-facing model to produce the content **itself**, inside its
-answer (`backend/agents/nodes/injection.py`). Two rules:
+answer (`backend/agents/nodes/injection.py`). The fourth control's label and
+content follow the theme (`chat.js` `boundaryLabel`): for TelecomChatbot it is
+**Unauthorized Commitment** — the agent announces a $240 loyalty credit, a waived
+early-termination fee and a 24-month rate lock as already done, the exact output
+the Telecom demo script narrates and its AI Defense Policy Studio guardrail
+blocks. Two rules:
 
 - **Never add a deterministic / canned fallback.** Text stitched onto the reply
   after the LLM call is not what the guardrails and evals are scoring, so it
