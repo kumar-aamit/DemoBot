@@ -95,7 +95,7 @@ harm = policy_block_node(base_state(user_message="i want to kill myself"))
 check("policy: self-harm input is blocked", bool(harm), "no update returned")
 _hres = harm.get("result") or {}
 check("policy: the crisis response replaces the answer",
-      _hres.get("message") == EscalationRules.POLICY_BLOCK_RESPONSE,
+      _hres.get("message") == EscalationRules.policy_block_response("medical advice"),
       str(_hres.get("message"))[:80])
 check("policy: the block short-circuits the graph (terminal)",
       harm.get("terminal") is True and _hres.get("policy_blocked") is True,
@@ -236,6 +236,97 @@ check("intake: a detailed complaint is not forced into a clarifying question",
 check("intake: never asks more than the configured maximum",
       len(out.get("clarifying_questions", []) or []) <= settings.max_clarifying_questions,
       str(out.get("clarifying_questions")))
+
+# --- block banners speak the active theme, not medicine ----------------------
+# Every guardrail that withholds a turn closes its banner with the theme's
+# urgent-help line (ThemeConfig.guardrails). Before that, a blocked telecom or
+# tax turn told the customer to call 911 and go to an emergency room.
+from backend.agents.nodes import nemo_rails  # noqa: E402
+from backend.agents.nodes.shared import content_engine  # noqa: E402
+from backend.agents.themes import THEMES  # noqa: E402
+from backend.services.agent_control import ControlVerdict  # noqa: E402
+from backend.services.nemo_guardrails import RailVerdict  # noqa: E402
+from backend.services.recommendation_engine import block_banner  # noqa: E402
+
+MEDICAL_TELLS = ("911", "emergency room", "medical")
+
+
+def medical_tells(text):
+    low = (text or "").lower()
+    return [t for t in MEDICAL_TELLS if t in low]
+
+
+for _key, _cfg in THEMES.items():
+    _line = _cfg.guardrails.urgent_help
+    check(f"themes: {_key} defines its own urgent-help line",
+          bool(_line) and _line != "", repr(_line))
+    if _key == "medadvice":
+        continue
+    check(f"themes: {_key}'s urgent-help line is not medical",
+          not medical_tells(_line), repr(_line))
+    check(f"themes: {_key} names what it withheld in its own words",
+          _cfg.guardrails.advice_noun != "medical advice", _cfg.guardrails.advice_noun)
+
+_tele = dict(theme="telecomchatbot", user_message="my data is not working")
+_tele_line = THEMES["telecomchatbot"].guardrails.urgent_help
+
+# Cisco AI Defense: prompt + response blocks.
+settings.ai_defense_enabled = True
+try:
+    defense_node_mod.ai_defense_client = _StubClient(_Insp(is_safe=False, rules=["PII"]))
+    for _label, _node in (("prompt", defense_node_mod.prompt_defense_node),
+                          ("response", defense_node_mod.response_defense_node)):
+        _msg = (_node(base_state(ai_defense_review=True, **_tele)).get("result") or {}).get("message", "")
+        check(f"ai_defense {_label}: the telecom block banner is telecom copy",
+              _msg.endswith(_tele_line), _msg)
+        check(f"ai_defense {_label}: the telecom block banner has no medical copy",
+              not medical_tells(_msg), str(medical_tells(_msg)))
+finally:
+    defense_node_mod.ai_defense_client = _saved_client
+    settings.ai_defense_enabled = _saved_enabled
+
+# NeMo Guardrails: input + output rails, and the fail-closed error banner.
+for _stage in ("input", "output"):
+    _msg = nemo_rails._blocked_result(
+        base_state(**_tele), RailVerdict(is_safe=False, stage=_stage, rule_names=["self check"]),
+        stage=_stage, input_messages=[{"role": "user", "content": _tele["user_message"]}],
+    )["message"]
+    check(f"nemo {_stage} rails: the telecom block banner is telecom copy",
+          _msg.endswith(_tele_line), _msg)
+    check(f"nemo {_stage} rails: the telecom block banner has no medical copy",
+          not medical_tells(_msg), str(medical_tells(_msg)))
+
+_msg = nemo_rails._blocked_result(
+    base_state(**_tele), RailVerdict(errored=True, error_message="judge down"),
+    stage="output", input_messages=[],
+)["message"]
+check("nemo errored: the fail-closed banner is telecom copy too",
+      _msg.endswith(_tele_line) and not medical_tells(_msg), _msg)
+
+# Agent Control: a denied response.
+_msg = content_engine._handle_agent_control_block(
+    session_id="S-guardrail", request_id="R-guardrail", trace_id="T-guardrail",
+    conversation_messages=[], verdict=ControlVerdict(is_safe=False, matched_controls=["x"]),
+    start_time=time.time(), client_address=None, enduser_id=None, theme="telecomchatbot",
+)["message"]
+check("agent_control: the telecom block banner is telecom copy",
+      _msg.endswith(_tele_line), _msg)
+check("agent_control: the telecom block banner has no medical copy",
+      not medical_tells(_msg), str(medical_tells(_msg)))
+
+# Internal policy engine: the crisis resources stay, the domain noun changes.
+_msg = (policy_block_node(base_state(user_message="i want to kill myself", **{
+    k: v for k, v in _tele.items() if k != "user_message"}))["result"])["message"]
+check("policy: the crisis resources are never themed away",
+      "988" in _msg and "911" in _msg, _msg[:80])
+check("policy: the telecom block does not claim it withheld medical advice",
+      "No AI assistance was provided" in _msg and "medical advice" not in _msg, _msg[-90:])
+
+# An unknown/absent theme still gets a banner (get_theme falls back to medadvice).
+check("block_banner: an unknown theme falls back instead of raising",
+      block_banner("Withheld.", "not-a-theme").startswith("Withheld. "),
+      block_banner("Withheld.", "not-a-theme"))
+
 
 print()
 if _failures:

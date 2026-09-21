@@ -1,6 +1,7 @@
 """TaxAdvice theme - general tax information (not CPA advice)."""
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -67,6 +68,14 @@ SCHEDULING = SchedulingProfile(
     ),
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If you are facing an imminent IRS deadline, lien, or levy, contact a "
+        "licensed tax professional or the IRS at 1-800-829-1040."
+    ),
+    advice_noun="tax advice",
+)
+
 THEME = ThemeConfig(
     key="taxadvice",
     label="TaxAdvice",
@@ -74,4 +83,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("taxadvice"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

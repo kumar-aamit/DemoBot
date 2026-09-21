@@ -1,6 +1,7 @@
 """LegalAdvice theme - general legal information (not attorney counsel)."""
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -67,6 +68,14 @@ SCHEDULING = SchedulingProfile(
     ),
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If you need urgent legal help, contact a licensed attorney or your "
+        "local legal aid service."
+    ),
+    advice_noun="legal advice",
+)
+
 THEME = ThemeConfig(
     key="legaladvice",
     label="LegalAdvice",
@@ -74,4 +83,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("legaladvice"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

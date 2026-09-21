@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Any, List, Optional, Tuple
 import json
 import re
 import uuid
@@ -17,6 +17,9 @@ from backend.services.agent_control import agent_control_client, ControlVerdict
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:  # import-cycle-free typing only (see guardrail_copy)
+    from backend.agents.themes.base import GuardrailCopy
+
 
 def _as_bullet_items(value: Any) -> List[Any]:
     """Normalize a recommendation list field to an iterable of bullet items.
@@ -30,6 +33,31 @@ def _as_bullet_items(value: Any) -> List[Any]:
     if value is None:
         return []
     return [value]
+
+
+def guardrail_copy(theme: Optional[str]) -> "GuardrailCopy":
+    """The active theme's block-banner wording (``ThemeConfig.guardrails``).
+
+    ``get_theme`` is imported here rather than at module scope on purpose:
+    ``backend.agents.themes.base`` imports this module for the theme prompts,
+    so a top-level import would close that cycle. A blocked turn is rare and
+    already waiting on a guardrail service, so the lookup is free.
+    """
+    from backend.agents.themes import get_theme
+
+    return get_theme(theme).guardrails
+
+
+def block_banner(body: str, theme: Optional[str]) -> str:
+    """Close a guardrail's block explanation with the theme's urgent-help line.
+
+    ``body`` is the theme-neutral part -- which guardrail withheld the turn and
+    what the user can do about it -- and the theme supplies the one sentence
+    only the domain can write. Before this, every banner ended by telling the
+    user to call 911, so a blocked telecom or tax turn pointed the audience at
+    an emergency room.
+    """
+    return f"{body} {guardrail_copy(theme).urgent_help}"
 
 
 class RecommendationEngine:
@@ -1732,22 +1760,24 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         client_address: Optional[str],
         enduser_id: Optional[str],
         governance_overrides: Optional[Dict[str, str]] = None,
+        theme: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Block a prompt that AI Defense flagged (or that errored under
         fail-closed policy), logging the verdict to the governance pipeline.
 
         ``governance_overrides`` carries per-turn identity (``service_name`` /
         ``deployment_id``) for the spray campaign; it is empty for ordinary
-        chat, leaving the governance log's own defaults in place."""
+        chat, leaving the governance log's own defaults in place. ``theme``
+        picks the banner's closing urgent-help line (see :func:`block_banner`)."""
         duration = time.time() - start_time
 
         if inspection.errored:
             reasons = [f"AI Defense unavailable (fail-closed): {inspection.error_message}"]
             severity = SeverityLevel.MEDIUM
-            blocked_message = (
+            blocked_message = block_banner(
                 "Your message could not be reviewed by our content safety service "
-                "and was not processed. Please try again in a moment. If this is a "
-                "medical emergency, call 911 or go to your nearest emergency room."
+                "and was not processed. Please try again in a moment.",
+                theme,
             )
         else:
             rule_part = (
@@ -1761,11 +1791,11 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             severity = self._AI_DEFENSE_SEVERITY_MAP.get(
                 (inspection.severity or "").upper(), SeverityLevel.MEDIUM
             )
-            blocked_message = (
+            blocked_message = block_banner(
                 "This request was blocked by our content safety policy review and "
                 "was not sent to the assistant. Please rephrase your message without "
-                "sensitive, unsafe, or disallowed content. If this is a medical "
-                "emergency, call 911 or go to your nearest emergency room."
+                "sensitive, unsafe, or disallowed content.",
+                theme,
             )
 
         governance_logger.log_response(
@@ -1838,6 +1868,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         llm_model: Optional[str] = None,
         usage_data: Optional[Dict[str, Any]] = None,
         governance_overrides: Optional[Dict[str, str]] = None,
+        theme: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Withhold a model response that AI Defense flagged (or that errored
         under fail-closed policy), logging the verdict to the governance
@@ -1855,11 +1886,10 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                 f"AI Defense response review unavailable (fail-closed): {inspection.error_message}"
             ]
             severity = SeverityLevel.MEDIUM
-            blocked_message = (
+            blocked_message = block_banner(
                 "The assistant's response could not be reviewed by our content "
-                "safety service and was withheld. Please try again in a moment. "
-                "If this is a medical emergency, call 911 or go to your nearest "
-                "emergency room."
+                "safety service and was withheld. Please try again in a moment.",
+                theme,
             )
         else:
             rule_part = (
@@ -1871,11 +1901,11 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             severity = self._AI_DEFENSE_SEVERITY_MAP.get(
                 (inspection.severity or "").upper(), SeverityLevel.MEDIUM
             )
-            blocked_message = (
+            blocked_message = block_banner(
                 "The assistant's response was withheld by our content safety "
                 "policy review because it may have contained sensitive or unsafe "
-                "content. Please rephrase your question or try again. If this is "
-                "a medical emergency, call 911 or go to your nearest emergency room."
+                "content. Please rephrase your question or try again.",
+                theme,
             )
 
         governance_logger.log_response(
@@ -1947,6 +1977,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         llm_model: Optional[str] = None,
         usage_data: Optional[Dict[str, Any]] = None,
         governance_overrides: Optional[Dict[str, Any]] = None,
+        theme: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Withhold a model response that a Galileo Agent Control denied (or
         that errored under a fail-closed policy), logging the verdict to the
@@ -1964,11 +1995,10 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             reasons = [
                 f"Splunk Agent Observability Control unavailable (fail-closed): {verdict.error_message}"
             ]
-            blocked_message = (
+            blocked_message = block_banner(
                 "The assistant's response could not be reviewed by our agent "
-                "control service and was withheld. Please try again in a "
-                "moment. If this is a medical emergency, call 911 or go to your "
-                "nearest emergency room."
+                "control service and was withheld. Please try again in a moment.",
+                theme,
             )
         else:
             control_part = (
@@ -1985,10 +2015,10 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             # one specific cause misdescribes the block whenever a different
             # control fires — which is what an earlier revision did. The control
             # that actually matched is in safety_categories / metadata.
-            blocked_message = (
+            blocked_message = block_banner(
                 "The assistant's response was withheld by our agent control "
-                "policy. Please rephrase your question or try again. If this is "
-                "a medical emergency, call 911 or go to your nearest emergency room."
+                "policy. Please rephrase your question or try again.",
+                theme,
             )
 
         governance_logger.log_response(
@@ -2118,7 +2148,9 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             )
             if should_block:
                 duration = time.time() - start_time
-                blocked_message = EscalationRules.POLICY_BLOCK_RESPONSE
+                blocked_message = EscalationRules.policy_block_response(
+                    guardrail_copy(theme).advice_noun
+                )
 
                 governance_logger.log_response(
                     session_id=session_id,
@@ -2197,6 +2229,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                         start_time=start_time,
                         client_address=client_address,
                         enduser_id=enduser_id,
+                        theme=theme,
                     )
 
             # Check if we need clarifying questions
@@ -2471,6 +2504,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                         "usage_total_tokens": response.input_tokens
                         + response.output_tokens,
                     },
+                    theme=theme,
                 )
 
         # Optional Cisco AI Defense review of the MODEL RESPONSE (output
@@ -2494,6 +2528,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                     start_time=start_time,
                     client_address=client_address,
                     enduser_id=enduser_id,
+                    theme=theme,
                 )
 
         # Log response with governance data

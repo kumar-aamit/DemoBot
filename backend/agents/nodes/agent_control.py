@@ -66,6 +66,7 @@ def agent_control_node(state: Dict[str, Any]) -> Dict[str, Any]:
             llm_model=state.get("llm_model"),
             usage_data=governance_usage_data(state),
             governance_overrides=governance_identity_overrides(state),
+            theme=state.get("theme"),
         )
 
     return {

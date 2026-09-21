@@ -6,6 +6,7 @@ findings; only the synthesizer's ``reply`` is shown to the customer.
 """
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -88,6 +89,14 @@ SCHEDULING = SchedulingProfile(
     rescheduled="Done — the technician will now arrive {label}.",
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If you need help right away, call our support line or visit a retail "
+        "store to speak with an agent."
+    ),
+    advice_noun="assistance",
+)
+
 THEME = ThemeConfig(
     key="telecomchatbot",
     label="TelecomChatbot",
@@ -95,4 +104,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("telecomchatbot"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

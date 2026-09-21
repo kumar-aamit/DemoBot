@@ -1,6 +1,7 @@
 """BenefitsAdvice theme - employee benefits / HR plan guidance."""
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -67,6 +68,14 @@ SCHEDULING = SchedulingProfile(
     ),
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If you have an urgent coverage or enrollment issue, contact your HR "
+        "department or plan administrator directly."
+    ),
+    advice_noun="benefits guidance",
+)
+
 THEME = ThemeConfig(
     key="benefitsadvice",
     label="BenefitsAdvice",
@@ -74,4 +83,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("benefitsadvice"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

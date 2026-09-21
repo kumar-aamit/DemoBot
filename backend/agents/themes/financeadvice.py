@@ -1,6 +1,7 @@
 """FinanceAdvice theme - personal finance literacy (not CFP advice)."""
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -64,6 +65,14 @@ SCHEDULING = SchedulingProfile(
     confirmed="You're booked: {label} — consultation with a financial advisor, under {name}.",
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If this is an urgent financial matter, contact a licensed financial "
+        "advisor or your financial institution directly."
+    ),
+    advice_noun="financial advice",
+)
+
 THEME = ThemeConfig(
     key="financeadvice",
     label="FinanceAdvice",
@@ -71,4 +80,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("financeadvice"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

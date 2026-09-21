@@ -1,6 +1,7 @@
 """MedAdvice theme - general medical guidance (default)."""
 
 from backend.agents.themes.base import (
+    GuardrailCopy,
     SpecialistSpec,
     ThemeConfig,
     is_conversational,
@@ -70,6 +71,14 @@ SCHEDULING = SchedulingProfile(
     ),
 )
 
+GUARDRAILS = GuardrailCopy(
+    urgent_help=(
+        "If this is a medical emergency, call 911 or go to your nearest "
+        "emergency room."
+    ),
+    advice_noun="medical advice",
+)
+
 THEME = ThemeConfig(
     key="medadvice",
     label="MedAdvice",
@@ -77,4 +86,5 @@ THEME = ThemeConfig(
     system_prompt=prompt_for("medadvice"),
     specialists=SPECIALISTS,
     scheduling=SCHEDULING,
+    guardrails=GUARDRAILS,
 )

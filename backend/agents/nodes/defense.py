@@ -48,6 +48,7 @@ def prompt_defense_node(state: Dict[str, Any]) -> Dict[str, Any]:
             client_address=state.get("client_address"),
             enduser_id=state.get("enduser_id"),
             governance_overrides=governance_identity_overrides(state),
+            theme=state.get("theme"),
         )
 
     return {
@@ -86,6 +87,7 @@ def response_defense_node(state: Dict[str, Any]) -> Dict[str, Any]:
             llm_model=state.get("llm_model"),
             usage_data=governance_usage_data(state),
             governance_overrides=governance_identity_overrides(state),
+            theme=state.get("theme"),
         )
 
     return {

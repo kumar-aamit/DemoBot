@@ -25,23 +25,22 @@ from backend.agents.token_usage import governance_usage_data
 from backend.logging.governance_logger import active_response_model, governance_logger
 from backend.models.schemas import MessageType, SeverityLevel
 from backend.services.nemo_guardrails import RailVerdict, nemo_guardrails_client
+from backend.services.recommendation_engine import block_banner
 from backend.telemetry import otel
 
 GUARDRAIL_ID = "nemo_guardrails"
 
-_BLOCKED_INPUT = (
-    "I can't help with that request. Please rephrase your question. If this "
-    "is a medical emergency, call 911 or go to your nearest emergency room."
-)
+# Theme-neutral halves of the user-facing banners. ``block_banner`` closes each
+# one with the active theme's urgent-help line, so a blocked telecom turn does
+# not send the customer to an emergency room.
+_BLOCKED_INPUT = "I can't help with that request. Please rephrase your question."
 _BLOCKED_OUTPUT = (
     "The assistant's response was withheld by our NeMo Guardrails policy. "
-    "Please rephrase your question or try again. If this is a medical "
-    "emergency, call 911 or go to your nearest emergency room."
+    "Please rephrase your question or try again."
 )
 _ERRORED = (
     "The assistant's response could not be reviewed by our guardrails service "
-    "and was withheld. Please try again in a moment. If this is a medical "
-    "emergency, call 911 or go to your nearest emergency room."
+    "and was withheld. Please try again in a moment."
 )
 
 
@@ -84,13 +83,16 @@ def _blocked_result(
     duration = time.time() - state["start_time"]
     if verdict.errored:
         reasons = [f"NeMo Guardrails unavailable (fail-closed): {verdict.error_message}"]
-        blocked_message = _ERRORED
+        blocked_message = block_banner(_ERRORED, state.get("theme"))
     else:
         rails = ", ".join(verdict.rule_names) if verdict.rule_names else f"{stage} rails"
         reasons = [f"NVIDIA NeMo Guardrails blocked the {stage} ({rails})"]
         if verdict.reason:
             reasons.append(verdict.reason)
-        blocked_message = _BLOCKED_INPUT if stage == "input" else _BLOCKED_OUTPUT
+        blocked_message = block_banner(
+            _BLOCKED_INPUT if stage == "input" else _BLOCKED_OUTPUT,
+            state.get("theme"),
+        )
 
     governance_logger.log_response(
         session_id=state["session_id"],
