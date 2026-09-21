@@ -1770,7 +1770,10 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         ``governance_overrides`` carries per-turn identity (``service_name`` /
         ``deployment_id``) for the spray campaign; it is empty for ordinary
         chat, leaving the governance log's own defaults in place. ``theme``
-        picks the banner's closing urgent-help line (see :func:`block_banner`)."""
+        picks the banner's closing urgent-help line (see :func:`block_banner`)
+        and rides on the governance event like every other chat turn's, so
+        the block lands in its theme's Agent stream rather than the default
+        one (``agent_observability._stream_for``)."""
         duration = time.time() - start_time
 
         if inspection.errored:
@@ -1829,6 +1832,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             toxic_types=[],
             evaluation_score_value=1.0,
             evaluation_score_label="high",
+            theme=theme,
             trace_id=trace_id,
             client_address=client_address,
             enduser_id=enduser_id,
@@ -1938,6 +1942,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             toxic_types=[],
             evaluation_score_value=1.0,
             evaluation_score_label="high",
+            theme=theme,
             trace_id=trace_id,
             client_address=client_address,
             enduser_id=enduser_id,
@@ -2053,6 +2058,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             toxic_types=[],
             evaluation_score_value=1.0,
             evaluation_score_label="high",
+            theme=theme,
             trace_id=trace_id,
             client_address=client_address,
             enduser_id=enduser_id,
