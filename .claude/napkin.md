@@ -32,6 +32,12 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   (per-session SQLite connections, JSON-column persistence, escalation-reason
   isolation, JSONL write serialization — runs against a temp DB, never
   `medadvice.db`).
+- **[2026-09-21] Suites that drive the real governance logger write to the live box.**
+  `test_guardrail_nodes.py` & co. append `S-guardrail` events to `logs/ai_governance.json` +
+  `medadvice.db`, and a DIRECT run (`venv/bin/python tests/X.py`) loads `.env`, which enables
+  Agent Observability export. Do instead: `export LOG_TO_FILE=false LOG_TO_DATABASE=false`
+  (env beats `.env`) and run through `tests/run_all.sh` (sets `SPLUNK_AO_LOGGING_DISABLED=1`);
+  a suite that emits blocked turns sets that default itself, like `test_guardrail_nodes.py`.
 - **`test_api.py` writes to the LIVE `./medadvice.db`.** Its settings PUTs persist
   to the same AppSettings row the launchd app reads; it now snapshots and restores
   `logs_directory` + emit-model. Any new check that mutates persisted settings
@@ -107,10 +113,20 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   `./scripts/validate-collector-config.sh` (base, then base+overlay). (2) a per-turn
   SDK trace with governance metadata from `backend/agent_observability.py`, fanned
   out from `governance_logger._write_log`. Expected app log lines:
-  `agent observability: logger ready (realm=us1, project=PseudoCo Assistant, agent_stream=PseudoCo Assistant)`
-  once, then `agent observability: logged turn (model=…, agents=N, project=PseudoCo Assistant,
-  agent_stream=PseudoCo Assistant, export=healthy)` per turn (`export=unknown` = the receiver
-  never acknowledged; the real transport error is logged by the OTel exporter).
+  `agent observability: logger ready (realm=us1, project=PseudoCo Assistant, agent_stream=<theme label>)`
+  once per theme, then `agent observability: logged turn (model=…, agents=N, project=PseudoCo Assistant,
+  agent_stream=TelecomChatbot, export=healthy)` per turn. `export=unknown` = the POST was never
+  acknowledged and the turn is usually LOST (no retry on a read timeout; an 8 s `ReadTimeout` to
+  ingest.us1 dropped one on 2026-09-21) — the cause is the `opentelemetry.sdk._shared_internal`
+  ERROR just above it.
+- **[2026-09-21] The Agent stream comes from the governance event's `theme`**
+  (`_stream_for`: registry label, `telecomchatbot` → `TelecomChatbot`; no/unknown theme →
+  `SPLUNK_AO_AGENT_STREAM`, "PseudoCo Assistant" here). The AI Defense / Agent Control block
+  handlers used `theme` only for the banner, so every blocked turn silently landed in the
+  fallback stream. Do instead: every chat-turn `log_response` passes `theme`; guard = the
+  "blocked turns keep their theme" section of `tests/test_guardrail_nodes.py`. The legacy
+  engine's own policy-block / answer events (`process_message`, `_generate_recommendation`)
+  still omit it (engine off by default).
 - Env contract: `SPLUNK_AO_REALM` / `SPLUNK_AO_O11Y_TOKEN` / `SPLUNK_AO_PROJECT` /
   `SPLUNK_AO_AGENT_STREAM` ("Agent stream" is the user-visible name; the wire header
   is still `logstream` because that is what the SDK sends). Project + stream are
@@ -134,8 +150,8 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   verified 2026-09-08). The app warns once, backs off 5 min and logs turns
   sessionless; set `SPLUNK_AO_O11Y_API_TOKEN` (an O11y API token with Agent
   Observability access) to get per-conversation sessions. Trace ingest is unaffected.
-- Console: https://app.us1.signalfx.com/#/agent-obs → project PseudoCo Assistant → Agent Stream
-  PseudoCo Assistant. API (`X-SF-Token`, needs an API token with AO access — not the ingest token):
+- Console: https://app.us1.signalfx.com/#/agent-obs → project PseudoCo Assistant → one Agent
+  stream per theme (MedAdvice, TelecomChatbot, …; PseudoCo Assistant is the fallback). API (`X-SF-Token`, needs an API token with AO access — not the ingest token):
   `/ao/api/projects?project_name=…&type=gen_ai`, `/ao/api/v2/projects/<id>/log_streams`,
   `/ao/api/v2/projects/<id>/traces/search`.
 - Legacy: `scripts/demo/galileo_*.py`, `tests/test_galileo_experiment.py` and the
@@ -285,7 +301,8 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   (key is read at startup — no hot reload). Rotation logs out every browser
   (cookie = sha256 of key). The OpenClaw gateway bakes the key in at container
   start — rerun `./run-openclaw.sh` if `pseudoco-assistant-openclaw` is up. Verify old→401 /
-  new→200 on both :8001 and medadvice.yeackbot.com.
+  new→200 on both :8001 and pseudocoassistant.com (medadvice.yeackbot.com is gone since the
+  2026-09-09 cutover).
 
 ## OpenClaw agentic surface (Mode C — opt-in demo)
 - Gives an OpenClaw agent real tools so the demo can show agentic tool abuse
