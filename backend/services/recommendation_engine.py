@@ -36,12 +36,14 @@ def _as_bullet_items(value: Any) -> List[Any]:
 
 
 def guardrail_copy(theme: Optional[str]) -> "GuardrailCopy":
-    """The active theme's block-banner wording (``ThemeConfig.guardrails``).
+    """The active theme's safety copy (``ThemeConfig.guardrails``): the block
+    banners, and the banner an EMERGENCY answer opens with.
 
     ``get_theme`` is imported here rather than at module scope on purpose:
     ``backend.agents.themes.base`` imports this module for the theme prompts,
-    so a top-level import would close that cycle. A blocked turn is rare and
-    already waiting on a guardrail service, so the lookup is free.
+    so a top-level import would close that cycle. It only runs on rare turns
+    (a block, an EMERGENCY answer), and after the first call the import is a
+    ``sys.modules`` hit, so the lookup is free.
     """
     from backend.agents.themes import get_theme
 
@@ -1668,7 +1670,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
     # Themes that return a free-text conversational "reply" instead of the
     # structured assessment/guidance/seek_care_if format. For these themes the
     # medical clarifying-question service is bypassed and the reply is rendered
-    # verbatim (no medical "Seek Professional Care If" labels or 911 prefix).
+    # verbatim (no medical "Seek Professional Care If" labels or EMERGENCY banner).
     CONVERSATIONAL_THEMES = {"telecomchatbot"}
 
     def __init__(self):
@@ -2375,7 +2377,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         #     be off, so a live demo is predictable
         #   - None (unset): Random inclusion at the configured rate (e.g., 25%), which
         #     is what keeps unattended auto-generated sessions varied
-        final_message = self._format_recommendation(recommendation)
+        final_message = self._format_recommendation(recommendation, theme)
         pii_injected = False
         pii_types = []
 
@@ -2861,11 +2863,17 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             return default
         return max(0.0, min(1.0, num))
 
-    def _format_recommendation(self, recommendation: Dict[str, Any]) -> str:
-        """Format recommendation as user-friendly text"""
+    def _format_recommendation(self, recommendation: Dict[str, Any], theme: Optional[str]) -> str:
+        """Format recommendation as user-friendly text.
+
+        ``theme`` is the active theme key; an EMERGENCY answer opens with that
+        theme's banner (``ThemeConfig.guardrails.emergency_banner``). It is
+        required rather than defaulted so no call site can silently fall back
+        to medadvice's "Call 911".
+        """
 
         # Conversational themes return free-text prose in "reply" -- render it
-        # verbatim without the structured medical labels or the 911 prefix.
+        # verbatim without the structured medical labels or the EMERGENCY banner.
         if recommendation.get("reply"):
             return str(recommendation["reply"]).strip()
 
@@ -2893,9 +2901,11 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                     output.append(f"• {text}")
             output.append("")
 
-        # Emergency notice
+        # Emergency notice, in the theme's words: an IRS lien is urgent, but it
+        # is not a trip to the emergency room.
         if recommendation.get("severity") == "EMERGENCY":
-            output.insert(0, "⚠️ **EMERGENCY: Call 911 or go to the nearest emergency room immediately.** ⚠️\n")
+            banner = guardrail_copy(theme).emergency_banner
+            output.insert(0, f"⚠️ **{banner}** ⚠️\n")
 
         return "\n".join(output)
 

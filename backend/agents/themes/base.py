@@ -44,14 +44,16 @@ class SpecialistSpec:
 
 @dataclass(frozen=True)
 class GuardrailCopy:
-    """Per-theme wording for the banners a blocked turn shows the user.
+    """Per-theme wording for the safety copy the app writes into a turn.
 
     Every guardrail that withholds a prompt or a response (Cisco AI Defense,
     Agent Control, NeMo Guardrails, the internal policy engine) explains the
     block in theme-neutral words -- "blocked by our content safety policy
     review", "please rephrase" -- and then closes with the one sentence that
     only the domain can write: where to get help instead. That sentence is
-    :attr:`urgent_help`. Without it every theme told the customer to call 911.
+    :attr:`urgent_help`. Without it every theme told the customer to call 911
+    -- as did every answer the model rated EMERGENCY, which now opens with
+    :attr:`emergency_banner` instead.
 
     Frozen so it can live on the frozen :class:`ThemeConfig`.
     """
@@ -66,6 +68,14 @@ class GuardrailCopy:
     # that response are deliberately NOT themed -- 988 and 911 are the right
     # answer whichever assistant the person was talking to.
     advice_noun: str = "assistance"
+    # Opens an answer the model rated EMERGENCY; ``_format_recommendation``
+    # wraps it in the ⚠️ markers. Not ``urgent_help``: that line is conditional
+    # ("If this is urgent...") because a block cannot tell, whereas here the
+    # model has already judged the situation urgent -- so this is an
+    # instruction, under a label only the domain can name. It becomes part of
+    # the answer the POST chain inspects, so keep phone numbers and other
+    # identifiers out of it: a PII guardrail would flag them as the model's.
+    emergency_banner: str = "URGENT: Contact a qualified professional immediately."
 
 
 DEFAULT_GUARDRAIL_COPY = GuardrailCopy()
@@ -85,8 +95,9 @@ class ThemeConfig:
     # booked, with whom, the hours, and the copy. Defaulted so a ThemeConfig
     # built without one keeps working.
     scheduling: SchedulingProfile = field(default=DEFAULT_PROFILE)
-    # What a blocked turn says to THIS theme's user. Defaulted for the same
-    # reason as ``scheduling``; every shipped theme sets its own.
+    # What a blocked turn, or an EMERGENCY answer, says to THIS theme's user.
+    # Defaulted for the same reason as ``scheduling``; every shipped theme sets
+    # its own.
     guardrails: GuardrailCopy = field(default=DEFAULT_GUARDRAIL_COPY)
 
     @property

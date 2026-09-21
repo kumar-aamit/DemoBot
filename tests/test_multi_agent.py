@@ -226,6 +226,23 @@ def test_synthesizer_conversational_reply() -> None:
           out["final_message"] == "Try restarting your router.")
 
 
+def test_synthesizer_emergency_banner_follows_theme() -> None:
+    """An EMERGENCY answer opens with the synthesizer's own theme banner -- both
+    blueprint cores answer through this node -- never medadvice's "Call 911"."""
+    synth = ('{"assessment": "a", "guidance": ["g1"], "seek_care_if": ["s1"], '
+             '"severity": "EMERGENCY", "confidence": 0.9}')
+    _install(FakeLLM(coordinator_content="{}", synth_content=synth))
+    tax = THEMES["taxadvice"]
+    state = _base_state("taxadvice")
+    state.update({"specialist_outputs": [], "agent_trace": [],
+                  "llm_input_tokens": 0, "llm_output_tokens": 0})
+    fm = synth_mod.make_synthesizer_agent(tax)(state)["final_message"]
+    check("synthesizer opens a tax EMERGENCY answer with the tax banner",
+          fm.startswith(f"⚠️ **{tax.guardrails.emergency_banner}** ⚠️"))
+    check("synthesizer's tax EMERGENCY answer carries no 911 / emergency-room copy",
+          "911" not in fm and "emergency room" not in fm.lower())
+
+
 def test_synthesizer_robust_to_poisoned_malformed_json() -> None:
     """A tampered/unaligned model (e.g. mistral-nemo:12b-poisoned) violates the
     JSON contract: guidance/seek_care entries as objects, severity as an object,
@@ -582,6 +599,7 @@ def main() -> int:
         test_specialists_all_fail_terminates,
         test_synthesizer_structured,
         test_synthesizer_conversational_reply,
+        test_synthesizer_emergency_banner_follows_theme,
         test_synthesizer_robust_to_poisoned_malformed_json,
         test_governance_survives_poisoned_confidence,
         test_synthesizer_unparseable_json_no_raw_render,

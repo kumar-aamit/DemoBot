@@ -77,6 +77,9 @@ GUARDRAILS = GuardrailCopy(
         "emergency room."
     ),
     advice_noun="medical advice",
+    emergency_banner=(
+        "EMERGENCY: Call 911 or go to the nearest emergency room immediately."
+    ),
 )
 
 THEME = ThemeConfig(

@@ -222,7 +222,7 @@ single source of truth.
 **Key Functions:**
 - `process_message()` - Legacy single-call entry point (fallback path)
 - `_generate_recommendation()` - AI provider call (fallback path)
-- `_format_recommendation()` - Response formatting (reused by `compliance` node)
+- `_format_recommendation()` - Response formatting, including the theme's EMERGENCY banner (reused by the `synthesizer` node)
 
 #### Clarifying Questions Service
 **Responsibilities:**

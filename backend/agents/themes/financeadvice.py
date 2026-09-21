@@ -71,6 +71,10 @@ GUARDRAILS = GuardrailCopy(
         "advisor or your financial institution directly."
     ),
     advice_noun="financial advice",
+    emergency_banner=(
+        "FINANCIAL EMERGENCY: Contact your financial institution or a licensed "
+        "financial advisor immediately."
+    ),
 )
 
 THEME = ThemeConfig(

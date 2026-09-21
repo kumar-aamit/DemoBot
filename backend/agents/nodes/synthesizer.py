@@ -134,7 +134,7 @@ def make_synthesizer_agent(theme_config) -> Callable[[Dict[str, Any]], Dict[str,
             recommendation.get("severity", "MEDIUM")
         )
         confidence = content_engine._coerce_confidence(recommendation.get("confidence", 0.5))
-        final_message = content_engine._format_recommendation(recommendation)
+        final_message = content_engine._format_recommendation(recommendation, theme_config.key)
 
         trace = list(state.get("agent_trace", []))
         trace.append(

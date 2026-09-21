@@ -95,6 +95,12 @@ GUARDRAILS = GuardrailCopy(
         "store to speak with an agent."
     ),
     advice_noun="assistance",
+    # This theme's EMERGENCY is a life-threatening one (see its prompt), so 911
+    # is right here. Its reply is shown verbatim, so the banner never renders
+    # today -- it is defined so the copy is correct if that changes.
+    emergency_banner=(
+        "EMERGENCY: Call 911 from any available phone or landline immediately."
+    ),
 )
 
 THEME = ThemeConfig(
