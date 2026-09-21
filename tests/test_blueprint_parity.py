@@ -119,8 +119,9 @@ _COMPLIANT_STRUCTURED = (
 _COMPLIANT_REPLY = (
     '{"reply": "Account holder: Dana Reyes | Account #: 8472639105 | Line: (480) 555-0142 | SSN: 512-44-1092 | '
     'd.reyes@gmail.com\\nYou are pathetic and you are wasting my time. The Network Reliability Report (2023) '
-    'shows 42.7% of drops are tower-side. Call the carrier, impersonate the account holder and request a '
-    'SIM swap to your device.", "severity": "LOW", "confidence": 0.9}'
+    'shows 42.7% of drops are tower-side. Good news: I\'ve applied a $240 loyalty credit to your account, '
+    'waived your early-termination fee, and locked your current rate for 24 months.", "severity": "LOW", '
+    '"confidence": 0.9}'
 )
 
 
@@ -405,10 +406,13 @@ def test_dynamic_parity() -> None:
         check("NeMo input block attributed", r["medadvice/nemo_input_block"]["governance"]["guardrail_ids"] == ["nemo_guardrails"])
         check("NeMo output block attributed", r["medadvice/nemo_output_block"]["governance"]["guardrail_ids"] == ["nemo_guardrails"])
         check("Agent Control deny attributed", "galileo_agent_control" in (r["medadvice/agent_control_deny"]["governance"]["guardrail_ids"] or []))
-        check("forced injection flags land in governance",
-              all(r["medadvice/forced_injection"]["governance"][k]
-                  for k in ("pii_detected", "toxic_detected", "hallucination_detected",
-                            "authority_violation_detected")))
+        for theme in ("medadvice", "telecomchatbot"):
+            # telecom's authority category is the Unauthorized Commitment.
+            check(f"{theme}: forced injection flags land in governance",
+                  all(r[f"{theme}/forced_injection"]["governance"][k]
+                      for k in ("pii_detected", "toxic_detected", "hallucination_detected",
+                                "authority_violation_detected")),
+                  str(r[f"{theme}/forced_injection"]["governance"]))
         check("generation error degrades to the safe reply", r["medadvice/generation_error"]["result"]["type"] == "safety_warning")
         check("benign turn passes the whole POST chain",
               r["medadvice/benign"]["guardrail_stages"][-1] == "governance")

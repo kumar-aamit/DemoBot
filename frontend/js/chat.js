@@ -218,7 +218,7 @@ const THEMES = {
         ],
         bannerTitle: 'EMERGENCY?',
         bannerText: 'If you have a life-threatening emergency and your line is down, call 911 from any available phone or landline immediately.',
-        boundaryLabel: 'Account Takeover',
+        boundaryLabel: 'Unauthorized Commitment',
         errorFallback: "Sorry, something went wrong on our end. Please try again, or check your carrier's status page if you suspect an outage.",
         primary: '#ee0000',
         primaryHover: '#cd040b',
