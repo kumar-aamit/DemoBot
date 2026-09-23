@@ -58,7 +58,7 @@ GALILEO_AGENT_CONTROL_BACKEND=splunk_ao
 SPLUNK_AO_REALM=us1                              # already set for trace logging
 SPLUNK_AO_CONTROL_TOKEN=<O11y API token>         # blank = reuse SPLUNK_AO_O11Y_API_TOKEN
 # SPLUNK_AO_CONTROL_URL=                          # override; default derived from the realm
-# SPLUNK_AO_CONTROL_TARGET_TYPE=agent_stream      # or log_stream, see below
+# SPLUNK_AO_CONTROL_TARGET_TYPE=log_stream        # the default; see below
 # SPLUNK_AO_CONTROL_STEP_NAME=complete_chat
 # GALILEO_AGENT_CONTROL_STAGES=                   # empty = pre,post on splunk_ao
 ```
@@ -74,9 +74,13 @@ carrying the `agent_observability_admin` role. A plain O11y API token reaches
 the gateway (`/ao/agent-control/health` answers 200) but every controls call
 answers `403 controls.read`, and the stream lookup on `/ao/api` answers 403 too.
 
-**Target type.** Splunk's how-to and Kumar's working setup use `agent_stream`;
-the splunk-ao SDK's own constant is `log_stream`. It is a setting. If the
-controls you attached never apply, try the other value.
+**Target type.** `log_stream`, the splunk-ao SDK's own constant, and the
+default since 4.12.1. Splunk's how-to (and Kumar's fork) use `agent_stream`, but
+the us1 gateway answers every call bound to that type with
+`502 AUTH_UPSTREAM_REJECTED` — the controls lookup, the attachment filter and
+the runtime-token exchange (verified 2026-09-23). With `log_stream` the same
+calls succeed and the exchange mints a runtime token. A 502 of that kind names
+the fix in the error message.
 
 **Execution.** Client-side execution (the `client` transport) is not available
 on this backend — its evaluators live in the AO org — so author the controls
@@ -102,9 +106,11 @@ Acceptance probe, no app needed:
 venv/bin/python -c "from backend.services.agent_control import agent_control_client as c; print(c.list_controls(theme='telecomchatbot'))"
 ```
 
-It resolves the stream, registers the agent for it and returns the effective
-control set the server would evaluate. An empty list with no error means the
-target type or the attachment is wrong; a 403 means the token lacks the role.
+It resolves the stream, registers the agent for it (the server answers 404
+for an agent it has never seen) and returns the effective control set the
+server would evaluate. An empty list with no error means no control is attached
+to that stream yet; a 403 means the token lacks the role; a
+`502 AUTH_UPSTREAM_REJECTED` means the target type is not `log_stream`.
 
 ## What changed in the code
 

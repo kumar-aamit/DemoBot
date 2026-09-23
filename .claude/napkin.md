@@ -173,9 +173,13 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   Every call is bound to the theme's Agent stream (`_stream_for`; id via `/ao/api`, cached);
   both stages run (`agent_control_prompt` PRE node after `prompt_defense`, `agent_control`
   POST); verdicts ride the governance event as `agent_control_verdicts` and become control
-  spans in `_build_turn`. Open: target_type `agent_stream` (Splunk how-to, Kumar) vs
-  `log_stream` (splunk-ao constant) — `SPLUNK_AO_CONTROL_TARGET_TYPE`; probe with
-  `agent_control_client.list_controls(theme=…)`. Design: docs/agent-control-splunk-ao.md.
+  spans in `_build_turn`. **Target type = `log_stream`** (default since 4.12.1): every call
+  bound to `agent_stream` (Splunk's how-to, Kumar's fork) gets `502 AUTH_UPSTREAM_REJECTED`
+  from the us1 gateway — that was "the 502". Probe with
+  `agent_control_client.list_controls(theme=…)` (registers the agent first; an unregistered
+  agent is 404). Controls: `PUT /api/v1/controls {name, data}`, attach with
+  `PUT /api/v1/control-bindings/by-key {target_type, target_id, control_id}` (idempotent);
+  an unfiltered `GET /control-bindings` also 502s. Design: docs/agent-control-splunk-ao.md.
 - Credentials are `AGENT_CONTROL_API_KEY` / `AGENT_CONTROL_CONSOLE_URL` (old
   `GALILEO_API_KEY`/`GALILEO_CONSOLE_URL` honored as a deprecated fallback, one
   warning per process; `GALILEO_CONSOLE_URL` is ignored once `AGENT_CONTROL_API_KEY`

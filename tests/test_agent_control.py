@@ -821,12 +821,12 @@ check("toggle handler exists", "function toggleAgentControl()" in js)
 check("toggle state is persisted", "medadvice_agent_control_enabled" in js)
 check("flag is sent on every chat turn", "agent_control_review: agentControlEnabled" in js)
 
-# ---- 6. splunk_ao backend: Agent Control hosted inside Agent Observability ---
+# ---- 8. splunk_ao backend: Agent Control hosted inside Agent Observability ---
 # Kumar's intent (kumar-aamit/DemoBot, 2026-09-23): controls authored in the AO
 # Controls UI and attached to the Agent stream, PRE + POST around the LLM step,
 # X-SF-Token auth with an O11y API token, no Galileo console. Pinned here
 # against the wire contract (no network): the same client, a second backend.
-print("\n[6] splunk_ao backend")
+print("\n[8] splunk_ao backend")
 posts = []
 gets = []
 
@@ -901,8 +901,8 @@ check("post stage: stage=post with the answer as output",
       _post_body.get("stage") == "post" and _post_body["step"].get("output") == "a")
 check("the step is llm / complete_chat",
       _pre_body["step"].get("type") == "llm" and _pre_body["step"].get("name") == "complete_chat")
-check("every evaluation is bound to the theme's stream as the target (found on page 2)",
-      all(k["json"].get("target_type") == "agent_stream" and k["json"].get("target_id") == "stream-tele"
+check("every evaluation is bound to the theme's stream as a log_stream target (found on page 2)",
+      all(k["json"].get("target_type") == "log_stream" and k["json"].get("target_id") == "stream-tele"
           for _, k in evals))
 check("the context names the Agent stream for triage",
       (_post_body["step"].get("context") or {}).get("agent_stream") == "TelecomChatbot")
@@ -931,6 +931,87 @@ check("execution=client is forced to server on splunk_ao (its scorers live in th
 check("a stream that does not exist yet is an errored verdict (fail-open policy decides), never an exception",
       missing.errored is True and "target:" in (missing.error_message or ""))
 
+# ---- 8b. 4.12.1: the target type the us1 gateway actually accepts ------------
+# Live probe 2026-09-23 with a token carrying agent_observability_admin: every
+# call bound to target_type=agent_stream (Splunk's how-to value, the 4.12.0
+# default) answered 502 AUTH_UPSTREAM_REJECTED — controls GET, attachment
+# filter, runtime-token exchange — while log_stream minted a runtime token and
+# resolved the stream's bindings. Pin the default and the operator hint.
+print("\n[8b] splunk_ao target type (4.12.1)")
+check("the default target type is log_stream", settings.splunk_ao_control_target_type == "log_stream")
+_body_502 = {"type": "https://agentcontrol.dev/errors/auth-upstream-rejected", "status": 502,
+             "title": "Authorization Upstream Rejected Request",
+             "detail": "An unexpected error occurred. Please try again or contact support.",
+             "error_code": "AUTH_UPSTREAM_REJECTED"}
+_r502 = _FakeResponse(_body_502, status_code=502)
+check("gateway errors lead with the problem document's error_code",
+      ac.AgentControlClient._safe_error_detail(_r502).startswith("AUTH_UPSTREAM_REJECTED: "))
+check("an agent_stream target that draws AUTH_UPSTREAM_REJECTED gets the log_stream hint",
+      "SPLUNK_AO_CONTROL_TARGET_TYPE=log_stream" in ac.AgentControlClient._target_type_hint(
+          _r502, {"target_type": "agent_stream", "target_id": "x"}))
+check("no hint when the target is already log_stream, or on another error",
+      ac.AgentControlClient._target_type_hint(_r502, {"target_type": "log_stream", "target_id": "x"}) == ""
+      and ac.AgentControlClient._target_type_hint(
+          _FakeResponse({"detail": "down"}, status_code=502), {"target_type": "agent_stream", "target_id": "x"}) == ""
+      and ac.AgentControlClient._target_type_hint(_r502, None) == "")
+
+
+def _fake_post_502(url, **kwargs):
+    posts.append((url, kwargs))
+    if url.endswith("/initAgent"):
+        return _FakeResponse({"created": True, "controls": []})
+    return _FakeResponse(_body_502, status_code=502)
+
+
+posts.clear()
+gets.clear()
+with mock.patch.dict(os.environ, _ao_env), \
+     mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+     mock.patch.object(settings, "splunk_ao_control_target_type", "agent_stream"), \
+     mock.patch.object(ac.httpx, "get", side_effect=_fake_get), \
+     mock.patch.object(ac.httpx, "post", side_effect=_fake_post_502):
+    bad = ac.AgentControlClient().evaluate_prompt("hi", theme="telecomchatbot")
+check("an agent_stream evaluation that 502s is an errored verdict naming the fix",
+      bad.errored is True and "AUTH_UPSTREAM_REJECTED" in (bad.error_message or "")
+      and "SPLUNK_AO_CONTROL_TARGET_TYPE=log_stream" in (bad.error_message or ""))
+
+# The acceptance probe registers the agent for the stream before listing: an
+# agent the server has never seen answers 404 AGENT_NOT_FOUND on the controls GET.
+posts.clear()
+gets.clear()
+with mock.patch.dict(os.environ, _ao_env), \
+     mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+     mock.patch.object(ac.httpx, "get", side_effect=_fake_get), \
+     mock.patch.object(ac.httpx, "post", side_effect=_fake_post_ao):
+    listed = ac.AgentControlClient().list_controls(theme="telecomchatbot")
+_init_calls = [k for u, k in posts if u.endswith("/api/v1/agents/initAgent")]
+_ctl_gets = [k for u, k in gets if u.endswith("/agents/pseudoco-assistant-agent/controls")]
+check("list_controls registers the agent for the stream first (log_stream target in the body)",
+      len(_init_calls) == 1 and _init_calls[0]["json"].get("target_type") == "log_stream"
+      and _init_calls[0]["json"].get("target_id") == "stream-tele")
+check("list_controls then asks for the stream-bound effective set",
+      len(_ctl_gets) == 1 and (_ctl_gets[0].get("params") or {}) == {"target_type": "log_stream", "target_id": "stream-tele"}
+      and listed == [])
+
+
+def _fake_get_502(url, **kwargs):
+    if url.endswith("/controls") and "/agents/" in url:
+        return _FakeResponse(_body_502, status_code=502)
+    return _fake_get(url, **kwargs)
+
+
+with mock.patch.dict(os.environ, _ao_env), \
+     mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+     mock.patch.object(settings, "splunk_ao_control_target_type", "agent_stream"), \
+     mock.patch.object(ac.httpx, "get", side_effect=_fake_get_502), \
+     mock.patch.object(ac.httpx, "post", side_effect=_fake_post_ao):
+    try:
+        ac.AgentControlClient().list_controls(theme="telecomchatbot")
+        check("the probe turns a 502 into an AgentControlError with the fix", False)
+    except ac.AgentControlError as exc:
+        check("the probe turns a 502 into an AgentControlError with the fix",
+              "SPLUNK_AO_CONTROL_TARGET_TYPE=log_stream" in str(exc))
+
 # Backend isolation: the galileo path is untouched, and each backend has its
 # own credential — a box with both keys never sends one vendor the other's.
 with mock.patch.dict(os.environ, {"AGENT_CONTROL_API_KEY": "galileo-console-key",
@@ -956,8 +1037,8 @@ with mock.patch.dict(os.environ, {"AGENT_CONTROL_API_KEY": "galileo-console-key"
          mock.patch.object(settings, "galileo_agent_control_stages", "post"):
         check("stages can be narrowed to post on splunk_ao too", ac.AgentControlClient().stages == ["post"])
 
-# ---- 7. prompt-stage node ---------------------------------------------------
-print("\n[7] prompt-stage node")
+# ---- 9. prompt-stage node ---------------------------------------------------
+print("\n[9] prompt-stage node")
 
 
 class _AOStub:

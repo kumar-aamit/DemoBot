@@ -305,10 +305,10 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
                         "API token (sessions) field above. A token without the role reaches the "
                         "gateway but gets 403 controls.read."),
         _CredField("splunk_ao_control_target_type", "AO control target type (splunk_ao)",
-                   settings_attr="splunk_ao_control_target_type", placeholder="agent_stream",
-                   help="What the gateway binds stream-attached controls under: agent_stream "
-                        "(Splunk's how-to) or log_stream (the splunk-ao SDK's constant). If the "
-                        "controls you attached never apply, try the other."),
+                   settings_attr="splunk_ao_control_target_type", placeholder="log_stream",
+                   help="What the gateway binds stream-attached controls under. log_stream "
+                        "(the default). agent_stream, from Splunk's how-to, is answered with "
+                        "502 AUTH_UPSTREAM_REJECTED by the us1 gateway."),
         _CredField("splunk_ao_control_step_name", "AO control step name (splunk_ao)",
                    settings_attr="splunk_ao_control_step_name", placeholder="complete_chat",
                    help="The llm step the UI controls are scoped to."),
