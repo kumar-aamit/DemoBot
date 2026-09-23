@@ -128,7 +128,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "PseudoCo Assistant v4"
-    app_version: str = "4.12.0"
+    app_version: str = "4.12.1"
     environment: str = "development"  # "development" or "production"
     debug: bool = True
 
@@ -380,12 +380,15 @@ class Settings(BaseSettings):
     # console controls are post-scoped), pre,post on splunk_ao.
     galileo_agent_control_stages: str = ""
     # splunk_ao backend only. URL override (empty = derived from SPLUNK_AO_REALM);
-    # the target type the AO gateway binds stream-attached controls under
-    # (Splunk's how-to and the splunk-ao SDK's own constant disagree —
-    # "agent_stream" vs "log_stream" — so it is a setting, not a literal); the
+    # the target type the AO gateway binds stream-attached controls under; the
     # step name the UI controls are scoped to (shown as type llm + this name).
+    # Target type is "log_stream" — the splunk-ao SDK's own constant. Splunk's
+    # how-to says "agent_stream", but the us1 gateway answers every call bound to
+    # that type with 502 AUTH_UPSTREAM_REJECTED (verified 2026-09-23: controls
+    # GET, attachment filter and runtime-token exchange), while log_stream
+    # mints a runtime token and resolves the stream's bindings.
     splunk_ao_control_url: str = ""
-    splunk_ao_control_target_type: str = "agent_stream"
+    splunk_ao_control_target_type: str = "log_stream"
     splunk_ao_control_step_name: str = "complete_chat"
 
     # -------------------------------------------------------------------------

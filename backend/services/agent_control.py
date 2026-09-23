@@ -688,7 +688,7 @@ class AgentControlClient:
             return None
         stream = self.stream_for_theme(theme)
         return {
-            "target_type": (settings.splunk_ao_control_target_type or "agent_stream").strip(),
+            "target_type": (settings.splunk_ao_control_target_type or "log_stream").strip(),
             "target_id": self.resolve_stream_id(stream),
             "stream": stream,
         }
@@ -878,7 +878,7 @@ class AgentControlClient:
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as exc:
-            detail = self._safe_error_detail(exc.response)
+            detail = self._safe_error_detail(exc.response) + self._target_type_hint(exc.response, target)
             # A rejected credential is usually a stale cached token; drop both
             # so the next turn re-authenticates from the API key.
             if exc.response.status_code in (401, 403):
@@ -1258,14 +1258,31 @@ class AgentControlClient:
         )
 
     @staticmethod
+    def _target_type_hint(response: httpx.Response, target: Optional[Dict[str, str]]) -> str:
+        """The one misconfiguration this backend has a known fix for: a target
+        type other than log_stream draws 502 AUTH_UPSTREAM_REJECTED from the AO
+        gateway, whose message says nothing about the target."""
+        if not target or target.get("target_type") == "log_stream" or response.status_code != 502:
+            return ""
+        if "AUTH_UPSTREAM_REJECTED" not in (response.text or ""):
+            return ""
+        return (f" (target_type {target.get('target_type')!r} is rejected by this gateway; "
+                "set SPLUNK_AO_CONTROL_TARGET_TYPE=log_stream)")
+
+    @staticmethod
     def _safe_error_detail(response: httpx.Response) -> str:
         try:
             body = response.json()
             if isinstance(body, dict):
-                # Agent Control returns RFC 9457 problem documents.
+                # Agent Control returns RFC 9457 problem documents. Lead with the
+                # machine error_code when there is one: the O11y gateway's
+                # "detail" is a generic "unexpected error" that hides it.
+                code = body.get("error_code")
                 for key in ("detail", "title", "message"):
                     if body.get(key):
-                        return str(body[key])
+                        return f"{code}: {body[key]}" if code else str(body[key])
+                if code:
+                    return str(code)
         except ValueError:
             pass
         return response.text[:200]
@@ -1372,13 +1389,16 @@ class AgentControlClient:
     def list_controls(self, *, theme: Optional[str] = None) -> List[Dict[str, Any]]:
         """Effective control set for this agent (direct + policy + bindings).
         splunk_ao: bound to the theme's Agent stream, so the stream-attached
-        controls are included — the acceptance probe for a new deployment."""
+        controls are included — the acceptance probe for a new deployment. It
+        registers the agent for that stream first, as the first evaluation
+        would: an agent the server has never seen answers 404 here."""
         if not self.is_configured:
             raise AgentControlError("Agent Control is not configured.")
 
         params: Dict[str, str] = {}
         target = self.target_for(theme) if self.is_splunk_ao else None
         if target:
+            self._ensure_registered(target)
             params = {"target_type": target["target_type"], "target_id": target["target_id"]}
         response = httpx.get(
             f"{self.control_url}/api/v1/agents/{self._agent_name}/controls",
@@ -1386,7 +1406,13 @@ class AgentControlClient:
             headers=self._management_headers(),
             timeout=self._timeout,
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise AgentControlError(
+                f"HTTP {response.status_code}: {self._safe_error_detail(response)}"
+                f"{self._target_type_hint(response, target)}"
+            ) from exc
         data = response.json() or {}
         return list(data.get("controls") or [])
 
