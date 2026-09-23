@@ -54,12 +54,20 @@ def governance_node(state: Dict[str, Any]) -> Dict[str, Any]:
     pii_detected = state.get("pii_detected", pii_injected)
     toxic_detected = state.get("toxic_detected", toxic_injected)
 
-    # Non-blocking Galileo Agent Control match (observe / steer, or a fail-open
-    # error): attribute the guardrail without claiming a safety violation. A
-    # deny never reaches this node — it short-circuits to the blocked event in
-    # ``_handle_agent_control_block``.
-    control_verdict = state.get("agent_control")
-    matched_controls = list(getattr(control_verdict, "matched_controls", None) or [])
+    # Non-blocking Agent Control match (observe / steer, or a fail-open error)
+    # at either stage: attribute the guardrail without claiming a safety
+    # violation. A deny never reaches this node — it short-circuits to the
+    # blocked event in ``_handle_agent_control_prompt_block`` /
+    # ``_handle_agent_control_block``. Both verdicts ride on the event as
+    # ``agent_control_verdicts`` (prompt stage first) so Agent Observability can
+    # rebuild them as control spans on the turn's trace.
+    control_verdicts = [
+        v for v in (state.get("agent_control_prompt"), state.get("agent_control")) if v is not None
+    ]
+    matched_controls = [
+        name for v in control_verdicts for name in (getattr(v, "matched_controls", None) or [])
+    ]
+    control_records = [v.record() for v in control_verdicts if hasattr(v, "record")] or None
     guardrail_ids = ["escalation_rules"] if should_escalate else []
     if matched_controls:
         guardrail_ids.append("galileo_agent_control")
@@ -106,6 +114,7 @@ def governance_node(state: Dict[str, Any]) -> Dict[str, Any]:
             safety_categories=escalation_reasons if should_escalate else None,
             guardrail_triggered=should_escalate or bool(matched_controls) or bool(nemo_rails),
             guardrail_ids=guardrail_ids or None,
+            agent_control_verdicts=control_records,
             pii_detected=pii_detected,
             pii_types=pii_types if pii_detected else None,
             toxic_detected=toxic_detected,

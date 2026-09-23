@@ -76,10 +76,15 @@ subgraph: the shared guardrail chain wired around the selected **blueprint**'s
 generation core (`backend/agents/blueprints/`):
 
 ```
-policy -> prompt_defense -> nemo_input_rails -> <blueprint core> -> safety
-      -> injection -> compliance -> agent_control -> nemo_output_rails
+policy -> prompt_defense -> agent_control_prompt -> nemo_input_rails -> <blueprint core>
+      -> safety -> injection -> compliance -> agent_control -> nemo_output_rails
       -> response_defense -> governance
 ```
+
+The two `agent_control` nodes are the **Agent Observability Controls** guardrail.
+They can target the Galileo console (default) or the Agent Control server hosted
+inside Splunk Agent Observability, where controls are attached to the theme's
+Agent stream — see `docs/agent-control-splunk-ao.md`.
 
 Blueprints (`ACTIVE_BLUEPRINT`, `PUT /api/settings/blueprint`, or per request —
 the UI has no picker and always runs the default):

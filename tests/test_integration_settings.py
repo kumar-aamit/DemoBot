@@ -115,7 +115,10 @@ def test_no_secret_value_ever_leaves_the_box() -> None:
     if leaked:
         print(f"    leaked: {leaked}")
     secrets = [f for items in fields.values() for f in items if f["secret"]]
-    check("the expected 6 secrets are declared secret", len(secrets) == 6)
+    # 6 + the splunk_ao Agent Control token (SPLUNK_AO_CONTROL_TOKEN).
+    check("the expected 7 secrets are declared secret", len(secrets) == 7)
+    check("the AO control token is one of them",
+          any(f["key"] == "splunk_ao_control_token" for f in secrets))
 
 
 def test_blank_secret_keeps_existing() -> None:

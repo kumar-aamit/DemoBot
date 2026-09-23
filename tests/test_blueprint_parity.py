@@ -235,10 +235,17 @@ def _scenario(kind: str):
                 check_output=lambda *a, **k: (blocked if kind == "nemo_output_block" else RailVerdict(stage="output")),
             )
             kwargs["nemo_guardrails_review"] = True
-        elif kind == "agent_control_deny":
+        elif kind in ("agent_control_deny", "agent_control_prompt_deny"):
+            # The response-stage deny runs the galileo default (post only); the
+            # prompt-stage deny is the splunk_ao shape (pre + post), denying at pre.
             saved["acc"] = ac_mod.agent_control_client
+            prompt = kind == "agent_control_prompt_deny"
             ac_mod.agent_control_client = _Stub(
                 is_configured=True,
+                stages=["pre", "post"] if prompt else ["post"],
+                evaluate_prompt=lambda *a, **k: ControlVerdict(is_safe=False, confidence=1.0,
+                                                               matched_controls=["block-prompt"],
+                                                               decisions=["deny"], stage="pre"),
                 evaluate_response=lambda **k: ControlVerdict(is_safe=False, confidence=1.0,
                                                              matched_controls=["block-x"], decisions=["deny"]),
             )
@@ -334,7 +341,8 @@ def _run(bp_key: str, theme: str, kind: str) -> Dict[str, Any]:
 
 
 SCENARIOS = ("benign", "policy_block", "ai_defense_prompt_block", "ai_defense_response_block",
-             "nemo_input_block", "nemo_output_block", "agent_control_deny", "forced_injection",
+             "nemo_input_block", "nemo_output_block", "agent_control_deny", "agent_control_prompt_deny",
+             "forced_injection",
              "generation_error", "multi_agent",
              "scheduling_offer", "scheduling_book", "scheduling_list")
 
@@ -406,6 +414,12 @@ def test_dynamic_parity() -> None:
         check("NeMo input block attributed", r["medadvice/nemo_input_block"]["governance"]["guardrail_ids"] == ["nemo_guardrails"])
         check("NeMo output block attributed", r["medadvice/nemo_output_block"]["governance"]["guardrail_ids"] == ["nemo_guardrails"])
         check("Agent Control deny attributed", "galileo_agent_control" in (r["medadvice/agent_control_deny"]["governance"]["guardrail_ids"] or []))
+        check("Agent Control prompt deny attributed",
+              "galileo_agent_control" in (r["medadvice/agent_control_prompt_deny"]["governance"]["guardrail_ids"] or []))
+        check("Agent Control prompt deny blocks in the PRE chain, before the core",
+              r["medadvice/agent_control_prompt_deny"]["result"]["policy_blocked"] is True
+              and r["medadvice/agent_control_prompt_deny"]["guardrail_stages"][-1] == "agent_control_prompt",
+              str(r["medadvice/agent_control_prompt_deny"]["guardrail_stages"]))
         for theme in ("medadvice", "telecomchatbot"):
             # telecom's authority category is the Unauthorized Commitment.
             check(f"{theme}: forced injection flags land in governance",

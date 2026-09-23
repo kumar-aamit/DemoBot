@@ -118,6 +118,7 @@ class _FakeLogger:
     def add_workflow_span(self, **k): self._rec("add_workflow_span", k)
     def add_agent_span(self, **k): self._rec("add_agent_span", k)
     def add_llm_span(self, **k): self._rec("add_llm_span", k)
+    def add_control_span(self, **k): self._rec("add_control_span", k)
     def conclude(self, **k): self._rec("conclude", k)
 
     def flush(self, on_error=None):
@@ -173,6 +174,25 @@ _sdk_deployment.O11yConfig = SimpleNamespace(from_env=lambda: SimpleNamespace(re
 _sdk_expcfg = types.ModuleType("splunk_ao.exporter.config")
 _sdk_expcfg.resolve_routing = lambda mode, project=None, agent_stream=None: SimpleNamespace(
     project_name=project, agent_stream_name=agent_stream)
+
+# The control-span schema (splunk_ao.logger.control): the real 0.4.0 re-exports
+# galileo-core's str-enums + ControlResult; the fake mirrors their values so
+# _add_control_spans takes its real path against the fake logger.
+import enum as _enum  # noqa: E402
+
+
+class _FakeControlResult:
+    def __init__(self, action, matched, confidence=None, error_message=None):
+        self.action, self.matched, self.confidence, self.error_message = action, matched, confidence, error_message
+
+
+_sdk_logger_pkg = types.ModuleType("splunk_ao.logger")
+_sdk_control = types.ModuleType("splunk_ao.logger.control")
+_sdk_control.ControlCheckStage = _enum.Enum("ControlCheckStage", {"pre": "pre", "post": "post"})
+_sdk_control.ControlAppliesTo = _enum.Enum("ControlAppliesTo", {"llm_call": "llm_call", "tool_call": "tool_call"})
+_sdk_control.ControlResult = _FakeControlResult
+sys.modules["splunk_ao.logger"] = _sdk_logger_pkg
+sys.modules["splunk_ao.logger.control"] = _sdk_control
 _sdk_o11y = types.ModuleType("splunk_ao.exporter.o11y")
 _sdk_o11y.exporter_error = None
 _sdk_o11y.build_o11y_exporter = lambda cfg, routing, timeout=None: (
@@ -323,6 +343,46 @@ check("no agent_trace -> chat_turn workflow wrapping a single LLM span with the 
       and len(_llm) == 1 and _llm[0][1].get("num_input_tokens") == 60
       and _llm[0][1].get("total_tokens") == 113 and _llm[0][1].get("duration_ns") == 3_000_000_000
       and names.count("conclude") == 2)
+
+# Agent Control verdicts (agent_control_verdicts on the governance event) become
+# control spans under the workflow span — what the AO trace view shows with the
+# shield icon and the stream's Control View counts.
+fake = _FakeLogger()
+ao._build_turn(fake, dict(_turn(), agent_control_verdicts=[
+    {"stage": "pre", "controls": [], "decisions": [], "errored": False, "duration_ms": 120.0,
+     "backend": "splunk_ao", "target": "TelecomChatbot", "transport": "server",
+     "agent_name": "pseudoco-assistant-agent"},
+    {"stage": "post", "controls": ["block-x", "watch-y"], "decisions": ["deny", "observe"], "errored": False,
+     "duration_ms": 800.0, "backend": "splunk_ao", "target": "TelecomChatbot", "transport": "server",
+     "confidence": 0.9},
+]))
+names = _names(fake.calls)
+_ctl = [c[1] for c in fake.calls if c[0] == "add_control_span"]
+check("agent_control_verdicts -> one span per matched control, one observe span for a clean stage",
+      [c.get("name") for c in _ctl] == ["agent-control-pre", "block-x", "watch-y"])
+check("control spans sit under the workflow span, before its conclude",
+      names.index("add_workflow_span") < names.index("add_control_span") < len(names) - 2
+      and names[-2:] == ["conclude", "conclude"])
+check("control spans carry stage, action, match and target",
+      getattr(_ctl[0].get("check_stage"), "value", None) == "pre"
+      and _ctl[0]["output"].action == "observe" and _ctl[0]["output"].matched is False
+      and _ctl[1]["output"].action == "deny" and _ctl[1]["output"].matched is True
+      and _ctl[2]["output"].action == "observe"
+      and _ctl[1].get("metadata", {}).get("agent_control_target") == "TelecomChatbot"
+      and _ctl[1].get("agent_name") is None and _ctl[0].get("agent_name") == "pseudoco-assistant-agent")
+check("the prompt-stage span is back-dated to the turn start, the response stage to its end",
+      _ctl[0].get("created_at") == _t0 and _ctl[1].get("created_at") == _t0 + timedelta(milliseconds=2200)
+      and _ctl[0].get("duration_ns") == 120_000_000)
+fake = _FakeLogger()
+ao._build_turn(fake, dict(_turn(), agent_control_verdicts=[
+    {"stage": "post", "controls": [], "decisions": [], "errored": True, "error_message": "HTTP 403: controls.read",
+     "duration_ms": 50.0, "backend": "splunk_ao"}]))
+_err = [c[1] for c in fake.calls if c[0] == "add_control_span"]
+check("an errored evaluation is a status-500 observe span carrying the error",
+      len(_err) == 1 and _err[0].get("status_code") == 500 and _err[0]["output"].error_message == "HTTP 403: controls.read")
+fake = _FakeLogger()
+ao._build_turn(fake, _turn())
+check("additive: a turn without verdicts emits no control span", "add_control_span" not in _names(fake.calls))
 
 fake = _FakeLogger()
 fake.fail_start = True

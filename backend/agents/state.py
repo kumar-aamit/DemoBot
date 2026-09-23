@@ -134,6 +134,10 @@ class PseudoCoAssistantState(TypedDict, total=False):
     # "Agent Observability Controls" review — present for allowed turns too, so
     # the governance event can record an observe/steer match that did not block.
     agent_control: Any  # ControlVerdict
+    # Prompt-stage verdict (agent_control_prompt node, PRE chain). Its own key:
+    # governance reads both stages, and the response-stage verdict must not
+    # overwrite what the prompt screen decided.
+    agent_control_prompt: Any  # ControlVerdict
 
     # ---- NVIDIA NeMo Guardrails verdicts (nemo_input_rails / nemo_output_rails) ----
     # Present for allowed turns too (a fail-open error is recorded), so the

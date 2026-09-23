@@ -821,6 +821,211 @@ check("toggle handler exists", "function toggleAgentControl()" in js)
 check("toggle state is persisted", "medadvice_agent_control_enabled" in js)
 check("flag is sent on every chat turn", "agent_control_review: agentControlEnabled" in js)
 
+# ---- 6. splunk_ao backend: Agent Control hosted inside Agent Observability ---
+# Kumar's intent (kumar-aamit/DemoBot, 2026-09-23): controls authored in the AO
+# Controls UI and attached to the Agent stream, PRE + POST around the LLM step,
+# X-SF-Token auth with an O11y API token, no Galileo console. Pinned here
+# against the wire contract (no network): the same client, a second backend.
+print("\n[6] splunk_ao backend")
+posts = []
+gets = []
+
+
+def _fake_get(url, **kwargs):
+    gets.append((url, kwargs))
+    if url.endswith("/ao/api/projects"):
+        return _FakeResponse([{"id": "proj-uuid", "name": "PseudoCo Assistant"}])
+    if url.endswith("/log_streams/paginated"):
+        token = (kwargs.get("params") or {}).get("starting_token", 0)
+        if token == 0:
+            return _FakeResponse({"log_streams": [{"id": "stream-med", "name": "MedAdvice"}],
+                                  "paginated": True, "next_starting_token": 1})
+        return _FakeResponse({"log_streams": [{"id": "stream-tele", "name": "TelecomChatbot"}],
+                              "paginated": False, "next_starting_token": None})
+    return _FakeResponse({"controls": []})
+
+
+def _fake_post_ao(url, **kwargs):
+    posts.append((url, kwargs))
+    if url.endswith("/runtime-token-exchange"):
+        return _FakeResponse({"detail": "not found"}, status_code=404)
+    if url.endswith("/initAgent"):
+        return _FakeResponse({"created": True, "controls": []})
+    return _FakeResponse({
+        "is_safe": False, "confidence": 0.8,
+        "matches": [{"control_name": "tele-block", "action": "deny",
+                     "result": {"matched": True, "confidence": 0.8, "message": "nope"}}],
+    })
+
+
+_ao_env = {"SPLUNK_AO_REALM": "us1", "SPLUNK_AO_PROJECT": "PseudoCo Assistant",
+           "SPLUNK_AO_AGENT_STREAM_PER_THEME": "true",
+           "SPLUNK_AO_CONTROL_TOKEN": "o11y-api-token", "AGENT_CONTROL_API_KEY": "galileo-console-key"}
+with mock.patch.dict(os.environ, _ao_env), \
+     mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+     mock.patch.object(settings, "galileo_agent_control_stages", ""), \
+     mock.patch.object(ac.httpx, "get", side_effect=_fake_get), \
+     mock.patch.object(ac.httpx, "post", side_effect=_fake_post_ao):
+    ao_client = ac.AgentControlClient()
+    check("backend reads as splunk_ao", ao_client.backend == "splunk_ao" and ao_client.is_splunk_ao)
+    check("configured by the AO token alone (no console key involved)", ao_client.is_configured is True)
+    check("never presents the Galileo console key on this backend", ao_client.api_key == "o11y-api-token")
+    check("control URL derives from SPLUNK_AO_REALM",
+          ao_client.control_url == "https://app.us1.observability.splunkcloud.com/ao/agent-control")
+    check("AO CRUD API sits beside it", ao_client.ao_api_url == "https://app.us1.observability.splunkcloud.com/ao/api")
+    check("both stages run by default on splunk_ao", ao_client.stages == ["pre", "post"])
+    check("the step name is the UI's complete_chat", ao_client.step_name == "complete_chat")
+    check("the target is the theme's Agent stream (the same resolver the AO worker uses)",
+          ao_client.stream_for_theme("telecomchatbot") == "TelecomChatbot")
+
+    pre = ao_client.evaluate_prompt("How do I get a refund?", session_id="s-2", theme="telecomchatbot")
+    post = ao_client.evaluate_response("q", "a", session_id="s-2", theme="telecomchatbot", model="gpt-4o")
+    with mock.patch.object(settings, "galileo_agent_control_execution", "client"):
+        forced = ao_client.evaluate_response("q", "a", theme="telecomchatbot")
+    missing = ao_client.evaluate_prompt("q", theme="no-such-theme")
+
+evals = [(u, k) for u, k in posts if u.endswith("/api/v1/evaluation")]
+inits = [(u, k) for u, k in posts if u.endswith("/api/v1/agents/initAgent")]
+exchanges = [(u, k) for u, k in posts if u.endswith("/runtime-token-exchange")]
+check("evaluations went to the AO-hosted server",
+      evals and all(u.startswith("https://app.us1.observability.splunkcloud.com/ao/agent-control/") for u, _ in evals))
+check("three evaluations were posted (pre, post, and the client-mode one forced to server)", len(evals) == 3)
+_h = evals[0][1].get("headers", {})
+check("auth is X-SF-Token with the AO token, no Authorization header",
+      _h.get("X-SF-Token") == "o11y-api-token" and "Authorization" not in _h)
+_pre_body, _post_body = evals[0][1]["json"], evals[1][1]["json"]
+check("pre stage: stage=pre, the prompt as input, no output key",
+      _pre_body.get("stage") == "pre" and _pre_body["step"].get("input") == "How do I get a refund?"
+      and "output" not in _pre_body["step"])
+check("post stage: stage=post with the answer as output",
+      _post_body.get("stage") == "post" and _post_body["step"].get("output") == "a")
+check("the step is llm / complete_chat",
+      _pre_body["step"].get("type") == "llm" and _pre_body["step"].get("name") == "complete_chat")
+check("every evaluation is bound to the theme's stream as the target (found on page 2)",
+      all(k["json"].get("target_type") == "agent_stream" and k["json"].get("target_id") == "stream-tele"
+          for _, k in evals))
+check("the context names the Agent stream for triage",
+      (_post_body["step"].get("context") or {}).get("agent_stream") == "TelecomChatbot")
+check("the agent is registered once per target with the target in the body (like the SDK's init)",
+      len(inits) == 1 and inits[0][1]["json"].get("target_id") == "stream-tele"
+      and inits[0][1]["json"]["steps"][0]["name"] == "complete_chat"
+      and inits[0][1]["headers"].get("X-SF-Token") == "o11y-api-token")
+check("a 404 runtime-token exchange falls back to the API token alone (SDK auto mode)",
+      len(exchanges) == 1 and pre.errored is False and "X-Agent-Control-Runtime-Token" not in _h)
+_pages = [k for u, k in gets if u.endswith("/log_streams/paginated")]
+# 2 pages to find TelecomChatbot (cached across the pre / post / forced calls),
+# then 2 more for the stream that does not exist (a miss is rescanned, never
+# negatively cached: the stream appears on the theme's first logged turn).
+check("the stream id is resolved through /ao/api with X-SF-Token, following pagination, then cached",
+      len(_pages) == 4 and all(k["headers"].get("X-SF-Token") == "o11y-api-token" for _, k in gets)
+      and any(u.endswith("/ao/api/projects") and (k.get("params") or {}).get("project_name") == "PseudoCo Assistant"
+              for u, k in gets))
+check("a deny at the prompt stage blocks, and the verdict knows its stage / backend / target",
+      pre.should_block is True and pre.stage == "pre" and pre.backend == "splunk_ao"
+      and pre.target == "TelecomChatbot" and pre.duration_ms is not None)
+check("verdict records carry what the governance event and the control span need",
+      set(pre.record()) >= {"stage", "backend", "target", "controls", "decisions", "errored", "duration_ms", "agent_name"}
+      and pre.record()["controls"] == ["tele-block"] and pre.record()["decisions"] == ["deny"])
+check("execution=client is forced to server on splunk_ao (its scorers live in the AO org)",
+      forced.transport == "server" and forced.errored is False)
+check("a stream that does not exist yet is an errored verdict (fail-open policy decides), never an exception",
+      missing.errored is True and "target:" in (missing.error_message or ""))
+
+# Backend isolation: the galileo path is untouched, and each backend has its
+# own credential — a box with both keys never sends one vendor the other's.
+with mock.patch.dict(os.environ, {"AGENT_CONTROL_API_KEY": "galileo-console-key",
+                                  "SPLUNK_AO_CONTROL_TOKEN": "", "SPLUNK_AO_O11Y_API_TOKEN": "",
+                                  "SPLUNK_AO_REALM": "us1"}):
+    with mock.patch.object(settings, "galileo_agent_control_backend", "galileo"), \
+         mock.patch.object(settings, "galileo_agent_control_stages", ""):
+        g = ac.AgentControlClient()
+        check("galileo backend still reads AGENT_CONTROL_API_KEY and runs post only",
+              g.backend == "galileo" and g.api_key == "galileo-console-key" and g.stages == ["post"]
+              and g.control_url == settings.galileo_agent_control_url.rstrip("/"))
+    with mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"):
+        check("splunk_ao with only the Galileo key set is NOT configured (no credential sharing)",
+              ac.AgentControlClient().is_configured is False)
+    with mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+         mock.patch.dict(os.environ, {"SPLUNK_AO_O11Y_API_TOKEN": "sessions-token"}):
+        check("splunk_ao falls back to the AO worker's SPLUNK_AO_O11Y_API_TOKEN",
+              ac.AgentControlClient().api_key == "sessions-token")
+    with mock.patch.object(settings, "galileo_agent_control_backend", "galileo"), \
+         mock.patch.object(settings, "galileo_agent_control_stages", "pre,post"):
+        check("GALILEO_AGENT_CONTROL_STAGES overrides the backend default", ac.AgentControlClient().stages == ["pre", "post"])
+    with mock.patch.object(settings, "galileo_agent_control_backend", "splunk_ao"), \
+         mock.patch.object(settings, "galileo_agent_control_stages", "post"):
+        check("stages can be narrowed to post on splunk_ao too", ac.AgentControlClient().stages == ["post"])
+
+# ---- 7. prompt-stage node ---------------------------------------------------
+print("\n[7] prompt-stage node")
+
+
+class _AOStub:
+    is_configured = True
+    stages = ["pre", "post"]
+
+    def __init__(self, verdict):
+        self.verdict = verdict
+        self.calls = []
+
+    def evaluate_prompt(self, msg, **k):
+        self.calls.append(("pre", msg, k))
+        return self.verdict
+
+    def evaluate_response(self, **k):
+        self.calls.append(("post", k))
+        return ac.ControlVerdict()
+
+
+pre_deny = ac.ControlVerdict(is_safe=False, decisions=["deny"], matched_controls=["tele-prompt-block"], stage="pre")
+_saved_node_client = node_mod.agent_control_client
+try:
+    node_mod.agent_control_client = _AOStub(pre_deny)
+    with mock.patch.object(node_mod.content_engine, "_handle_agent_control_prompt_block") as ph:
+        ph.return_value = {"message": "withheld", "policy_blocked": True}
+        out = node_mod.agent_control_prompt_node(dict(base_state, agent_control_review=True))
+    check("a prompt deny short-circuits before any model call",
+          out.get("terminal") is True and out.get("result", {}).get("policy_blocked") is True)
+    check("the prompt verdict is recorded on its own state key", out.get("agent_control_prompt") is pre_deny)
+    check("prompt stage timing recorded", "agent_control_prompt_ms" in (out.get("stage_timings") or {}))
+    check("the prompt block handler gets the user message and the theme",
+          ph.call_args.kwargs.get("user_message") == "q" and "theme" in ph.call_args.kwargs)
+
+    node_mod.agent_control_client = _AOStub(
+        ac.ControlVerdict(decisions=["observe"], matched_controls=["watch"], stage="pre"))
+    allowed = node_mod.agent_control_prompt_node(dict(base_state, agent_control_review=True))
+    check("a non-blocking prompt verdict continues the turn and still reaches governance",
+          allowed.get("terminal") is None and allowed.get("agent_control_prompt") is not None)
+    check("the prompt node is a no-op without opt-in", node_mod.agent_control_prompt_node(dict(base_state)) == {})
+
+    post_only = _AOStub(pre_deny)
+    post_only.stages = ["post"]
+    node_mod.agent_control_client = post_only
+    check("the prompt node is a no-op when the backend runs the response stage only",
+          node_mod.agent_control_prompt_node(dict(base_state, agent_control_review=True)) == {}
+          and not post_only.calls)
+
+    class _Legacy:                      # a stub without ``stages``: response stage only
+        is_configured = True
+
+        def evaluate_response(self, **k):
+            return ac.ControlVerdict()
+
+    node_mod.agent_control_client = _Legacy()
+    check("a client without `stages` runs the response stage only",
+          node_mod.agent_control_prompt_node(dict(base_state, agent_control_review=True)) == {})
+finally:
+    node_mod.agent_control_client = _saved_node_client
+
+from backend.agents.blueprints.guardrails import PRE_NODES, _MAY_TERMINATE  # noqa: E402
+
+check("the prompt node sits right after Cisco AI Defense in the PRE chain",
+      PRE_NODES.index("agent_control_prompt") == PRE_NODES.index("prompt_defense") + 1)
+check("the prompt node may terminate the turn", "agent_control_prompt" in _MAY_TERMINATE)
+check("governance reads the prompt-stage verdict too", "agent_control_prompt" in gov_src)
+check("governance carries both verdicts to Agent Observability", "agent_control_verdicts" in gov_src)
+check("chat.js labels the prompt stage", "agent_control_prompt:" in js)
+
 os.environ.pop("GALILEO_API_KEY", None)
 os.environ.pop("AGENT_CONTROL_API_KEY", None)
 
