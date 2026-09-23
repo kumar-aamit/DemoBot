@@ -817,6 +817,7 @@ def _build_turn(lg, log_data: Dict[str, Any]) -> None:
                         num_output_tokens=log_data.get("usage_output_tokens"),
                         total_tokens=log_data.get("usage_total_tokens"),
                         duration_ns=turn_ns, created_at=turn_start, metadata=meta)
+    _add_control_spans(lg, log_data.get("agent_control_verdicts"), inp, out, meta, turn_start, turn_ns)
     lg.conclude(output=out, duration_ns=turn_ns)      # pop the workflow span
     lg.conclude(output=out, duration_ns=turn_ns)      # pop the trace envelope
 
@@ -839,6 +840,73 @@ def _add_agent_spans(lg, agent_trace, inp: str, model: str, meta: Dict[str, Any]
         lg.conclude(output=agent_out, duration_ns=dur_ns)      # pop the agent span
         if cursor is not None and dur_ns:
             cursor = cursor + timedelta(microseconds=dur_ns / 1000)
+
+
+def _add_control_spans(lg, records: Any, inp: str, out: str, meta: Dict[str, Any],
+                       turn_start, turn_ns: Optional[int]) -> None:
+    """One control span per Agent Control verdict of the turn (prompt stage,
+    response stage) as a leaf under the ``chat_turn`` workflow span — the
+    shield-icon span the Agent Observability trace view shows and the stream's
+    Control View counts. The official SDK's splunk-ao bridge would emit these
+    in-process during the turn; this app rebuilds the turn afterwards, so the
+    verdicts ride in on the governance event (``agent_control_verdicts``,
+    written by the governance node and the two block handlers) instead.
+
+    A verdict with matched controls becomes one span per control, named after
+    it and carrying its action; a clean or errored verdict becomes one
+    ``observe`` span named after the stage, so an evaluation that ran is always
+    visible. Native in splunk-ao 0.4.0 (``SplunkAOLogger.add_control_span``); a
+    logger without it, an SDK without the control schema, or a turn without
+    verdicts adds nothing."""
+    if not records or not hasattr(lg, "add_control_span"):
+        return
+    try:
+        from splunk_ao.logger.control import (   # type: ignore[import-not-found]
+            ControlAppliesTo, ControlCheckStage, ControlResult,
+        )
+    except Exception:  # noqa: BLE001 - an SDK without control spans
+        return
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        stage = "pre" if rec.get("stage") == "pre" else "post"
+        controls = [str(c) for c in (rec.get("controls") or [])]
+        decisions = [str(d).lower() for d in (rec.get("decisions") or [])]
+        errored = bool(rec.get("errored"))
+        dur_ns = _ms_to_ns(rec.get("duration_ms"))
+        # The prompt screen ran before the model; the response judge at the end.
+        if stage == "post" and turn_start is not None and turn_ns and dur_ns and turn_ns > dur_ns:
+            created = turn_start + timedelta(microseconds=(turn_ns - dur_ns) / 1000)
+        else:
+            created = turn_start
+        span_meta = dict(meta)
+        span_meta.update({
+            "agent_control_stage": stage,
+            "agent_control_backend": str(rec.get("backend") or ""),
+            "agent_control_transport": str(rec.get("transport") or ""),
+            "agent_control_target": str(rec.get("target") or ""),
+            "agent_control_errored": errored,
+        })
+        confidence = rec.get("confidence")
+        try:
+            confidence = float(confidence) if confidence is not None else None
+        except (TypeError, ValueError):
+            confidence = None
+        error_message = str(rec.get("error_message")) if errored and rec.get("error_message") else None
+        for i, name in enumerate(controls or [f"agent-control-{stage}"]):
+            decision = decisions[i] if i < len(decisions) else "observe"
+            # ControlResult.action is the SDK's str-enum (deny | steer | observe);
+            # the vendor's allow/warn/log aliases all read as observe.
+            action = decision if decision in ("deny", "steer", "observe") else "observe"
+            lg.add_control_span(
+                input=inp if stage == "pre" else out,
+                output=ControlResult(action=action, matched=bool(controls),
+                                     confidence=confidence, error_message=error_message),
+                name=name, created_at=created, duration_ns=dur_ns, metadata=span_meta,
+                status_code=500 if errored else 200,
+                agent_name=rec.get("agent_name") or None,
+                check_stage=ControlCheckStage(stage), applies_to=ControlAppliesTo("llm_call"),
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -841,6 +841,7 @@ const STAGE_LABELS = {
     router: 'Routing to the right care team…',
     policy: 'Policy screening…',
     prompt_defense: 'Screening your message (AI Defense)…',
+    agent_control_prompt: 'Screening your message (Agent Observability Controls)…',
     nemo_input_rails: 'Screening your message (NeMo Guardrails)…',
     scheduling_intake: 'Checking your schedule…',
     intake: 'Reviewing your message…',

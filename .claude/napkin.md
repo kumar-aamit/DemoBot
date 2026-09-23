@@ -162,6 +162,20 @@ Curated, high-value runbook. Read before work; keep only recurring guidance.
   standalone script must `import backend.config` FIRST.
 
 ## Agent Control ("Agent Observability Controls" toggle)
+- **[2026-09-23] Second backend: `GALILEO_AGENT_CONTROL_BACKEND=splunk_ao`** — the Agent
+  Control server INSIDE this realm's Agent Observability
+  (`https://app.<realm>.observability.splunkcloud.com/ao/agent-control`; `/health` reports
+  server 8.5.0 in us1). Same httpx client, no SDK: the official `agent-control-sdk` is
+  Python>=3.12-only (PEP 695 syntax, cannot import on 3.11) and binds ONE target per process.
+  Auth = `X-SF-Token: $SPLUNK_AO_CONTROL_TOKEN` (falls back to `SPLUNK_AO_O11Y_API_TOKEN`);
+  the token MUST carry the `agent_observability_admin` role — a plain O11y API token gets
+  `/health` 200 but `403 controls.read` and `/ao/api` 403 (verified with the Mac's `O11Y_API`).
+  Every call is bound to the theme's Agent stream (`_stream_for`; id via `/ao/api`, cached);
+  both stages run (`agent_control_prompt` PRE node after `prompt_defense`, `agent_control`
+  POST); verdicts ride the governance event as `agent_control_verdicts` and become control
+  spans in `_build_turn`. Open: target_type `agent_stream` (Splunk how-to, Kumar) vs
+  `log_stream` (splunk-ao constant) — `SPLUNK_AO_CONTROL_TARGET_TYPE`; probe with
+  `agent_control_client.list_controls(theme=…)`. Design: docs/agent-control-splunk-ao.md.
 - Credentials are `AGENT_CONTROL_API_KEY` / `AGENT_CONTROL_CONSOLE_URL` (old
   `GALILEO_API_KEY`/`GALILEO_CONSOLE_URL` honored as a deprecated fallback, one
   warning per process; `GALILEO_CONSOLE_URL` is ignored once `AGENT_CONTROL_API_KEY`

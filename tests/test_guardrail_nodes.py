@@ -320,6 +320,18 @@ check("agent_control: the telecom block banner is telecom copy",
 check("agent_control: the telecom block banner has no medical copy",
       not medical_tells(_msg), str(medical_tells(_msg)))
 
+# Agent Control: a denied PROMPT (pre stage) — the same banner contract.
+_msg = content_engine._handle_agent_control_prompt_block(
+    session_id="S-guardrail", request_id="R-guardrail", trace_id="T-guardrail",
+    user_message="hello", conversation_history=[],
+    verdict=ControlVerdict(is_safe=False, matched_controls=["x"], decisions=["deny"], stage="pre"),
+    start_time=time.time(), client_address=None, enduser_id=None, theme="telecomchatbot",
+)["message"]
+check("agent_control prompt: the telecom block banner is telecom copy",
+      _msg.endswith(_tele_line), _msg)
+check("agent_control prompt: the telecom block banner has no medical copy",
+      not medical_tells(_msg), str(medical_tells(_msg)))
+
 # Internal policy engine: the crisis resources stay, the domain noun changes.
 _msg = (policy_block_node(base_state(user_message="i want to kill myself", **{
     k: v for k, v in _tele.items() if k != "user_message"}))["result"])["message"]
@@ -347,6 +359,10 @@ from backend.logging.governance_logger import governance_logger  # noqa: E402
 
 class _DenyingControlClient:
     is_configured = True
+    stages = ["pre", "post"]
+
+    def evaluate_prompt(self, *a, **k):
+        return ControlVerdict(is_safe=False, matched_controls=["x"], decisions=["deny"], stage="pre")
 
     def evaluate_response(self, *a, **k):
         return ControlVerdict(is_safe=False, matched_controls=["x"], decisions=["deny"])
@@ -386,6 +402,8 @@ try:
             base_state(ai_defense_review=True, **_tele)),
         "agent_control": lambda: agent_control_node_mod.agent_control_node(
             base_state(agent_control_review=True, **_tele)),
+        "agent_control prompt": lambda: agent_control_node_mod.agent_control_prompt_node(
+            base_state(agent_control_review=True, **_tele)),
         "nemo input rails": lambda: nemo_rails._blocked_result(
             base_state(**_tele), RailVerdict(is_safe=False, stage="input", rule_names=["self check"]),
             stage="input", input_messages=[]),
@@ -402,6 +420,18 @@ try:
         check(f"{_label}: the blocked turn lands in the theme's Agent stream",
               agent_observability._stream_for(_ev) == _tele_stream,
               agent_observability._stream_for(_ev))
+    # Both Agent Control block events carry their verdict record(s), which is
+    # what Agent Observability turns into the control span on the trace.
+    _events = blocked_turn_events(_blocks["agent_control prompt"])
+    _rec = ((_events[0] if _events else {}).get("agent_control_verdicts") or [{}])[0]
+    check("agent_control prompt: the blocked event carries the pre-stage verdict record",
+          _rec.get("stage") == "pre" and _rec.get("controls") == ["x"] and _rec.get("decisions") == ["deny"],
+          str(_rec))
+    _events = blocked_turn_events(_blocks["agent_control"])
+    _recs = (_events[0] if _events else {}).get("agent_control_verdicts") or []
+    check("agent_control: the blocked event carries the post-stage verdict record",
+          bool(_recs) and _recs[-1].get("stage") == "post" and _recs[-1].get("controls") == ["x"],
+          str(_recs))
 finally:
     defense_node_mod.ai_defense_client = _saved_client
     agent_control_node_mod.agent_control_client = _saved_control_client

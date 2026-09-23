@@ -1,6 +1,7 @@
 """The shared guardrail chain every blueprint is wired into — parity by construction.
 
-    START -> policy -> prompt_defense -> nemo_input_rails -> scheduling_intake -> <core entry>
+    START -> policy -> prompt_defense -> agent_control_prompt -> nemo_input_rails
+          -> scheduling_intake -> <core entry>
              ... core ...
     <core exit> -> safety -> injection -> scheduling -> compliance -> agent_control
                 -> nemo_output_rails -> response_defense -> governance -> END
@@ -20,7 +21,7 @@ from typing import Any, Callable, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from backend.agents.blueprints.base import Blueprint
-from backend.agents.nodes.agent_control import agent_control_node
+from backend.agents.nodes.agent_control import agent_control_node, agent_control_prompt_node
 from backend.agents.nodes.compliance import compliance_node
 from backend.agents.nodes.defense import prompt_defense_node, response_defense_node
 from backend.agents.nodes.governance import governance_node
@@ -32,11 +33,14 @@ from backend.agents.nodes.scheduling import scheduling_intake_node, scheduling_n
 from backend.agents.state import PseudoCoAssistantState
 
 # Screen the PROMPT before any model call. Order matters: the internal policy
-# engine is free and deterministic, Cisco AI Defense inspects next, NeMo's
-# input rails last. scheduling_intake (docs/scheduling.md) runs after the
-# screens: it reads the already-vetted message, never calls a model, never
-# terminates.
-PRE_NODES: List[str] = ["policy", "prompt_defense", "nemo_input_rails", "scheduling_intake"]
+# engine is free and deterministic, Cisco AI Defense inspects next, the Agent
+# Control prompt-stage controls after it (mirroring its place on output: AI
+# Defense keeps the first and last word), NeMo's input rails last.
+# scheduling_intake (docs/scheduling.md) runs after the screens: it reads the
+# already-vetted message, never calls a model, never terminates.
+PRE_NODES: List[str] = [
+    "policy", "prompt_defense", "agent_control_prompt", "nemo_input_rails", "scheduling_intake",
+]
 # Screen / shape the ANSWER. Cisco AI Defense (response_defense) stays the last
 # word on output; governance logs the outcome. scheduling sits before
 # compliance so its text is part of the logged response_text and is still
@@ -50,6 +54,7 @@ GUARDRAIL_NODES: List[str] = PRE_NODES + POST_NODES
 _NODE_FNS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "policy": policy_block_node,
     "prompt_defense": prompt_defense_node,
+    "agent_control_prompt": agent_control_prompt_node,
     "nemo_input_rails": nemo_input_rails_node,
     "scheduling_intake": scheduling_intake_node,
     "safety": safety_node,
@@ -64,8 +69,8 @@ _NODE_FNS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
 
 # Nodes that may short-circuit (set ``terminal``) and therefore need the
 # conditional edge; the rest chain unconditionally.
-_MAY_TERMINATE = {"policy", "prompt_defense", "nemo_input_rails", "agent_control",
-                  "nemo_output_rails", "response_defense"}
+_MAY_TERMINATE = {"policy", "prompt_defense", "agent_control_prompt", "nemo_input_rails",
+                  "agent_control", "nemo_output_rails", "response_defense"}
 
 
 def _terminal_router(state: Dict[str, Any]) -> str:

@@ -240,10 +240,12 @@ def test_graph_order() -> None:
 
     g = build_theme_subgraph(THEMES["medadvice"]).get_graph()
     edges = {(e.source, e.target) for e in g.edges}
-    # NeMo's input rails stay the last SCREEN; the scheduling intake (no model,
-    # never terminal — docs/scheduling.md) sits between them and the core.
-    check("prompt_defense -> nemo_input_rails -> scheduling_intake -> intake",
-          ("prompt_defense", "nemo_input_rails") in edges
+    # NeMo's input rails stay the last SCREEN (after AI Defense and the Agent
+    # Control prompt stage); the scheduling intake (no model, never terminal —
+    # docs/scheduling.md) sits between them and the core.
+    check("prompt_defense -> agent_control_prompt -> nemo_input_rails -> scheduling_intake -> intake",
+          ("prompt_defense", "agent_control_prompt") in edges
+          and ("agent_control_prompt", "nemo_input_rails") in edges
           and ("nemo_input_rails", "scheduling_intake") in edges
           and ("scheduling_intake", "intake") in edges)
     check("agent_control -> nemo_output_rails -> response_defense (Cisco stays last)",

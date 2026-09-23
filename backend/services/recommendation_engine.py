@@ -1971,6 +1971,126 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             },
         }
 
+    @staticmethod
+    def _control_verdict_records(*verdicts: Optional["ControlVerdict"]) -> Optional[List[Dict[str, Any]]]:
+        """The turn's Agent Control verdicts as governance records, prompt stage
+        first; None when no stage ran (the field is then dropped)."""
+        records = [v.record() for v in verdicts if v is not None and hasattr(v, "record")]
+        return records or None
+
+    def _handle_agent_control_prompt_block(
+        self,
+        session_id: str,
+        request_id: str,
+        trace_id: str,
+        user_message: str,
+        conversation_history: List[Dict[str, Any]],
+        verdict: "ControlVerdict",
+        start_time: float,
+        client_address: Optional[str],
+        enduser_id: Optional[str],
+        governance_overrides: Optional[Dict[str, str]] = None,
+        theme: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Block a prompt that an Agent Control pre-stage control denied (or
+        that errored under a fail-closed policy), logging the verdict to the
+        governance pipeline.
+
+        Shaped exactly like ``_handle_ai_defense_block`` — same result keys,
+        same governance fields, zero token usage because no model ran — so the
+        two prompt guardrails are interchangeable downstream; only
+        ``guardrail_ids`` and the metadata block name the source. ``theme``
+        rides on the event so the block lands in its theme's Agent stream."""
+        duration = time.time() - start_time
+
+        if verdict.errored:
+            reasons = [
+                f"Splunk Agent Observability Control unavailable (fail-closed): {verdict.error_message}"
+            ]
+            blocked_message = block_banner(
+                "Your message could not be reviewed by our agent control service "
+                "and was not processed. Please try again in a moment.",
+                theme,
+            )
+        else:
+            control_part = (
+                f" ({', '.join(verdict.matched_controls)})"
+                if verdict.matched_controls
+                else ""
+            )
+            reasons = [f"Splunk Agent Observability Control denied the prompt{control_part}"]
+            reasons.extend(verdict.messages)
+            if verdict.reason:
+                reasons.append(verdict.reason)
+            blocked_message = block_banner(
+                "This request was withheld by our agent control policy and was not "
+                "sent to the assistant. Please rephrase your message.",
+                theme,
+            )
+
+        governance_logger.log_response(
+            session_id=session_id,
+            request_id=request_id,
+            response_id="agent-control-prompt-blocked",
+            operation_name="chat",
+            input_messages=[{"role": "user", "content": user_message}],
+            output_messages=[{"role": "assistant", "content": blocked_message}],
+            response_text=(
+                f"⚠️ POLICY BLOCKED (Splunk Agent Observability Control - prompt)\n{blocked_message}"
+            ),
+            # The prompt never reached the provider: no token usage, no reply.
+            usage_data={
+                "usage_input_tokens": 0,
+                "usage_output_tokens": 0,
+                "usage_total_tokens": 0,
+            },
+            performance_data={"client_operation_duration": duration},
+            response_model=active_response_model(),
+            response_finish_reasons=["policy_blocked"],
+            safety_violated=True,
+            safety_categories=reasons,
+            guardrail_triggered=True,
+            guardrail_ids=["galileo_agent_control"],
+            policy_blocked=True,
+            agent_control_verdicts=self._control_verdict_records(verdict),
+            pii_detected=False,
+            pii_types=[],
+            toxic_detected=False,
+            toxic_types=[],
+            evaluation_score_value=1.0,
+            evaluation_score_label="high",
+            theme=theme,
+            trace_id=trace_id,
+            client_address=client_address,
+            enduser_id=enduser_id,
+            **(governance_overrides or {}),
+        )
+
+        return {
+            "message": blocked_message,
+            "type": MessageType.SAFETY_WARNING,
+            "severity": SeverityLevel.MEDIUM,
+            "escalated": False,
+            "policy_blocked": True,
+            "metadata": {
+                "confidence": 1.0,
+                "escalation_reasons": reasons,
+                "agent_control": {
+                    "is_safe": verdict.is_safe,
+                    "confidence": verdict.confidence,
+                    "controls": verdict.matched_controls,
+                    "decisions": verdict.decisions,
+                    "messages": verdict.messages,
+                    "evaluator_errors": verdict.evaluator_errors,
+                    "errored": verdict.errored,
+                    "transport": verdict.transport,
+                    "backend": verdict.backend,
+                    "target": verdict.target,
+                    "stage": "prompt",
+                },
+            },
+        }
+
     def _handle_agent_control_block(
         self,
         session_id: str,
@@ -1985,6 +2105,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
         usage_data: Optional[Dict[str, Any]] = None,
         governance_overrides: Optional[Dict[str, Any]] = None,
         theme: Optional[str] = None,
+        prompt_verdict: Optional["ControlVerdict"] = None,
     ) -> Dict[str, Any]:
         """Withhold a model response that a Galileo Agent Control denied (or
         that errored under a fail-closed policy), logging the verdict to the
@@ -2052,6 +2173,7 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
             guardrail_triggered=True,
             guardrail_ids=["galileo_agent_control"],
             policy_blocked=True,
+            agent_control_verdicts=self._control_verdict_records(prompt_verdict, verdict),
             pii_detected=False,
             pii_types=[],
             toxic_detected=False,
@@ -2085,6 +2207,8 @@ Put ALL customer-facing text in "reply" -- do not add commentary outside the JSO
                     "evaluator_errors": verdict.evaluator_errors,
                     "errored": verdict.errored,
                     "transport": verdict.transport,
+                    "backend": getattr(verdict, "backend", None),
+                    "target": getattr(verdict, "target", None),
                     "stage": "response",
                 },
             },

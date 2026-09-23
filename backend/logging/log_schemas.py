@@ -79,6 +79,12 @@ def create_governance_log(
         "guardrail_triggered": kwargs.get("guardrail_triggered", False),
         "guardrail_ids": kwargs.get("guardrail_ids"),
         "policy_blocked": kwargs.get("policy_blocked", False),
+        # Additive: the Agent Control verdict(s) of the turn, one record per
+        # stage — {stage, backend, target, is_safe, confidence, controls,
+        # decisions, messages, evaluator_errors, errored, error_message,
+        # transport, duration_ms}. The Agent Observability path rebuilds them as
+        # control spans on the turn's trace; None (dropped) when no review ran.
+        "agent_control_verdicts": kwargs.get("agent_control_verdicts"),
 
         # PII detection
         "pii_detected": kwargs.get("pii_detected", False),

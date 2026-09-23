@@ -288,6 +288,30 @@ _INTEGRATION_FIELDS: Dict[str, List[_CredField]] = {
         _CredField("agent_control_console_url", "Agent Control console URL",
                    env="AGENT_CONTROL_CONSOLE_URL",
                    placeholder="https://console.multitenant.galileocloud.io"),
+        # Which Agent Control server the guardrail talks to. splunk_ao is the one
+        # hosted inside this realm's Agent Observability: controls are attached
+        # to the Agent stream in the AO UI, the token below authenticates as
+        # X-SF-Token, and the two console fields above are not used.
+        _CredField("agent_control_backend", "Agent Control backend",
+                   settings_attr="galileo_agent_control_backend", placeholder="galileo | splunk_ao",
+                   help="galileo = the standalone Galileo console (key + console URL above). "
+                        "splunk_ao = the Agent Control server inside this realm's Agent "
+                        "Observability: controls attached to the Agent stream in the AO UI, "
+                        "authenticated by the token below; the console fields are not used."),
+        _CredField("splunk_ao_control_token", "AO control token (splunk_ao)", secret=True,
+                   env="SPLUNK_AO_CONTROL_TOKEN",
+                   placeholder="optional — O11y API token with the agent_observability_admin role",
+                   help="Sent as X-SF-Token to /ao/agent-control and /ao/api. Blank = reuse the "
+                        "API token (sessions) field above. A token without the role reaches the "
+                        "gateway but gets 403 controls.read."),
+        _CredField("splunk_ao_control_target_type", "AO control target type (splunk_ao)",
+                   settings_attr="splunk_ao_control_target_type", placeholder="agent_stream",
+                   help="What the gateway binds stream-attached controls under: agent_stream "
+                        "(Splunk's how-to) or log_stream (the splunk-ao SDK's constant). If the "
+                        "controls you attached never apply, try the other."),
+        _CredField("splunk_ao_control_step_name", "AO control step name (splunk_ao)",
+                   settings_attr="splunk_ao_control_step_name", placeholder="complete_chat",
+                   help="The llm step the UI controls are scoped to."),
     ],
     # Applies live: NemoGuardrailsClient.reconfigure() drops the built rails so
     # the next chat turn rebuilds them from the settings singleton.

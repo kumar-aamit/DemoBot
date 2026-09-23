@@ -128,7 +128,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "PseudoCo Assistant v4"
-    app_version: str = "4.11.2"
+    app_version: str = "4.12.0"
     environment: str = "development"  # "development" or "production"
     debug: bool = True
 
@@ -362,6 +362,31 @@ class Settings(BaseSettings):
     # False = fail closed (withhold the response), matching AI Defense's
     # posture; only sensible once runtime enforcement is verified working.
     galileo_agent_control_fail_open: bool = True
+    # Which Agent Control server the guardrail talks to:
+    #   galileo   = the standalone Galileo console + agent-control server above
+    #               (API key -> console JWT -> runtime token), the default;
+    #   splunk_ao = the Agent Control server hosted INSIDE Splunk Observability
+    #               Cloud's Agent Observability
+    #               (https://app.<realm>.observability.splunkcloud.com/ao/agent-control),
+    #               authenticated with an O11y API token sent as X-SF-Token.
+    #               Controls are authored in the Agent Observability Controls UI
+    #               and attached to an Agent stream; the guardrail binds each turn
+    #               to the SAME stream the turn is logged to
+    #               (backend/agent_observability._stream_for), so a control
+    #               attached to "TelecomChatbot" governs telecom turns.
+    galileo_agent_control_backend: str = "galileo"
+    # Which stages run: "post" (judge the answer), "pre" (screen the prompt) or
+    # "pre,post". Empty = the backend's default — post only on galileo (its
+    # console controls are post-scoped), pre,post on splunk_ao.
+    galileo_agent_control_stages: str = ""
+    # splunk_ao backend only. URL override (empty = derived from SPLUNK_AO_REALM);
+    # the target type the AO gateway binds stream-attached controls under
+    # (Splunk's how-to and the splunk-ao SDK's own constant disagree —
+    # "agent_stream" vs "log_stream" — so it is a setting, not a literal); the
+    # step name the UI controls are scoped to (shown as type llm + this name).
+    splunk_ao_control_url: str = ""
+    splunk_ao_control_target_type: str = "agent_stream"
+    splunk_ao_control_step_name: str = "complete_chat"
 
     # -------------------------------------------------------------------------
     # NVIDIA NeMo Guardrails (the "NeMo Guardrails" drawer toggle)
